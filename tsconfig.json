@@ -15,3 +15,24 @@
     "expo-env.d.ts"
   ]
 }
+
+/*
+usbipd bind --busid 1-5
+
+usbipd list
+usbipd attach --wsl --busid <BUSID>
+
+
+
+
+npx expo prebuild --platform android --clean
+adb uninstall com.seesonlau.zenith
+npx expo run:android
+
+
+
+BUILD
+
+npx expo run:android --variant release
+
+*/
