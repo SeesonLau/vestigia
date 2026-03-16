@@ -1,12 +1,43 @@
 // app/index.tsx
-import { Redirect } from "expo-router";
-
-// TODO: Check auth session and redirect appropriately
-// → No session: (auth)/login
-// → role = clinic: (clinic)
-// → role = patient: (patient)
-// → role = admin: (admin)
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import LoadingScreen from "../components/layout/LoadingScreen";
+import { useAuthStore } from "../store/authStore";
 
 export default function Index() {
-  return <Redirect href="/(auth)/login" />;
+  const { restoreSession } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [initialRole, setInitialRole] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    restoreSession().then((role) => {
+      setInitialRole(role);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      if (initialRole) {
+        switch (initialRole) {
+          case "clinic":
+            router.replace("/(clinic)");
+            break;
+          case "patient":
+            router.replace("/(patient)");
+            break;
+          case "admin":
+            router.replace("/(admin)");
+            break;
+          default:
+            router.replace("/(auth)/login");
+        }
+      } else {
+        router.replace("/(auth)/login");
+      }
+    }
+  }, [loading, initialRole]);
+
+  return <LoadingScreen />;
 }

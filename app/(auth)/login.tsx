@@ -1,4 +1,5 @@
 //app/(auth)/login.tsx
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -13,8 +14,11 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useAuthStore } from "../../store/authStore";
 
 export default function LoginScreen() {
+  const router = useRouter();
+  const { login, error: storeError, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -32,11 +36,24 @@ export default function LoginScreen() {
     return Object.keys(e).length === 0;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validate()) return;
     setLoading(true);
-    // TODO: Supabase auth
-    setTimeout(() => setLoading(false), 1500);
+    const result = await login(email, password);
+    setLoading(false);
+    if (result.success) {
+      switch (result.role) {
+        case "clinic":
+          router.replace("/(clinic)");
+          break;
+        case "patient":
+          router.replace("/(patient)");
+          break;
+        case "admin":
+          router.replace("/(admin)");
+          break;
+      }
+    }
   };
 
   return (
@@ -70,7 +87,7 @@ export default function LoginScreen() {
               <Input
                 label="Email address"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => { setEmail(v); clearError(); }}
                 keyboardType="email-address"
                 error={errors.email}
                 autoCapitalize="none"
@@ -79,7 +96,7 @@ export default function LoginScreen() {
               <Input
                 label="Password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => { setPassword(v); clearError(); }}
                 secureTextEntry={!showPassword}
                 error={errors.password}
                 rightIcon={
@@ -90,9 +107,17 @@ export default function LoginScreen() {
                 onRightIconPress={() => setShowPassword((v) => !v)}
               />
 
-              <TouchableOpacity style={styles.forgotLink} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.forgotLink}
+                activeOpacity={0.7}
+                onPress={() => router.push("/(auth)/forgot-password")}
+              >
                 <Text style={styles.forgotText}>Forgot password?</Text>
               </TouchableOpacity>
+
+              {storeError ? (
+                <Text style={styles.generalError}>{storeError}</Text>
+              ) : null}
 
               <Button
                 label="Sign In"
@@ -107,7 +132,10 @@ export default function LoginScreen() {
           {/* Register link */}
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity activeOpacity={0.7}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push("/(auth)/register")}
+            >
               <Text style={styles.registerLink}>Create account</Text>
             </TouchableOpacity>
           </View>
@@ -202,6 +230,13 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     marginTop: Spacing.xs,
+  },
+  generalError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#ef4444",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
   },
 
   // Footer

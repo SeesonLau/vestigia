@@ -12,20 +12,25 @@ import {
 } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
+import ClinicPicker from "../../components/ui/ClinicPicker";
 import Input from "../../components/ui/Input";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useAuthStore } from "../../store/authStore";
 
 type Role = "patient" | "clinic";
 
 export default function RegisterScreen() {
+  const router = useRouter();
+  const { register, error: storeError, clearError } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<Role>("patient");
+  const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -41,15 +46,36 @@ export default function RegisterScreen() {
     return Object.keys(e).length === 0;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
-    // TODO: Supabase sign-up with metadata
-    // On success, navigate based on role
-    setTimeout(() => {
-      setLoading(false);
-      router.replace("/(auth)/login");
-    }, 1500);
+    const result = await register(
+      email,
+      password,
+      fullName,
+      role,
+      selectedClinicId ?? undefined,
+    );
+    setLoading(false);
+    if (result.success) {
+      if (result.needsConfirmation) {
+        setEmailSent(true);
+      } else {
+        switch (result.role) {
+          case "clinic":
+            router.replace("/(clinic)");
+            break;
+          case "patient":
+            router.replace("/(patient)");
+            break;
+          case "admin":
+            router.replace("/(admin)");
+            break;
+          default:
+            router.replace("/(auth)/login");
+        }
+      }
+    }
   };
 
   return (
@@ -72,90 +98,121 @@ export default function RegisterScreen() {
             <Text style={styles.subtitle}>Join the DPN Thermal platform</Text>
           </View>
 
-          {/* Role selector */}
-          <View style={styles.card}>
-            <Text style={styles.sectionLabel}>Account Type</Text>
-            <View style={styles.roleRow}>
-              {(["patient", "clinic"] as Role[]).map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  onPress={() => setRole(r)}
-                  style={[
-                    styles.roleBtn,
-                    role === r ? styles.roleBtnActive : undefined,
-                  ]}
-                  activeOpacity={0.75}
-                >
-                  <Text style={styles.roleIcon}>
-                    {r === "patient" ? "👤" : "🏥"}
-                  </Text>
-                  <Text
+          {emailSent ? (
+            /* Email confirmation screen */
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Check your inbox</Text>
+              <Text style={styles.confirmSubtitle}>
+                We've sent a confirmation link to{" "}
+                <Text style={styles.emailHighlight}>{email}</Text>.{"\n\n"}
+                Click the link in the email to activate your account, then sign
+                in.
+              </Text>
+              <Button
+                label="Back to Sign In"
+                onPress={() => router.replace("/(auth)/login")}
+                variant="secondary"
+                size="lg"
+              />
+            </View>
+          ) : (
+            /* Registration form */
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>Account Type</Text>
+              <View style={styles.roleRow}>
+                {(["patient", "clinic"] as Role[]).map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    onPress={() => setRole(r)}
                     style={[
-                      styles.roleLabel,
-                      role === r ? styles.roleLabelActive : undefined,
+                      styles.roleBtn,
+                      role === r ? styles.roleBtnActive : undefined,
                     ]}
+                    activeOpacity={0.75}
                   >
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text style={styles.roleIcon}>
+                      {r === "patient" ? "👤" : "🏥"}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.roleLabel,
+                        role === r ? styles.roleLabelActive : undefined,
+                      ]}
+                    >
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Clinic picker — shown only when role is clinic */}
+              {role === "clinic" && (
+                <ClinicPicker
+                  selectedId={selectedClinicId}
+                  onSelect={setSelectedClinicId}
+                />
+              )}
+
+              {/* Form */}
+              <View style={styles.form}>
+                <Input
+                  label="Full Name"
+                  placeholder="Juan dela Cruz"
+                  value={fullName}
+                  onChangeText={(v) => { setFullName(v); clearError(); }}
+                  error={errors.fullName}
+                  autoCapitalize="words"
+                />
+                <Input
+                  label="Email Address"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChangeText={(v) => { setEmail(v); clearError(); }}
+                  keyboardType="email-address"
+                  error={errors.email}
+                />
+                <Input
+                  label="Password"
+                  placeholder="Min. 8 chars, uppercase, number"
+                  value={password}
+                  onChangeText={(v) => { setPassword(v); clearError(); }}
+                  secureTextEntry={!showPassword}
+                  error={errors.password}
+                  rightIcon={
+                    <Text style={{ fontSize: 16 }}>
+                      {showPassword ? "🙈" : "👁"}
+                    </Text>
+                  }
+                  onRightIconPress={() => setShowPassword((v) => !v)}
+                />
+                <Input
+                  label="Confirm Password"
+                  placeholder="Re-enter password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showPassword}
+                  error={errors.confirmPassword}
+                />
+              </View>
+
+              {storeError ? (
+                <Text style={styles.generalError}>{storeError}</Text>
+              ) : null}
+
+              <Button
+                label="Create Account"
+                onPress={handleRegister}
+                loading={loading}
+                size="lg"
+              />
+
+              <Text style={styles.terms}>
+                By creating an account, you agree to our{" "}
+                <Text style={styles.link}>Terms of Service</Text> and{" "}
+                <Text style={styles.link}>Privacy Policy</Text>.
+              </Text>
             </View>
-
-            {/* Form */}
-            <View style={styles.form}>
-              <Input
-                label="Full Name"
-                placeholder="Juan dela Cruz"
-                value={fullName}
-                onChangeText={setFullName}
-                error={errors.fullName}
-                autoCapitalize="words"
-              />
-              <Input
-                label="Email Address"
-                placeholder="you@example.com"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                error={errors.email}
-              />
-              <Input
-                label="Password"
-                placeholder="Min. 8 chars, uppercase, number"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                error={errors.password}
-                rightIcon={
-                  <Text style={{ fontSize: 16 }}>
-                    {showPassword ? "🙈" : "👁"}
-                  </Text>
-                }
-                onRightIconPress={() => setShowPassword((v) => !v)}
-              />
-              <Input
-                label="Confirm Password"
-                placeholder="Re-enter password"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showPassword}
-                error={errors.confirmPassword}
-              />
-            </View>
-
-            <Button
-              label="Create Account"
-              onPress={handleRegister}
-              loading={loading}
-              size="lg"
-            />
-
-            <Text style={styles.terms}>
-              By creating an account, you agree to our{" "}
-              <Text style={styles.link}>Terms of Service</Text> and{" "}
-              <Text style={styles.link}>Privacy Policy</Text>.
-            </Text>
-          </View>
+          )}
 
           {/* Login link */}
           <View style={styles.footer}>
@@ -221,6 +278,23 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     padding: Spacing.xl,
   },
+  cardTitle: {
+    fontSize: Typography.sizes["2xl"],
+    fontFamily: Typography.fonts.heading,
+    color: Colors.text.primary,
+    marginBottom: Spacing.sm,
+  },
+  confirmSubtitle: {
+    fontSize: Typography.sizes.base,
+    fontFamily: Typography.fonts.body,
+    color: Colors.text.muted,
+    lineHeight: 22,
+    marginBottom: Spacing.xl,
+  },
+  emailHighlight: {
+    color: Colors.primary[300],
+    fontFamily: Typography.fonts.subheading,
+  },
   sectionLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
@@ -258,6 +332,13 @@ const styles = StyleSheet.create({
   },
   roleLabelActive: { color: Colors.primary[300] },
   form: { marginBottom: Spacing.lg },
+  generalError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#ef4444",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
   terms: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,

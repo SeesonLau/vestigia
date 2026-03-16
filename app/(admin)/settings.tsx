@@ -158,8 +158,8 @@ export default function AdminSettingsScreen() {
             icon="🚪"
             label="Sign Out"
             danger
-            onPress={() => {
-              logout();
+            onPress={async () => {
+              await logout();
               router.replace("/(auth)/login");
             }}
           />

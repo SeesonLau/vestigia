@@ -14,11 +14,13 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useAuthStore } from "../../store/authStore";
 
 type Step = "input" | "sent";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
+  const { forgotPassword } = useAuthStore();
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,10 +32,13 @@ export default function ForgotPasswordScreen() {
       return;
     }
     setLoading(true);
-    // TODO: supabase.auth.resetPasswordForEmail(email)
-    await new Promise((r) => setTimeout(r, 1200));
+    const result = await forgotPassword(email);
     setLoading(false);
-    setStep("sent");
+    if (result.success) {
+      setStep("sent");
+    } else {
+      setError(result.error ?? "Failed to send reset link. Please try again.");
+    }
   };
 
   return (
