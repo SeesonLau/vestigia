@@ -1,4 +1,5 @@
 // app/(auth)/register.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -37,9 +38,12 @@ export default function RegisterScreen() {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = "Full name is required";
     if (!email.includes("@")) e.email = "Enter a valid email address";
-    if (password.length < 8) e.password = "Minimum 8 characters required";
-    if (!/[A-Z]/.test(password)) e.password = "Must include uppercase letter";
-    if (!/[0-9]/.test(password)) e.password = "Must include a number";
+    // AUTH-04: Check all password rules together so every failure is visible at once
+    const missing: string[] = [];
+    if (password.length < 8) missing.push("8+ characters");
+    if (!/[A-Z]/.test(password)) missing.push("uppercase letter");
+    if (!/[0-9]/.test(password)) missing.push("number");
+    if (missing.length) e.password = `Must include: ${missing.join(", ")}`;
     if (password !== confirmPassword)
       e.confirmPassword = "Passwords do not match";
     setErrors(e);
@@ -71,6 +75,7 @@ export default function RegisterScreen() {
           case "admin":
             router.replace("/(admin)");
             break;
+          // AUTH-09: Unknown role — fall back to login
           default:
             router.replace("/(auth)/login");
         }
@@ -123,16 +128,22 @@ export default function RegisterScreen() {
                 {(["patient", "clinic"] as Role[]).map((r) => (
                   <TouchableOpacity
                     key={r}
-                    onPress={() => setRole(r)}
+                    onPress={() => { setRole(r); setSelectedClinicId(null); }}
                     style={[
                       styles.roleBtn,
                       role === r ? styles.roleBtnActive : undefined,
                     ]}
                     activeOpacity={0.75}
                   >
-                    <Text style={styles.roleIcon}>
-                      {r === "patient" ? "👤" : "🏥"}
-                    </Text>
+                    <Ionicons
+                      name={
+                        r === "patient" ? "person-outline" : "business-outline"
+                      }
+                      size={18}
+                      color={
+                        role === r ? Colors.primary[300] : Colors.text.muted
+                      }
+                    />
                     <Text
                       style={[
                         styles.roleLabel,
@@ -156,38 +167,45 @@ export default function RegisterScreen() {
               {/* Form */}
               <View style={styles.form}>
                 <Input
-                  label="Full Name"
-                  placeholder="Juan dela Cruz"
+                  placeholder="Full name"
                   value={fullName}
-                  onChangeText={(v) => { setFullName(v); clearError(); }}
+                  onChangeText={(v) => {
+                    setFullName(v);
+                    clearError();
+                  }}
                   error={errors.fullName}
                   autoCapitalize="words"
                 />
                 <Input
-                  label="Email Address"
-                  placeholder="you@example.com"
+                  placeholder="Email address"
                   value={email}
-                  onChangeText={(v) => { setEmail(v); clearError(); }}
+                  onChangeText={(v) => {
+                    setEmail(v);
+                    clearError();
+                  }}
                   keyboardType="email-address"
                   error={errors.email}
                 />
                 <Input
-                  label="Password"
-                  placeholder="Min. 8 chars, uppercase, number"
+                  placeholder="Password"
                   value={password}
-                  onChangeText={(v) => { setPassword(v); clearError(); }}
+                  onChangeText={(v) => {
+                    setPassword(v);
+                    clearError();
+                  }}
                   secureTextEntry={!showPassword}
                   error={errors.password}
                   rightIcon={
-                    <Text style={{ fontSize: 16 }}>
-                      {showPassword ? "🙈" : "👁"}
-                    </Text>
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color={Colors.text.muted}
+                    />
                   }
                   onRightIconPress={() => setShowPassword((v) => !v)}
                 />
                 <Input
-                  label="Confirm Password"
-                  placeholder="Re-enter password"
+                  placeholder="Confirm password"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
@@ -324,7 +342,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary[400],
     backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
-  roleIcon: { fontSize: 18 },
   roleLabel: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,

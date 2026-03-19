@@ -1,4 +1,5 @@
 // app/(auth)/forgot-password.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -57,11 +58,18 @@ export default function ForgotPasswordScreen() {
             style={styles.back}
             activeOpacity={0.7}
           >
-            <Text style={styles.backText}>← Back to login</Text>
+            <View style={styles.backRow}>
+              <Ionicons name="arrow-back" size={16} color={Colors.primary[300]} />
+              <Text style={styles.backText}>Back to login</Text>
+            </View>
           </TouchableOpacity>
 
           <View style={styles.iconWrap}>
-            <Text style={styles.icon}>{step === "sent" ? "📬" : "🔐"}</Text>
+            <Ionicons
+              name={step === "sent" ? "mail-outline" : "lock-closed-outline"}
+              size={56}
+              color={Colors.primary[300]}
+            />
           </View>
 
           {step === "input" ? (
@@ -73,8 +81,7 @@ export default function ForgotPasswordScreen() {
               </Text>
 
               <Input
-                label="Email address"
-                placeholder="you@example.com"
+                placeholder="Email address"
                 value={email}
                 onChangeText={(v) => {
                   setEmail(v);
@@ -123,13 +130,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing["3xl"],
   },
   back: { marginBottom: Spacing["2xl"] },
+  backRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: Spacing.xs,
+  },
   backText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
     color: Colors.primary[300],
   },
   iconWrap: { alignItems: "center", marginBottom: Spacing.xl },
-  icon: { fontSize: 56 },
   card: {
     backgroundColor: Colors.bg.card,
     borderWidth: 1,

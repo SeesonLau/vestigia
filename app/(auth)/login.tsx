@@ -1,4 +1,5 @@
-//app/(auth)/login.tsx
+// app/(auth)/login.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -30,8 +31,8 @@ export default function LoginScreen() {
   const validate = () => {
     const e: typeof errors = {};
     if (!email.includes("@")) e.email = "Enter a valid email address";
-    if (password.length < 8)
-      e.password = "Password must be at least 8 characters";
+    // AUTH-08: Do not enforce password rules on login — only check field is not empty
+    if (!password.trim()) e.password = "Enter your password";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -52,6 +53,9 @@ export default function LoginScreen() {
         case "admin":
           router.replace("/(admin)");
           break;
+        // AUTH-09: Unknown role — fall back to login with a store error
+        default:
+          router.replace("/(auth)/login");
       }
     }
   };
@@ -85,7 +89,7 @@ export default function LoginScreen() {
 
             <View style={styles.form}>
               <Input
-                label="Email address"
+                placeholder="Email address"
                 value={email}
                 onChangeText={(v) => { setEmail(v); clearError(); }}
                 keyboardType="email-address"
@@ -94,15 +98,17 @@ export default function LoginScreen() {
               />
 
               <Input
-                label="Password"
+                placeholder="Password"
                 value={password}
                 onChangeText={(v) => { setPassword(v); clearError(); }}
                 secureTextEntry={!showPassword}
                 error={errors.password}
                 rightIcon={
-                  <Text style={styles.eyeIcon}>
-                    {showPassword ? "🙈" : "👁"}
-                  </Text>
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={Colors.text.muted}
+                  />
                 }
                 onRightIconPress={() => setShowPassword((v) => !v)}
               />
@@ -217,7 +223,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   form: {},
-  eyeIcon: { fontSize: 16 },
   forgotLink: {
     alignSelf: "flex-end",
     marginTop: -Spacing.sm,

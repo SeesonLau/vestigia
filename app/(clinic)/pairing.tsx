@@ -1,4 +1,5 @@
 // app/(clinic)/pairing.tsx
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -50,6 +51,7 @@ function SignalBars({ bars }: { bars: number }) {
 }
 
 export default function PairingScreen() {
+  const router = useRouter();
   const [scanning, setScanning] = useState(false);
   const [devices, setDevices] = useState<BLEDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -186,9 +188,7 @@ export default function PairingScreen() {
         {isPaired && (
           <Button
             label="Proceed to Live Feed →"
-            onPress={() => {
-              /* TODO: navigate to live-feed */
-            }}
+            onPress={() => router.push("/(clinic)/live-feed")}
             variant="teal"
             size="lg"
             style={styles.pairBtn}

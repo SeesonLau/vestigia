@@ -1,31 +1,49 @@
 // store/authStore.ts
-//
-// Auth state management using Zustand.
-//
-// LOGIN LOGIC:
-//   1. Check MOCK_ACCOUNTS first (dev accounts — always works, no network needed)
-//   2. If email not in MOCK_ACCOUNTS → fall through to Supabase (real accounts)
-//
-// This means mock and real accounts coexist without conflict.
-
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
-import { MOCK_ACCOUNTS, MOCK_PROFILES } from "../data/mockData";
 import { AuthUser, UserRole } from "../types";
 
 // ── Error message mapping ────────────────────────────────────────
-function mapAuthError(error: { message?: string; code?: string } | null): string {
+function mapAuthError(error: { message?: string; code?: string; status?: number } | null): string {
   if (!error) return "An unexpected error occurred";
   const code = (error as any).code ?? "";
-  const msg = error.message ?? "";
-  if (code === "invalid_credentials" || msg.toLowerCase().includes("invalid login"))
+  const status = (error as any).status ?? 0;
+  const msg = (error.message ?? "").toLowerCase();
+
+  // Network / server errors
+  if (
+    status === 504 || status === 503 || status === 502 ||
+    msg.includes("fetch") || msg.includes("network") ||
+    msg.includes("timeout") || msg.includes("failed to fetch")
+  ) return "Connection problem. Check your internet and try again.";
+
+  // Auth-specific errors
+  if (code === "invalid_credentials" || msg.includes("invalid login"))
     return "Incorrect email or password";
-  if (code === "user_already_exists" || msg.toLowerCase().includes("already registered"))
+  if (code === "user_already_exists" || msg.includes("already registered"))
     return "An account with this email already exists";
-  if (code === "weak_password" || msg.toLowerCase().includes("weak password"))
+  if (code === "weak_password" || msg.includes("weak password"))
     return "Password is too weak";
-  return msg || "An unexpected error occurred";
+  if (code === "email_not_confirmed" || msg.includes("email not confirmed"))
+    return "Please confirm your email before signing in";
+  if (code === "over_email_send_rate_limit" || msg.includes("rate limit"))
+    return "Too many attempts. Please wait a moment and try again.";
+
+  // AUTH-15: Profile row missing (PostgREST PGRST116 — no rows returned from .single())
+  if (code === "PGRST116" || msg.includes("json object requested") || msg.includes("no rows returned"))
+    return "Account setup is incomplete. Please try again or contact support.";
+
+  return error.message || "Something went wrong. Please try again.";
 }
+
+// AUTH-06: Module-level rate-limit state (resets on app restart — intentional)
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MS = 30_000; // 30 seconds
+let _loginAttempts = 0;
+let _loginLockedUntil = 0;
+
+// AUTH-13: Module-level subscription reference so it can be cleaned up on HMR
+let _authSubscription: { unsubscribe: () => void } | null = null;
 
 interface AuthState {
   user: AuthUser | null;
@@ -52,8 +70,9 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  // ── Auth state change listener ─────────────────────────────────
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  // AUTH-13: Clean up any existing listener before registering (guards against HMR double-subscribe)
+  _authSubscription?.unsubscribe();
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === "SIGNED_IN" && session?.user) {
       const { data: profile } = await supabase
         .from("profiles")
@@ -67,6 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       set({ user: null });
     }
   });
+  _authSubscription = subscription;
 
   return {
     user: null,
@@ -75,23 +95,16 @@ export const useAuthStore = create<AuthState>((set, get) => {
     pendingClinicId: null,
 
     login: async (email: string, password: string) => {
-      set({ isLoading: true, error: null });
-
-      // ── Step 1: Check mock/dev accounts ─────────────────────────
-      const mockAccount = MOCK_ACCOUNTS[email.toLowerCase().trim()];
-      if (mockAccount) {
-        if (mockAccount.password === password) {
-          const profile = MOCK_PROFILES[mockAccount.userId];
-          set({ user: profile, isLoading: false, error: null });
-          return { success: true, role: profile.role };
-        } else {
-          const err = "Incorrect password.";
-          set({ isLoading: false, error: err });
-          return { success: false, error: err };
-        }
+      // AUTH-06: Enforce client-side lockout before hitting Supabase
+      const now = Date.now();
+      if (now < _loginLockedUntil) {
+        const secs = Math.ceil((_loginLockedUntil - now) / 1000);
+        const err = `Too many failed attempts. Try again in ${secs}s.`;
+        set({ error: err });
+        return { success: false, error: err };
       }
 
-      // ── Step 2: Supabase auth (real accounts) ────────────────────
+      set({ isLoading: true, error: null });
       try {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.toLowerCase().trim(),
@@ -108,7 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
         let profile = profileData as AuthUser;
 
-        // Apply pending clinic_id if set during registration (email confirmation flow)
+        //Apply pending clinic_id if set during registration (email confirmation flow)
         const { pendingClinicId } = get();
         if (profile.role === "clinic" && !profile.clinic_id && pendingClinicId) {
           await supabase
@@ -119,9 +132,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
           set({ pendingClinicId: null });
         }
 
+        // AUTH-06: Reset counter on success
+        _loginAttempts = 0;
+        _loginLockedUntil = 0;
+
         set({ user: profile, isLoading: false, error: null });
         return { success: true, role: profile.role };
       } catch (e: any) {
+        // AUTH-06: Increment failure counter; lock out after max attempts
+        _loginAttempts++;
+        if (_loginAttempts >= LOGIN_MAX_ATTEMPTS) {
+          _loginLockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+          _loginAttempts = 0;
+        }
         const err = mapAuthError(e);
         set({ isLoading: false, error: err });
         return { success: false, error: err };
@@ -143,13 +166,17 @@ export const useAuthStore = create<AuthState>((set, get) => {
           options: {
             // handle_new_user() trigger reads these to create the profile row
             data: { full_name: fullName, role },
+            // Routes through the Edge Function redirect page first.
+            // On mobile it opens the app; on desktop it shows a "use your phone" message.
+            emailRedirectTo: `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/auth-redirect`,
           },
         });
         if (error) throw error;
 
         // Email confirmation required — session is null until user clicks link
         if (!data.session) {
-          if (clinicId) set({ pendingClinicId: clinicId });
+          // AUTH-14: Only store clinicId when the registering role is actually clinic
+          if (role === "clinic" && clinicId) set({ pendingClinicId: clinicId });
           set({ isLoading: false });
           return { success: true, needsConfirmation: true };
         }
@@ -182,14 +209,19 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     logout: async () => {
-      await supabase.auth.signOut();
-      set({ user: null, error: null, pendingClinicId: null });
+      // AUTH-14: Always clear local state even if server-side signOut fails
+      try {
+        await supabase.auth.signOut();
+      } finally {
+        set({ user: null, error: null, pendingClinicId: null });
+      }
     },
 
     forgotPassword: async (email: string) => {
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(
           email.toLowerCase().trim(),
+          { redirectTo: 'vestigia://update-password' },
         );
         if (error) throw error;
         return { success: true };

@@ -1,4 +1,4 @@
-//constants/theme.ts
+// constants/theme.ts
 export const Colors = {
   // Backgrounds
   bg: {

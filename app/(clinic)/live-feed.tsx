@@ -1,5 +1,7 @@
 // app/(clinic)/live-feed.tsx
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
+import { useThermalStore } from "../../store/sessionStore";
 import {
   Animated,
   Dimensions,
@@ -27,14 +29,17 @@ const MAP_W = SCREEN_W - Spacing.lg * 2 - 40; // leave room for scale
 const MAP_H = Math.round(MAP_W * (62 / 80));
 
 export default function LiveFeedScreen() {
+  const router = useRouter();
+  const thermalStore = useThermalStore();
   const [matrix, setMatrix] = useState(() => generateMockThermalMatrix());
   const [minTemp] = useState(29.5);
   const [maxTemp] = useState(36.8);
   const [meanTemp] = useState(33.2);
-  const [fps, setFps] = useState(12);
+  const [fps] = useState(12);
   const [showGuide, setShowGuide] = useState(true);
   const [captured, setCaptured] = useState(false);
   const [capturedMatrix, setCapturedMatrix] = useState<number[][] | null>(null);
+  const [selectedFoot, setSelectedFoot] = useState<"left" | "right" | "bilateral">("bilateral");
 
   // Simulate live frame updates
   useEffect(() => {
@@ -49,7 +54,6 @@ export default function LiveFeedScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   const handleCapture = () => {
-    // Flash animation
     Animated.sequence([
       Animated.timing(pulseAnim, {
         toValue: 1.08,
@@ -64,11 +68,14 @@ export default function LiveFeedScreen() {
     ]).start();
     setCapturedMatrix(matrix);
     setCaptured(true);
+    thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+    thermalStore.capture(selectedFoot);
   };
 
   const handleDiscard = () => {
     setCaptured(false);
     setCapturedMatrix(null);
+    thermalStore.discardCapture();
   };
 
   return (
@@ -183,9 +190,7 @@ export default function LiveFeedScreen() {
               />
               <Button
                 label="Use This Frame →"
-                onPress={() => {
-                  /* TODO: nav to clinical-data */
-                }}
+                onPress={() => router.push("/(clinic)/clinical-data")}
                 variant="teal"
                 size="md"
                 style={styles.halfBtn}

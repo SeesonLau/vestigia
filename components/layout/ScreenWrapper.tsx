@@ -1,13 +1,13 @@
 // components/layout/ScreenWrapper.tsx
 import React from "react";
 import {
-    SafeAreaView,
     ScrollView,
     StatusBar,
     StyleSheet,
     View,
     ViewStyle,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/theme";
 
 interface ScreenWrapperProps {

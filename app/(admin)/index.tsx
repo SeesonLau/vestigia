@@ -1,4 +1,4 @@
-//app/(admin)/index.tsx
+// app/(admin)/index.tsx
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";

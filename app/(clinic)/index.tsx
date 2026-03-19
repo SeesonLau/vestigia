@@ -1,4 +1,4 @@
-//app/(clinic)/index.tsx
+// app/(clinic)/index.tsx
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";

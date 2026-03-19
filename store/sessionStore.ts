@@ -1,6 +1,6 @@
 // store/sessionStore.ts
 import { create } from "zustand";
-import { ScreeningSession, SessionStatus } from "../types";
+import { FootSide, ScreeningSession, SessionStatus } from "../types";
 
 interface SessionState {
   activeSession: ScreeningSession | null;
@@ -52,6 +52,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
 interface ThermalState {
   liveMatrix: number[][] | null;
   capturedMatrix: number[][] | null;
+  capturedFoot: FootSide | null;
   minTemp: number;
   maxTemp: number;
   meanTemp: number;
@@ -62,7 +63,7 @@ interface ThermalState {
     max: number,
     mean: number,
   ) => void;
-  capture: () => void;
+  capture: (foot: FootSide) => void;
   discardCapture: () => void;
   setFps: (fps: number) => void;
 }
@@ -70,13 +71,14 @@ interface ThermalState {
 export const useThermalStore = create<ThermalState>((set, get) => ({
   liveMatrix: null,
   capturedMatrix: null,
+  capturedFoot: null,
   minTemp: 28,
   maxTemp: 38,
   meanTemp: 33,
   fps: 0,
   setLiveFrame: (matrix, min, max, mean) =>
     set({ liveMatrix: matrix, minTemp: min, maxTemp: max, meanTemp: mean }),
-  capture: () => set((s) => ({ capturedMatrix: s.liveMatrix })),
-  discardCapture: () => set({ capturedMatrix: null }),
+  capture: (foot) => set((s) => ({ capturedMatrix: s.liveMatrix, capturedFoot: foot })),
+  discardCapture: () => set({ capturedMatrix: null, capturedFoot: null }),
   setFps: (fps) => set({ fps }),
 }));

@@ -8,7 +8,10 @@ export interface AuthUser {
   full_name: string;
   role: UserRole;
   clinic_id?: string;
+  phone?: string;
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // session.ts
@@ -26,11 +29,14 @@ export type FootSide = "left" | "right" | "bilateral";
 export type DPNClassification = "POSITIVE" | "NEGATIVE";
 
 export interface PatientVitals {
+  id?: string;
+  session_id?: string;
   blood_glucose_mgdl?: number;
   systolic_bp_mmhg?: number;
   diastolic_bp_mmhg?: number;
   heart_rate_bpm?: number;
   hba1c_pct?: number;
+  recorded_at?: string;
 }
 
 export interface AngiosomeTemps {
@@ -49,6 +55,8 @@ export interface ThermalCapture extends AngiosomeTemps {
   min_temp_c: number;
   max_temp_c: number;
   mean_temp_c: number;
+  resolution_x?: number;
+  resolution_y?: number;
   captured_at: string;
 }
 
@@ -64,9 +72,9 @@ export interface ClassificationResult {
   max_asymmetry_c?: number;
   angiosomes_flagged?: string[];
   bilateral_tci?: number;
+  feature_vector?: Record<string, number>;
   model_version: string;
   classified_at: string;
-
   processing_time_ms?: number;
 }
 
@@ -80,6 +88,7 @@ export interface ScreeningSession {
   ambient_temperature_c?: number;
   room_humidity_pct?: number;
   notes?: string;
+  app_version?: string;
   started_at: string;
   completed_at?: string;
   // joined

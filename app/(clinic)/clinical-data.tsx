@@ -1,4 +1,5 @@
-//app/(clinic)/clinical-data.tsx
+// app/(clinic)/clinical-data.tsx
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
     KeyboardAvoidingView,
@@ -43,6 +44,7 @@ function AngiosomePreview({
 }
 
 export default function ClinicalDataScreen() {
+  const router = useRouter();
   const [vitals, setVitals] = useState({
     blood_glucose: "",
     systolic_bp: "",
@@ -100,8 +102,11 @@ export default function ClinicalDataScreen() {
   const handleSubmit = () => {
     if (!validate()) return;
     setLoading(true);
-    // TODO: package and upload
-    setTimeout(() => setLoading(false), 1500);
+    // TODO: package vitals + thermal data and write to local DB, then sync to Supabase
+    setTimeout(() => {
+      setLoading(false);
+      router.push("/(clinic)/assessment");
+    }, 1500);
   };
 
   return (
@@ -150,7 +155,7 @@ export default function ClinicalDataScreen() {
           <View style={styles.actions}>
             <Button
               label="Cancel Session"
-              onPress={() => {}}
+              onPress={() => router.replace("/(clinic)")}
               variant="ghost"
               size="md"
               style={styles.cancelBtn}
