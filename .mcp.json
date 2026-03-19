@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://postgres.yqgpykyogvoawlffkeoq:Diabetes%23420blazeit@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=no-verify"
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+name: Update Changelog
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          # Get commits since last changelog update (last 20 max)
+          COMMITS=$(git log -20 --pretty=format:"%s" --no-merges)
+
+          DATE=$(date +%Y-%m-%d)
+
+          # Categorize commits by prefix
+          FEATURES=$(echo "$COMMITS" | grep -i "^feat" | sed 's/^/- /' || true)
+          FIXES=$(echo "$COMMITS" | grep -i "^fix" | sed 's/^/- /' || true)
+          CHORES=$(echo "$COMMITS" | grep -iE "^(chore|refactor|style|docs|test|ci)" | sed 's/^/- /' || true)
+
+          # Build entry only if there's something to log
+          ENTRY=""
+          if [ -n "$FEATURES" ] || [ -n "$FIXES" ] || [ -n "$CHORES" ]; then
+            ENTRY="## [push] — $DATE\n\n"
+            [ -n "$FEATURES" ] && ENTRY="${ENTRY}### Added\n${FEATURES}\n\n"
+            [ -n "$FIXES" ]    && ENTRY="${ENTRY}### Fixed\n${FIXES}\n\n"
+            [ -n "$CHORES" ]   && ENTRY="${ENTRY}### Changed\n${CHORES}\n\n"
+            ENTRY="${ENTRY}---\n"
+          fi
+
+          echo "entry<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$ENTRY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Prepend to CHANGELOG.md
+        if: steps.changelog.outputs.entry != ''
+        run: |
+          HEADER=$(head -5 CHANGELOG.md)
+          REST=$(tail -n +6 CHANGELOG.md)
+          echo -e "$HEADER\n\n${{ steps.changelog.outputs.entry }}\n$REST" > CHANGELOG.md
+
+      - name: Commit updated changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --staged --quiet || git commit -m "chore: update changelog [skip ci]"
+          git push

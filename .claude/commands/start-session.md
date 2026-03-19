@@ -1,0 +1,1 @@
+Read all files in _project-docs/memory-bank/, read CLAUDE.md, then give me a full project state report: version, last worked on, in progress, pending, and any warnings. End with: "What are we working on today?"
