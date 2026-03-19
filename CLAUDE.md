@@ -144,6 +144,25 @@ Short, exact path from project root. No dashes, no decorations.
   - **Patch** (1.0.X): Bug fixes, small refinements
 - Current version is always in `CHANGELOG.md` at the top
 
+## Git Rules
+- **Never** add `Co-Authored-By` or any Claude attribution to commit messages
+- Write commit messages in first person as if the developer wrote the code
+- Follow this format — capitalized keyword prefix, colon, short description:
+
+```
+ADD: account activation screen
+UPDATE: auth error messages to be user-friendly
+FIX: login blocking valid passwords under 8 chars
+DELETE: empty stub files
+REFACTOR: consolidate thermal store into sessionStore
+DOCS: update memory bank and session logs
+```
+
+- Keep the subject line short (under 72 chars)
+- Add a blank line + bullet details for larger commits
+
+---
+
 ## MCP — Supabase Connection
 - Project ref: `yqgpykyogvoawlffkeoq`
 - Pooler: `aws-1-ap-northeast-2.pooler.supabase.com:5432`
