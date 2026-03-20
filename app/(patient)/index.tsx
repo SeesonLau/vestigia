@@ -1,4 +1,5 @@
 // app/(patient)/index.tsx
+import { useRouter } from "expo-router";
 import React from "react";
 import { Dimensions, StyleSheet, Text, View } from "react-native";
 import Header from "../../components/layout/Header";
@@ -18,7 +19,7 @@ const THUMB_H = Math.round(THUMB_W * (62 / 80));
 
 const MOCK_PATIENT_SESSIONS: ScreeningSession[] = [
   {
-    id: "1",
+    id: "sess-01",
     patient_id: "me",
     operator_id: "o1",
     device_id: "d1",
@@ -28,7 +29,7 @@ const MOCK_PATIENT_SESSIONS: ScreeningSession[] = [
     completed_at: "2025-02-20T09:28:00Z",
     classification: {
       id: "r1",
-      session_id: "1",
+      session_id: "sess-01",
       classification: "POSITIVE",
       confidence_score: 0.874,
       model_version: "v1.2",
@@ -37,7 +38,7 @@ const MOCK_PATIENT_SESSIONS: ScreeningSession[] = [
     },
   },
   {
-    id: "2",
+    id: "sess-02",
     patient_id: "me",
     operator_id: "o1",
     device_id: "d1",
@@ -47,7 +48,7 @@ const MOCK_PATIENT_SESSIONS: ScreeningSession[] = [
     completed_at: "2025-01-10T14:12:00Z",
     classification: {
       id: "r2",
-      session_id: "2",
+      session_id: "sess-02",
       classification: "NEGATIVE",
       confidence_score: 0.932,
       model_version: "v1.2",
@@ -61,6 +62,7 @@ const latestResult = latestSession.classification;
 const isPositive = latestResult?.classification === "POSITIVE";
 
 export default function PatientDashboardScreen() {
+  const router = useRouter();
   const leftMatrix = generateMockThermalMatrix();
   const rightMatrix = generateMockThermalMatrix();
 
@@ -204,7 +206,7 @@ export default function PatientDashboardScreen() {
         {/* Session list */}
         <Text style={styles.listHeader}>All Sessions</Text>
         {MOCK_PATIENT_SESSIONS.map((s) => (
-          <SessionCard key={s.id} session={s} onPress={() => {}} />
+          <SessionCard key={s.id} session={s} onPress={() => router.push(`/(patient)/session/${s.id}` as any)} />
         ))}
 
         {/* Disclaimer */}
