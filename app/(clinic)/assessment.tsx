@@ -22,6 +22,7 @@ import Button from "../../components/ui/Button";
 import { Badge, Card, Disclaimer } from "../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
@@ -47,8 +48,16 @@ type ScreenState = "processing" | "result";
 
 export default function AssessmentScreen() {
   const router = useRouter();
+  const clearSession = useSessionStore((s) => s.clearSession);
+  const discardCapture = useThermalStore((s) => s.discardCapture);
   const [state, setState] = useState<ScreenState>("processing");
   const [saved, setSaved] = useState(false);
+
+  const handleExit = () => {
+    clearSession();
+    discardCapture();
+    router.replace("/(clinic)");
+  };
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -195,7 +204,7 @@ export default function AssessmentScreen() {
             <View style={styles.actions}>
               <Button
                 label="Discard Result"
-                onPress={() => router.replace("/(clinic)")}
+                onPress={handleExit}
                 variant="ghost"
                 size="md"
               />
@@ -211,7 +220,7 @@ export default function AssessmentScreen() {
               <Text style={styles.savedText}>✓ Session saved successfully</Text>
               <Button
                 label="New Session"
-                onPress={() => router.replace("/(clinic)")}
+                onPress={handleExit}
                 variant="primary"
                 size="md"
               />
