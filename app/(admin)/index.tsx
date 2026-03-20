@@ -1,6 +1,7 @@
 // app/(admin)/index.tsx
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Badge, Card } from "../../components/ui/index";
@@ -65,6 +66,7 @@ const CLINICS = [
 type AdminTab = "overview" | "users" | "clinics";
 
 export default function AdminDashboardScreen() {
+  const router = useRouter();
   const [tab, setTab] = useState<AdminTab>("overview");
 
   return (
@@ -129,7 +131,7 @@ export default function AdminDashboardScreen() {
                 </View>
                 <Badge label="Standard" variant="info" />
               </View>
-              <TouchableOpacity style={styles.configBtn} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.configBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/settings")}>
                 <Text style={styles.configBtnText}>
                   Configure Model Settings →
                 </Text>
@@ -143,10 +145,10 @@ export default function AdminDashboardScreen() {
                 Export session data for research or reporting
               </Text>
               <View style={styles.exportBtns}>
-                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "CSV export is not yet available.")}>
                   <Text style={styles.exportBtnText}>📊 Export CSV</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "PDF export is not yet available.")}>
                   <Text style={styles.exportBtnText}>📄 Export PDF</Text>
                 </TouchableOpacity>
               </View>
@@ -158,7 +160,7 @@ export default function AdminDashboardScreen() {
           <>
             <View style={styles.listHeader}>
               <Text style={styles.listTitle}>{RECENT_USERS.length} users</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/users")}>
                 <Text style={styles.addBtnText}>+ Invite User</Text>
               </TouchableOpacity>
             </View>
@@ -200,7 +202,7 @@ export default function AdminDashboardScreen() {
           <>
             <View style={styles.listHeader}>
               <Text style={styles.listTitle}>{CLINICS.length} clinics</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/clinics")}>
                 <Text style={styles.addBtnText}>+ Add Clinic</Text>
               </TouchableOpacity>
             </View>
