@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [push] — 2026-03-20
+
+### Fixed
+- FIX: patient session cards now navigate to session detail screen (UX-02)
+
+---
+
 ---
 
 ## [0.3.0] — 2026-03-20
