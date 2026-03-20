@@ -16,6 +16,9 @@ import Button from "../../components/ui/Button";
 import { Card, Disclaimer } from "../../components/ui/index";
 import { ClinicalThresholds, DISCLAIMER_TEXT } from "../../constants/clinical";
 import { Colors, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
+import { useAuthStore } from "../../store/authStore";
+import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
 // Mock angiosome temps from capture
 const MOCK_ANGIOSOMES = {
@@ -45,6 +48,10 @@ function AngiosomePreview({
 
 export default function ClinicalDataScreen() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
+  const { capturedMatrix, capturedFoot, minTemp, maxTemp, meanTemp } = useThermalStore();
+
   const [vitals, setVitals] = useState({
     blood_glucose: "",
     systolic_bp: "",
@@ -99,14 +106,85 @@ export default function ClinicalDataScreen() {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
+    if (!selectedPatient) {
+      setErrors({ _form: "No patient selected. Go back and select a patient." });
+      return;
+    }
+    if (!user?.clinic_id) {
+      setErrors({ _form: "Your account is not linked to a clinic." });
+      return;
+    }
+
     setLoading(true);
-    // TODO: package vitals + thermal data and write to local DB, then sync to Supabase
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      // 1. Look up active device for this clinic
+      const { data: device, error: devErr } = await supabase
+        .from("devices")
+        .select("id")
+        .eq("clinic_id", user.clinic_id)
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+      if (devErr || !device) throw new Error("No active device found for your clinic.");
+
+      // 2. Create screening session
+      const { data: session, error: sessErr } = await supabase
+        .from("screening_sessions")
+        .insert({
+          patient_id: selectedPatient.id,
+          operator_id: user.id,
+          device_id: device.id,
+          clinic_id: user.clinic_id,
+          status: "uploading",
+          started_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      if (sessErr || !session) throw new Error("Failed to create session.");
+
+      // 3. Save patient vitals
+      const { error: vitalsErr } = await supabase.from("patient_vitals").insert({
+        session_id: session.id,
+        blood_glucose_mgdl: parseFloat(vitals.blood_glucose),
+        systolic_bp_mmhg: vitals.systolic_bp ? parseInt(vitals.systolic_bp) : null,
+        diastolic_bp_mmhg: vitals.diastolic_bp ? parseInt(vitals.diastolic_bp) : null,
+        heart_rate_bpm: vitals.heart_rate ? parseInt(vitals.heart_rate) : null,
+        hba1c_pct: vitals.hba1c ? parseFloat(vitals.hba1c) : null,
+      });
+      if (vitalsErr) throw new Error("Failed to save vitals.");
+
+      // 4. Save thermal capture
+      if (capturedMatrix) {
+        const { error: captureErr } = await supabase.from("thermal_captures").insert({
+          session_id: session.id,
+          foot: capturedFoot ?? "bilateral",
+          thermal_matrix: capturedMatrix,
+          min_temp_c: minTemp,
+          max_temp_c: maxTemp,
+          mean_temp_c: meanTemp,
+        });
+        if (captureErr) throw new Error("Failed to save thermal capture.");
+      }
+
+      // 5. Store session in store and navigate
+      setActiveSession({
+        id: session.id,
+        patient_id: selectedPatient.id,
+        operator_id: user.id,
+        device_id: device.id,
+        clinic_id: user.clinic_id,
+        status: "uploading",
+        started_at: new Date().toISOString(),
+      });
+
       router.push("/(clinic)/assessment");
-    }, 1500);
+    } catch (err: any) {
+      setErrors({ _form: err.message ?? "Something went wrong. Please try again." });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -151,11 +229,16 @@ export default function ClinicalDataScreen() {
           {/* Disclaimer */}
           <Disclaimer text={DISCLAIMER_TEXT} style={styles.disclaimer} />
 
+          {/* Form-level error */}
+          {errors._form && (
+            <Text style={styles.formError}>{errors._form}</Text>
+          )}
+
           {/* Submit */}
           <View style={styles.actions}>
             <Button
               label="Cancel Session"
-              onPress={() => router.replace("/(clinic)")}
+              onPress={() => { clearSession(); router.replace("/(clinic)"); }}
               variant="ghost"
               size="md"
               style={styles.cancelBtn}
@@ -212,6 +295,13 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {},
   submitBtn: {},
+  formError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    marginBottom: Spacing.sm,
+  },
 });
 
 const previewStyles = StyleSheet.create({

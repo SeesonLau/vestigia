@@ -1,5 +1,5 @@
 # QA Report — Bugs, Stubs & Issues
-**Last verified:** 2026-03-20 (full codebase scan + auth audit)
+**Last verified:** 2026-03-21 (UX-01, GAP-05 implementation + pre-commit QA review)
 
 ---
 
@@ -22,7 +22,7 @@
 | GAP-02 | `store/deviceStore.ts` | Wi-Fi WebSocket to `192.168.4.1:3333` not implemented | FR-203 not met |
 | GAP-03 | `store/thermalStore.ts` | Thermal frames from mock `setInterval`, not hardware | FR-301 not met |
 | GAP-04 | `app/(clinic)/assessment.tsx` | AI classification result is hardcoded mock, no cloud polling | FR-503, FR-504 not met |
-| GAP-05 | `app/(clinic)/clinical-data.tsx` | No JSON payload builder for cloud upload | FR-501, FR-502 not met |
+| ~~GAP-05~~ | `app/(clinic)/clinical-data.tsx` | ✅ Fixed 2026-03-21 — submit writes `screening_sessions`, `patient_vitals`, `thermal_captures` to Supabase. Added `patient-select.tsx` screen. sessionStore extended with `selectedPatient` + `clearSession`. Cancel clears session state. | |
 | GAP-06 | Entire app | WatermelonDB not installed — no offline support | FR-505 not met |
 | GAP-07 | `app/(clinic)/assessment.tsx` | Save/Discard buttons present but logic is stub | FR-604 not met |
 | GAP-08 | `app/(clinic)/assessment.tsx` | No abnormal region overlay on thermal map | FR-603 partial |
@@ -33,7 +33,7 @@
 
 | ID | File | Issue | Impact |
 |---|---|---|---|
-| UX-01 | `app/(clinic)/index.tsx` | Quick action buttons have empty `onPress={() => {}}` | Dashboard buttons do nothing |
+| ~~UX-01~~ | `app/(clinic)/index.tsx` | ✅ Fixed 2026-03-21 — all 4 buttons wired: Pair Device→pairing, New Screening→patient-select, Session History→history, Settings→settings. Ionicons replaced emojis. | |
 | UX-02 | `app/(patient)/index.tsx` | Session card `onPress` is empty | Patient cannot view session detail |
 | UX-03 | `app/(admin)/index.tsx` | Multiple action buttons with empty handlers | Admin actions non-functional |
 | UX-04 | `app/(clinic)/settings.tsx` | Settings screen is a stub — no functional settings | UI-07 not met |
@@ -76,7 +76,9 @@
 | ~~CODE-05~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `PatientVitals.recorded_at`, `id`, `session_id` added | |
 | ~~CODE-06~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `ThermalCapture.resolution_x`, `resolution_y` added | |
 | CODE-07 | Multiple files | File path comments missing — violates CLAUDE.md rule | Needs audit |
-| CODE-08 | All screens | All data shown to users is mock — no real Supabase reads post-auth | No real data displayed |
+| ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | ✅ Partially fixed 2026-03-21 — session + vitals + thermal captures now write to Supabase. Assessment still uses mock result. |  |
+| CODE-09 | `app/(clinic)/clinical-data.tsx` | `MOCK_ANGIOSOMES` still displayed in thermal preview — real angiosome values not yet computed from matrix | Misleading UI; angiosome computation deferred to GAP-04 |
+| CODE-10 | `app/(clinic)/assessment.tsx` | `clearSession()` not called after assessment complete/discard — `selectedPatient` + `activeSession` persist in store | Stale state if user returns to dashboard and starts new flow |
 
 ---
 
@@ -96,19 +98,23 @@
 | Severity | Total | Open | Fixed |
 |---|---|---|---|
 | Critical | 4 | 1 | 3 |
-| High (Gaps) | 8 | 8 | 0 |
-| Medium (UX) | 7 | 5 | 2 |
+| High (Gaps) | 8 | 7 | 1 |
+| Medium (UX) | 7 | 4 | 3 |
 | Auth | 15 | 0 | 15 |
-| Low (Code) | 8 | 2 | 6 |
+| Low (Code) | 10 | 3 | 7 |
 | Schema/DB | 4 | 2 | 2 |
-| **Total** | **46** | **18** | **28** |
+| **Total** | **48** | **17** | **31** |
 
 ---
 
 ## Fix Priority Order
 1. ~~BUG-01, BUG-02, BUG-03~~ — ✅ Done
-2. UX-01 — wire clinic dashboard quick action buttons (next up)
-3. GAP-05 — wire clinical-data form submit to DB
-4. DB-03, DB-04 — install WatermelonDB + sync logic
-5. GAP-01 through GAP-04 — hardware + cloud integration (deferred until hardware finalized)
-6. BUG-04 — inactivity timeout
+2. ~~UX-01~~ — ✅ Done 2026-03-21
+3. ~~GAP-05~~ — ✅ Done 2026-03-21
+4. UX-02 — patient session card onPress (next up)
+5. UX-03 — admin action buttons
+6. CODE-10 — call `clearSession()` after assessment complete/discard
+7. CODE-09 — real angiosome values in clinical-data preview (blocked on GAP-04)
+8. DB-03, DB-04 — install WatermelonDB + sync logic
+9. GAP-01 through GAP-04 — hardware + cloud integration (deferred until hardware finalized)
+10. BUG-04 — inactivity timeout

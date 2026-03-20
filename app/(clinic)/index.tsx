@@ -1,4 +1,6 @@
 // app/(clinic)/index.tsx
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
@@ -6,7 +8,7 @@ import { StatusIndicator } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
 
 interface QuickActionProps {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle: string;
   onPress: () => void;
@@ -32,7 +34,7 @@ function QuickAction({
           { borderColor: accent ?? Colors.border.default },
         ]}
       >
-        <Text style={styles.actionIcon}>{icon}</Text>
+        <Ionicons name={icon} size={22} color={Colors.text.secondary} />
       </View>
       <View style={styles.actionText}>
         <Text style={styles.actionTitle}>{title}</Text>
@@ -44,6 +46,7 @@ function QuickAction({
 }
 
 export default function ClinicHomeScreen() {
+  const router = useRouter();
   return (
     <ScreenWrapper scrollable>
       {/* Custom header */}
@@ -83,31 +86,31 @@ export default function ClinicHomeScreen() {
         <Text style={styles.sectionLabel}>Quick Actions</Text>
 
         <QuickAction
-          icon="🔗"
+          icon="bluetooth-outline"
           title="Pair Device"
           subtitle="Connect to DPN Scanner via BLE"
-          onPress={() => {}}
+          onPress={() => router.push("/(clinic)/pairing")}
           accent="rgba(59,130,246,0.5)"
         />
         <QuickAction
-          icon="📸"
+          icon="camera-outline"
           title="New Screening"
           subtitle="Start a new thermal capture session"
-          onPress={() => {}}
+          onPress={() => router.push("/(clinic)/patient-select" as any)}
           accent="rgba(20,176,142,0.5)"
         />
         <QuickAction
-          icon="📋"
+          icon="time-outline"
           title="Session History"
           subtitle="Review past screening results"
-          onPress={() => {}}
+          onPress={() => router.push("/(clinic)/history")}
           accent="rgba(0,128,200,0.5)"
         />
         <QuickAction
-          icon="⚙"
+          icon="settings-outline"
           title="Settings"
           subtitle="Device, app, and account settings"
-          onPress={() => {}}
+          onPress={() => router.push("/(clinic)/settings")}
           accent="rgba(77,106,150,0.5)"
         />
 
@@ -245,8 +248,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: Spacing.md,
   },
-  actionIcon: { fontSize: 20 },
-  actionText: { flex: 1 },
+actionText: { flex: 1 },
   actionTitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,

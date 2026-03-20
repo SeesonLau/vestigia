@@ -1,22 +1,28 @@
 // store/sessionStore.ts
 import { create } from "zustand";
-import { FootSide, ScreeningSession, SessionStatus } from "../types";
+import { FootSide, Patient, ScreeningSession, SessionStatus } from "../types";
 
 interface SessionState {
   activeSession: ScreeningSession | null;
+  selectedPatient: Patient | null;
   setActiveSession: (s: ScreeningSession | null) => void;
+  setSelectedPatient: (p: Patient | null) => void;
   updateStatus: (status: SessionStatus) => void;
+  clearSession: () => void;
 }
 
 export const useSessionStore = create<SessionState>((set) => ({
   activeSession: null,
+  selectedPatient: null,
   setActiveSession: (s) => set({ activeSession: s }),
+  setSelectedPatient: (p) => set({ selectedPatient: p }),
   updateStatus: (status) =>
     set((state) => ({
       activeSession: state.activeSession
         ? { ...state.activeSession, status }
         : null,
     })),
+  clearSession: () => set({ activeSession: null, selectedPatient: null }),
 }));
 
 // store/deviceStore.ts

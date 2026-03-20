@@ -97,6 +97,21 @@ export interface ScreeningSession {
   vitals?: PatientVitals;
 }
 
+// patient.ts
+export interface Patient {
+  id: string;
+  user_id?: string;
+  clinic_id: string;
+  patient_code: string;
+  date_of_birth?: string;
+  sex?: "male" | "female" | "other";
+  diabetes_type?: "type1" | "type2" | "gestational" | "unknown";
+  diabetes_duration_years?: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // device.ts
 export type ConnectionStatus =
   | "disconnected"

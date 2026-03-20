@@ -187,8 +187,8 @@ export default function PairingScreen() {
 
         {isPaired && (
           <Button
-            label="Proceed to Live Feed →"
-            onPress={() => router.push("/(clinic)/live-feed")}
+            label="Proceed to Patient Select →"
+            onPress={() => router.push("/(clinic)/patient-select" as any)}
             variant="teal"
             size="lg"
             style={styles.pairBtn}
