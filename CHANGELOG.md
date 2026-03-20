@@ -6,6 +6,19 @@ Format: `Major.Minor.Patch`
 ## [push] — 2026-03-20
 
 ### Fixed
+- FIX: clear session and thermal state on assessment exit (CODE-10)
+- FIX: wire admin dashboard action buttons (UX-03)
+- FIX: patient session cards now navigate to session detail screen (UX-02)
+
+### Changed
+- chore: update changelog [skip ci]
+- chore: update changelog [skip ci]
+
+---
+
+## [push] — 2026-03-20
+
+### Fixed
 - FIX: wire admin dashboard action buttons (UX-03)
 - FIX: patient session cards now navigate to session detail screen (UX-02)
 
