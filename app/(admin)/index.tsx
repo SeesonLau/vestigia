@@ -207,7 +207,7 @@ export default function AdminDashboardScreen() {
               </TouchableOpacity>
             </View>
             {CLINICS.map((clinic) => (
-              <View key={clinic.id} style={styles.clinicCard}>
+              <TouchableOpacity key={clinic.id} style={styles.clinicCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/clinics")}>
                 <View style={styles.clinicTop}>
                   <Text style={styles.clinicName}>{clinic.name}</Text>
                   <Badge
@@ -225,7 +225,7 @@ export default function AdminDashboardScreen() {
                     {clinic.devices} device{clinic.devices > 1 ? "s" : ""}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </>
         )}
