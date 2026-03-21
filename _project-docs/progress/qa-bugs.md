@@ -30,13 +30,13 @@
 | ~~CODE-04~~ | `types/index.ts` | — | `ScreeningSession` missing `app_version` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-05~~ | `types/index.ts` | — | `PatientVitals` missing `recorded_at`, `id`, `session_id` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-06~~ | `types/index.ts` | — | `ThermalCapture` missing `resolution_x`, `resolution_y` | Low | ✅ Fixed 2026-03-20 |
-| CODE-07 | Multiple files | 1 | File path comments missing on some utility/edge function files | Low | Open |
+| ~~CODE-07~~ | Multiple files | 1 | File path comments missing on some utility/edge function files | Low | ✅ Fixed 2026-03-21 — all 25 utility files verified to have path comments |
 | ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | — | Submit handler was dummy setTimeout — no real upload | High | ✅ Fixed 2026-03-21 |
 | CODE-09 | `app/(clinic)/clinical-data.tsx` | 24 | `MOCK_ANGIOSOMES` still used in thermal preview — real values not computed from matrix | Medium | Deferred (blocked on GAP-04) |
 | ~~CODE-10~~ | `app/(clinic)/assessment.tsx` | — | `clearSession()` + `discardCapture()` not called on exit | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-11~~ | `app/(clinic)/index.tsx` | 56 | Clinic name hardcoded as "Cebu City Health Center" | Medium | ✅ Fixed 2026-03-21 |
-| CODE-12 | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` and `(clinicsData as any[])` — typed interfaces `RecentUser`/`RecentClinic` already defined but cast bypassed | Medium | Open |
-| CODE-13 | `app/(clinic)/assessment.tsx` | 163 | `.map((step, i) => ...)` — param `i` declared but never read | Low | Open |
+| ~~CODE-12~~ | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` and `(clinicsData as any[])` — typed interfaces `RecentUser`/`RecentClinic` already defined but cast bypassed | Medium | ✅ Fixed 2026-03-21 |
+| ~~CODE-13~~ | `app/(clinic)/assessment.tsx` | 163 | `.map((step, i) => ...)` — param `i` declared but never read | Low | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -56,11 +56,11 @@
 | ~~UX-06~~ | `app/(admin)/settings.tsx` | — | All settings handlers were stubs | Medium | ✅ Fixed 2026-03-21 |
 | ~~UX-07~~ | `app/(patient)/session/[id].tsx` + `app/(clinic)/session/[id].tsx` | — | Both session detail screens read from `MOCK_CLINIC_SESSIONS` | High | ✅ Fixed 2026-03-21 |
 | ~~UX-08~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | — | Activate/Deactivate buttons only called `setSelected(null)` — no Supabase update | High | ✅ Fixed 2026-03-21 |
-| UX-09 | `app/(admin)/index.tsx` | 47–95 | No `ActivityIndicator` or error message for `fetchStats()` — stats stay 0 on failure | Medium | Open |
-| UX-10 | `app/(patient)/index.tsx` | 36–68 | No error state if `patients` or `screening_sessions` fetch fails — screen shows empty with no message | Medium | Open |
+| ~~UX-09~~ | `app/(admin)/index.tsx` | 47–95 | No `ActivityIndicator` or error message for `fetchStats()` — stats stay 0 on failure | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-10~~ | `app/(patient)/index.tsx` | 36–68 | No error state if `patients` or `screening_sessions` fetch fails — screen shows empty with no message | Medium | ✅ Fixed 2026-03-21 |
 | UX-11 | `app/(clinic)/index.tsx` | 159–178 | Device status card fully hardcoded: "DPN-Scanner-01", "MI0802M5S", "v2.1.4", "Feb 10" | Low | Deferred (hardware) |
-| UX-12 | `app/(admin)/settings.tsx` | 88–101 | `system_config` load failure silently ignored — toggles show default values with no user feedback | Low | Open |
-| UX-13 | `app/(clinic)/index.tsx` | 93 | "Good morning 👋" hardcoded — displays "morning" at all hours | Low | Open |
+| ~~UX-12~~ | `app/(admin)/settings.tsx` | 88–101 | `system_config` load failure silently ignored — toggles show default values with no user feedback | Low | ✅ Fixed 2026-03-21 |
+| ~~UX-13~~ | `app/(clinic)/index.tsx` | 93 | "Good morning 👋" hardcoded — displays "morning" at all hours | Low | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -75,9 +75,9 @@
 | ~~GAP-11~~ | `app/(admin)/clinics.tsx` | — | Reads `MOCK_CLINICS` + `MOCK_DEVICES` — not wired to real tables | High | ✅ Fixed 2026-03-21 |
 | GAP-04 | `app/(clinic)/assessment.tsx` | 32 | AI classification result is hardcoded mock — no real cloud inference or polling | High | Deferred (hardware dependency) |
 | GAP-08 | `app/(clinic)/assessment.tsx` | — | No abnormal region overlay on thermal map | Medium | Open |
-| GAP-12 | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch — clinic name and stats failures silently dropped | Medium | Open |
-| GAP-13 | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` and two subsequent fetches have zero error handling — all errors swallowed | Medium | Open |
-| GAP-14 | `app/(patient)/index.tsx` | 37–66 | Neither `patients` nor `screening_sessions` fetch destructures `error` — failures produce empty screen | Medium | Open |
+| ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch — clinic name and stats failures silently dropped | Medium | ✅ Fixed 2026-03-21 |
+| ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` and two subsequent fetches have zero error handling — all errors swallowed | Medium | ✅ Fixed 2026-03-21 |
+| ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Neither `patients` nor `screening_sessions` fetch destructures `error` — failures produce empty screen | Medium | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -85,10 +85,10 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| PERF-01 | `app/(clinic)/session/[id].tsx` | 25–26 | `generateMockThermalMatrix()` called at module scope — runs on import, not on render | Low | Open |
-| PERF-02 | `app/(patient)/session/[id].tsx` | 24–25 | Same — `generateMockThermalMatrix()` at module scope | Low | Open |
-| PERF-03 | `app/(clinic)/assessment.tsx` | 130–131 | `leftMatrix` / `rightMatrix` generated at component scope on every render — should be in `useRef` or `useMemo` | Low | Open |
-| PERF-04 | `app/(patient)/index.tsx` | 22–23 | `generateMockThermalMatrix()` called at module scope | Low | Open |
+| ~~PERF-01~~ | `app/(clinic)/session/[id].tsx` | 25–26 | `generateMockThermalMatrix()` called at module scope — runs on import, not on render | Low | ✅ Fixed 2026-03-21 |
+| ~~PERF-02~~ | `app/(patient)/session/[id].tsx` | 24–25 | Same — `generateMockThermalMatrix()` at module scope | Low | ✅ Fixed 2026-03-21 |
+| ~~PERF-03~~ | `app/(clinic)/assessment.tsx` | 130–131 | `leftMatrix` / `rightMatrix` generated at component scope on every render — should be in `useRef` or `useMemo` | Low | ✅ Fixed 2026-03-21 |
+| ~~PERF-04~~ | `app/(patient)/index.tsx` | 22–23 | `generateMockThermalMatrix()` called at module scope | Low | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -96,11 +96,9 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| A11Y-01 | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle `TouchableOpacity` has no `accessibilityLabel` | Low | Open |
-| A11Y-02 | `app/(clinic)/index.tsx` | 45 | Chevron `›` Text inside action card has no accessibility role | Low | Open |
-| A11Y-03 | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` bg = **3.64:1** — fails WCAG AA 4.5:1 for body text (xs/sm labels used throughout all screens) | Medium | Open |
-
-> Contrast calc: L(#4d6a96) = 0.159, L(#050d1a) = 0.0075 → ratio = (0.159+0.05)/(0.0075+0.05) = **3.64:1**. Passes 3:1 (large text ✅), fails 4.5:1 (normal text ❌).
+| ~~A11Y-01~~ | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle `TouchableOpacity` has no `accessibilityLabel` | Low | ✅ Fixed 2026-03-21 |
+| ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron `›` Text inside action card has no accessibility role | Low | ✅ Fixed 2026-03-21 — added `accessibilityLabel` + `accessibilityRole="button"` to QuickAction |
+| ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` bg = **3.64:1** — fails WCAG AA 4.5:1 for body text | Medium | ✅ Fixed 2026-03-21 — changed to `#7088b0` (~5.4:1) |
 
 ---
 
@@ -110,7 +108,7 @@
 |---|---|---|---|---|---|
 | ~~SEC-01~~ | `store/authStore.ts` | — | Mock accounts exposed real service_role-equivalent bypass | Critical | ✅ Fixed 2026-03-20 |
 | ~~SEC-02~~ | All tables | — | RLS INSERT policies missing WITH CHECK clauses | High | ✅ Fixed 2026-03-20 |
-| SEC-03 | `app/(clinic)/clinical-data.tsx` | 76–106 | Input sanitization only covers blood glucose and BP ranges — heart rate and HbA1c have no range validation before Supabase insert | Medium | Open |
+| ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | Input sanitization only covers blood glucose and BP ranges — heart rate and HbA1c have no range validation before Supabase insert | Medium | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -163,13 +161,13 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 13 | 2 | 9 | 2 |
-| UI / UX | 17 | 5 | 11 | 1 |
-| Supabase / Data | 10 | 5 | 5 | 0 |
-| Performance | 4 | 4 | 0 | 0 |
-| Accessibility | 3 | 3 | 0 | 0 |
-| Security | 3 | 1 | 2 | 0 |
+| Code Quality | 13 | 0 | 11 | 2 |
+| UI / UX | 17 | 2 | 14 | 1 |
+| Supabase / Data | 10 | 1 | 7 | 2 |
+| Performance | 4 | 0 | 4 | 0 |
+| Accessibility | 3 | 0 | 3 | 0 |
+| Security | 3 | 0 | 3 | 0 |
 | Navigation | 1 | 1 | 0 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **74** | **21** | **45** | **8** |
+| **Total** | **74** | **4** | **60** | **10** |
