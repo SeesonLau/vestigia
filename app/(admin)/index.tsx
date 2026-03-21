@@ -53,15 +53,22 @@ export default function AdminDashboardScreen() {
       setLoading(true);
       setFetchError(null);
       try {
-        const [sessions, positive, clinics, users] = await Promise.all([
+        const [sessions, positive, clinics, users, usersResult, clinicsResult, configResult] = await Promise.all([
           supabase.from("screening_sessions").select("*", { count: "exact", head: true }),
           supabase.from("classification_results").select("*", { count: "exact", head: true }).eq("classification", "POSITIVE"),
           supabase.from("clinics").select("*", { count: "exact", head: true }).eq("is_active", true),
           supabase.from("profiles").select("*", { count: "exact", head: true }),
+          supabase.from("profiles").select("id, full_name, role, is_active, clinic:clinics(name)").order("created_at", { ascending: false }).limit(4),
+          supabase.from("clinics").select("id, name, facility_type, devices:devices(id)").order("created_at", { ascending: false }).limit(3),
+          supabase.from("system_config").select("key, value").in("key", ["ai_model_version", "asymmetry_threshold"]),
         ]);
+
         if (sessions.error || positive.error || clinics.error || users.error) {
           throw new Error("Failed to load overview stats.");
         }
+        if (usersResult.error) throw new Error("Failed to load recent users.");
+        if (clinicsResult.error) throw new Error("Failed to load recent clinics.");
+
         setStats({
           totalSessions: sessions.count ?? 0,
           positiveCases: positive.count ?? 0,
@@ -69,15 +76,8 @@ export default function AdminDashboardScreen() {
           registeredUsers: users.count ?? 0,
         });
 
-        const { data: usersData, error: usersErr } = await supabase
-          .from("profiles")
-          .select("id, full_name, role, is_active, clinic:clinics(name)")
-          .order("created_at", { ascending: false })
-          .limit(4);
-        if (usersErr) throw new Error("Failed to load recent users.");
-
-        if (usersData) {
-          const typedUsers = usersData as unknown as Array<{ id: string; full_name: string; role: string; is_active: boolean; clinic: { name: string }[] | null }>;
+        if (usersResult.data) {
+          const typedUsers = usersResult.data as unknown as Array<{ id: string; full_name: string; role: string; is_active: boolean; clinic: { name: string }[] | null }>;
           setRecentUsers(
             typedUsers.map((u) => ({
               id: u.id,
@@ -89,16 +89,9 @@ export default function AdminDashboardScreen() {
           );
         }
 
-        const { data: clinicsData, error: clinicsErr } = await supabase
-          .from("clinics")
-          .select("id, name, facility_type, devices:devices(id)")
-          .order("created_at", { ascending: false })
-          .limit(3);
-        if (clinicsErr) throw new Error("Failed to load recent clinics.");
-
-        if (clinicsData) {
+        if (clinicsResult.data) {
           setRecentClinics(
-            clinicsData.map((c: { id: string; name: string; facility_type: string; devices: { id: string }[] }) => ({
+            clinicsResult.data.map((c: { id: string; name: string; facility_type: string; devices: { id: string }[] }) => ({
               id: c.id,
               name: c.name,
               facility_type: c.facility_type,
@@ -107,11 +100,7 @@ export default function AdminDashboardScreen() {
           );
         }
 
-        const { data: configData } = await supabase
-          .from("system_config")
-          .select("key, value")
-          .in("key", ["ai_model_version", "asymmetry_threshold"]);
-        configData?.forEach((row) => {
+        configResult.data?.forEach((row) => {
           if (row.key === "ai_model_version") setAiModel(String(row.value));
           if (row.key === "asymmetry_threshold") setThreshold(String(row.value));
         });

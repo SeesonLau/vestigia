@@ -62,23 +62,21 @@ export default function ClinicHomeScreen() {
     if (!user?.clinic_id) return;
 
     const fetchData = async () => {
-      const { data: clinicData, error: clinicErr } = await supabase
-        .from("clinics")
-        .select("name")
-        .eq("id", user.clinic_id)
-        .single();
-      if (!clinicErr && clinicData?.name) setClinicName(clinicData.name);
-
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const { data: sessionsData, error: sessionsErr } = await supabase
-        .from("screening_sessions")
-        .select("id, classification:classification_results(classification)")
-        .eq("clinic_id", user.clinic_id)
-        .gte("started_at", todayStart.toISOString());
-      if (!sessionsErr && sessionsData) {
-        const sessions = sessionsData as Array<{ id: string; classification: { classification: string }[] | { classification: string } | null }>;
+      const [clinicResult, sessionsResult] = await Promise.all([
+        supabase.from("clinics").select("name").eq("id", user.clinic_id).single(),
+        supabase.from("screening_sessions")
+          .select("id, classification:classification_results(classification)")
+          .eq("clinic_id", user.clinic_id)
+          .gte("started_at", todayStart.toISOString()),
+      ]);
+
+      if (!clinicResult.error && clinicResult.data?.name) setClinicName(clinicResult.data.name);
+
+      if (!sessionsResult.error && sessionsResult.data) {
+        const sessions = sessionsResult.data as Array<{ id: string; classification: { classification: string }[] | { classification: string } | null }>;
         const getClass = (s: typeof sessions[number]) =>
           Array.isArray(s.classification) ? s.classification[0]?.classification : s.classification?.classification;
         const positive = sessions.filter((s) => getClass(s) === "POSITIVE").length;
