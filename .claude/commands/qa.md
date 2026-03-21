@@ -1,138 +1,233 @@
-Run a full QA audit on the entire codebase. Cover ALL of the following areas and report every finding.
+Run a full QA audit on the entire codebase. Work through every area below, read the relevant files, and report all findings.
 
 ---
 
-## 1. Code Quality
-- TypeScript errors, `any` types, or missing explicit types
-- Broken or missing imports
-- Unused imports or declared-but-never-read variables
-- `console.log` with potentially sensitive data (tokens, patient data, passwords)
-- Hardcoded secrets or keys outside of `EXPO_PUBLIC_*` env vars
-- Missing file path comment on line 1 of every source file
+## Area 1 — Code Quality
+Read every file in `app/`, `components/`, `store/`, `hooks/`, `lib/`, `types/`.
 
-## 2. UI Completeness
-For every screen in `app/`, check:
-- Is it a real screen or an empty stub?
-- Does it have a proper loading state (`ActivityIndicator`) for async data?
-- Does it have an error state if a fetch fails?
-- Does it have an empty state if there's no data?
-- Are there any hardcoded placeholder strings still visible (e.g. "Hello, Juan", "DPN-P-0042", "Cebu City Health Center", fake IDs, fake stats)?
-- Are there any hardcoded mock numbers used for display (e.g. Today's Sessions showing "6", "2", "4")?
+Check for:
+- TypeScript errors or use of `any` — flag file + line
+- Missing explicit types on state, props, or function returns
+- Unused imports or variables declared but never read
+- `console.log` / `console.warn` with potentially sensitive data (tokens, passwords, patient info)
+- Hardcoded secrets or API keys outside of `EXPO_PUBLIC_*` env vars
+- Missing file path comment on line 1 (required by CLAUDE.md for every source file)
+- Unused files that import nothing and export nothing meaningful
 
-## 3. Functional Flows — trace these end-to-end
-Trace each flow by reading the relevant source files:
+---
+
+## Area 2 — UI Completeness
+Read every screen file in `app/`.
+
+For each screen check:
+- Is it a real screen or an empty/stub file?
+- Does it show an `ActivityIndicator` while async data loads?
+- Does it show an error message if a Supabase fetch fails?
+- Does it show an empty state message if a list returns zero rows?
+- Are there any hardcoded placeholder strings still visible? (e.g. "Hello, Juan", "DPN-P-0042", "Cebu City Health Center", fake session IDs, hardcoded stats like "6 sessions today")
+- Are there any `onPress` handlers that do nothing, call `console.log`, or only close a modal without acting?
+
+---
+
+## Area 3 — Functional Flow Tracing
+Trace each flow by reading the source files. Verify every `router.push()` / `router.replace()` target actually exists as a file.
 
 **Clinic screening flow:**
-`patient-select → live-feed → clinical-data → assessment → history`
-- Can a clinic operator select a patient, capture a frame, submit vitals, get a classification result, save it, and see it in history?
-- Is every `router.push()`/`router.replace()` wired to a real route that exists?
+`patient-select → live-feed → clinical-data → assessment → history → session/[id]`
 
-**Patient dashboard flow:**
+**Patient flow:**
 `(patient)/index → (patient)/session/[id]`
-- Does the patient see their real sessions?
-- Can they tap a session and view the detail?
 
-**Admin flows:**
+**Admin flow:**
 `(admin)/index → users → clinics`
-- Are real users and clinics loaded?
-- Do Activate/Deactivate actions actually call Supabase?
+- Do Activate/Deactivate buttons actually call Supabase `.update()`?
 
 **Auth flow:**
-- Does Sign Out work across all three roles?
-- Is the inactivity timeout active?
-
-## 4. Supabase Integration
-Read every screen that uses Supabase and verify:
-- Is every `.from()` call reading from the correct table?
-- Are PostgREST joins normalized correctly (array vs object)?
-- Is every `insert()` / `update()` result checked for errors?
-- Are there any screens still reading from `MOCK_*` or `data/mockData`?
-- Are there any screens that SHOULD be writing to Supabase but aren't?
-
-## 5. Navigation
-Check `app/` routing structure:
-- Are all `router.push()` targets real files that exist?
-- Are there any dead-end screens with no back navigation?
-- Are there any screens unreachable from the main navigation?
-
-## 6. Component Correctness
-For components in `components/`:
-- Are all required props passed where the component is used?
-- Are there any components with broken prop types or missing required props?
+- Sign Out wired across all three roles?
+- Inactivity timeout (`useInactivityTimeout`) mounted in `_layout.tsx`?
+- Deep link handler for password reset present?
 
 ---
 
-## Output — Part 1: Inline Report
+## Area 4 — Supabase Integration
+Read every file that calls `supabase.*`.
 
-Report findings in this exact structure:
+Check:
+- Is every `.from()` call using the correct table name?
+- Are PostgREST join results normalized? (array vs object — `Array.isArray(raw.x) ? raw.x[0] ?? null : raw.x ?? null`)
+- Does every `insert()` / `update()` destructure `{ error }` and handle the failure case?
+- Are there any screens still importing from `data/mockData` or using `MOCK_*` constants for display?
+- Are there any screens that should write to Supabase but don't?
 
-### Summary
-- Total screens audited: N
-- Total issues found: N
-- Breakdown: N critical, N high, N medium, N low
+---
 
-### Findings Table
-| ID | Severity | File | Line | Issue | Impact |
+## Area 5 — Network Error Completeness
+Read every file with `await supabase.*` calls.
 
-Use these severity levels:
-- **Critical** — blocks real usage or crashes the app
-- **High** — major feature gap or broken flow
-- **Medium** — incomplete UI, UX gap, or missing state handling
-- **Low** — code quality, style, or minor issue
+For each async call verify:
+- Is the `error` destructured from the response?
+- Is there a visible error message shown to the user if the call fails?
+- Is the loading state always set to `false` in a `finally` block or equivalent (not just in the success branch)?
 
-### Flow Status
-| Flow | Status | Blocker (if any) |
-|------|--------|-----------------|
+---
+
+## Area 6 — Performance Anti-patterns
+Read `app/` and `components/`.
+
+Flag any of the following:
+- `FlatList` or `ScrollView` missing `keyExtractor`
+- Inline arrow functions inside `FlatList` `renderItem` (creates new function every render)
+- `generateMockThermalMatrix()` or other expensive calls at module scope (outside component/useEffect)
+- `setInterval` or `setTimeout` in a `useEffect` without a cleanup `return () => clearInterval(...)`
+- Animated values or refs created outside `useRef` / `useRef` pattern
+- Large data arrays defined as module-level constants when they should be memoized
+
+---
+
+## Area 7 — Accessibility
+Read every screen and component in `app/` and `components/`.
+
+Check:
+- Every `TouchableOpacity` and `Pressable` that contains only an icon (no visible text label) must have an `accessibilityLabel` prop
+- Every image-like element rendered without alt text equivalent
+- Read `constants/theme.ts` — extract all text color / background color pairs used in the app and calculate WCAG AA contrast ratio (minimum 4.5:1 for normal text, 3:1 for large text / UI components). Flag any failing pairs.
+
+To calculate contrast ratio: use relative luminance formula.
+- For a hex color `#RRGGBB`, convert each channel: if `c/255 <= 0.03928` then `c/255/12.92` else `((c/255 + 0.055)/1.055)^2.4`. Sum as `0.2126*R + 0.7152*G + 0.0722*B` to get luminance L. Contrast = `(L_lighter + 0.05) / (L_darker + 0.05)`.
+- Flag any pair below 4.5:1 used for body text, or below 3:1 used for large headings or UI elements.
+
+---
+
+## Area 8 — Navigation Completeness
+Read `app/` directory structure and all `router.push()` / `router.replace()` / `<Link>` calls.
+
+Check:
+- Every route target maps to a real file
+- No screen is a dead end (every screen reachable has a way back or to exit)
+- Tab bar or drawer links all point to real routes
+- Dynamic routes (e.g. `session/[id]`) receive the `id` param at the call site
+
+---
+
+## Area 9 — Regression Verification
+Read `_project-docs/progress/qa-bugs.md`.
+
+For every item marked with ~~strikethrough~~ and "✅ Fixed":
+- Find the relevant file and line
+- Confirm the fix actually exists in the current code
+- If the fix is missing or reverted, un-strikethrough the item and re-open it
+
+---
+
+## Output Format
+
+### Inline Report (in chat)
+
+Produce one table per area. Every table must have these columns:
+
+| ID | File | Line | Issue | Severity | Impact |
+
+Severity values: `Critical` | `High` | `Medium` | `Low`
+
+After all area tables, produce:
+
+**Flow Status Table**
+| Flow | Status | Blocker |
+|------|--------|---------|
 | Clinic screening (end-to-end) | ✅ Working / ⚠ Partial / ❌ Broken | |
-| Patient dashboard | ... | |
-| Admin user management | ... | |
-| Admin clinic management | ... | |
-| Auth / Sign Out | ... | |
-| Inactivity timeout | ... | |
+| Patient dashboard | | |
+| Admin user management | | |
+| Admin clinic management | | |
+| Auth / Sign Out (all roles) | | |
+| Inactivity timeout | | |
+| Password reset deep link | | |
+
+**Summary Table**
+| Area | Issues Found | Critical | High | Medium | Low |
+|------|-------------|----------|------|--------|-----|
+| Code Quality | | | | | |
+| UI Completeness | | | | | |
+| Functional Flows | | | | | |
+| Supabase Integration | | | | | |
+| Network Error Handling | | | | | |
+| Performance | | | | | |
+| Accessibility | | | | | |
+| Navigation | | | | | |
+| Regression | | | | | |
+| **Total** | | | | | |
 
 ---
 
-## Output — Part 2: Update Checklist Files
+### File Updates (write to disk after the inline report)
 
-After producing the inline report, update all three checklist files. Use today's date in the **Last verified** line.
+**1. Rewrite `_project-docs/progress/qa-bugs.md`**
 
-### Update `_project-docs/progress/ui-checklist.md`
+Use this structure — one section per QA area, not severity:
 
-Rewrite the entire file. For every screen in `app/`, produce one row:
+```
+# QA Report — Bugs & Issues
+**Last verified:** YYYY-MM-DD
 
-| ID | Screen | Built | Real Data | Loading State | Error State | Empty State | Notes |
+## Code Quality
+| ID | File | Line | Issue | Severity | Status |
 
-- **Built**: ✅ complete | 🔄 partial | ❌ stub
-- **Real Data**: ✅ reads/writes Supabase | 🔄 partial | ❌ still mock
-- **Loading State**: ✅ has ActivityIndicator | ❌ missing
-- **Error State**: ✅ handles fetch errors | ❌ missing
-- **Empty State**: ✅ handles no data | ❌ missing | N/A if not a list screen
+## UI / UX
+| ID | File | Line | Issue | Severity | Status |
 
-Include a Summary section at the bottom listing counts per status.
+## Supabase / Data Integration
+| ID | File | Line | Issue | Severity | Status |
+
+## Performance
+| ID | File | Line | Issue | Severity | Status |
+
+## Accessibility
+| ID | File | Line | Issue | Severity | Status |
+
+## Security
+| ID | File | Line | Issue | Severity | Status |
+
+## Navigation
+| ID | File | Line | Issue | Severity | Status |
+
+## Auth (History)
+(keep all existing AUTH-xx rows, all should be fixed)
+
+## Schema / Database
+| ID | File | Line | Issue | Severity | Status |
+
+## Tracking
+| Area | Total | Open | Fixed |
+```
+
+- Preserve all existing IDs (BUG-xx, GAP-xx, UX-xx, etc.)
+- Mark fixed items with ~~strikethrough~~ and `✅ Fixed YYYY-MM-DD`
+- Assign new IDs for new findings continuing from the highest existing number
+- Status column values: `Open` | `✅ Fixed YYYY-MM-DD` | `Deferred`
 
 ---
 
-### Update `_project-docs/progress/fr-checklist.md`
+**2. Rewrite `_project-docs/progress/ui-checklist.md`**
 
-Rewrite the entire file. Keep the same FR-100 to FR-600 group structure. For each requirement row update the Status and Notes based on what you found in the code:
+| ID | Screen | File | Built | Real Data | Loading | Error State | Empty State | Notes |
 
-- ✅ Done — fully implemented and wired
-- 🔄 Partial — UI exists but backend not wired, or only partially working
-- ❌ Not started — no implementation found
-- ⚠️ Stub — placeholder / mock / TODO only
+- Built: ✅ complete | 🔄 partial | ❌ stub
+- Real Data: ✅ Supabase | 🔄 partial | ❌ mock
+- Loading: ✅ | ❌
+- Error State: ✅ | ❌
+- Empty State: ✅ | ❌ | N/A
 
-Update the Summary counts table at the bottom.
-
----
-
-### Update `_project-docs/progress/data-checklist.md`
-
-Rewrite the entire file. Keep all existing sections (Schema Match, Foreign Keys, RLS Policies, TypeScript Types, WatermelonDB, Auth & Security). For each item, update the status based on what you find in the current codebase and any Supabase findings. Update the Summary section at the bottom.
+Include a Summary counts section at the bottom.
 
 ---
 
-## Output — Part 3: Update `_project-docs/progress/qa-bugs.md`
+**3. Rewrite `_project-docs/progress/fr-checklist.md`**
 
-- Mark any previously listed issues that are now fixed with ~~strikethrough~~ and "✅ Fixed YYYY-MM-DD"
-- Add any new issues discovered as new rows with a new ID
-- Update the Tracking counts table at the bottom of the file
+Keep FR-100 to FR-600 group structure. Update Status and Notes for each row based on current code. Update the Summary counts table.
+
+Status values: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub
+
+---
+
+**4. Rewrite `_project-docs/progress/data-checklist.md`**
+
+Keep all existing sections (Schema Match, Foreign Keys, RLS Policies, TypeScript Types, WatermelonDB, Auth & Security). Update status based on current code. Update the Summary section.
