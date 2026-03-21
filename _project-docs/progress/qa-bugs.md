@@ -3,6 +3,23 @@
 
 ---
 
+## QA Coverage — What Each Area Checks
+
+| Area | What It Covers | Files Scanned |
+|---|---|---|
+| **Code Quality** | TypeScript errors, `any` types, unused imports/variables, `console.log` with sensitive data, hardcoded secrets, missing file path comments | `app/`, `components/`, `store/`, `hooks/`, `lib/`, `types/` |
+| **UI / UX** | Empty/stub screens, missing loading states, missing error states, missing empty states, hardcoded placeholder strings, dead `onPress` handlers | `app/` |
+| **Supabase / Data Integration** | Correct table names, PostgREST join normalization, error handling on every insert/update, screens still reading from mock data, missing writes | All files calling `supabase.*` |
+| **Performance** | Module-scope expensive calls, missing `setInterval` cleanup, inline arrow functions in `FlatList renderItem`, missing `keyExtractor`, Animated values outside `useRef` | `app/`, `components/` |
+| **Accessibility** | Missing `accessibilityLabel` on icon-only buttons, WCAG AA color contrast ratios (min 4.5:1 body text, 3:1 large text) calculated from theme | `app/`, `components/`, `constants/theme.ts` |
+| **Security** | Hardcoded API keys/secrets, `console.log` leaking tokens or patient data, anon-only client enforcement, RLS enabled on all tables, input sanitization before Supabase | All source files, Supabase config |
+| **Navigation** | Every `router.push()` target maps to a real file, no dead-end screens, dynamic routes receive required params, all tabs/links point to real routes | `app/` routing structure |
+| **Auth** | Sign Out across all roles, inactivity timeout mounted, password reset deep link, login lockout, session persistence | `app/(auth)/`, `store/authStore.ts`, `app/_layout.tsx` |
+| **Schema / Database** | Table existence, column match against thesis schema, foreign keys, RLS policies, TypeScript types vs actual DB columns, WatermelonDB sync status | `types/`, Supabase live query |
+| **Regression** | Every ~~fixed~~ item in this file cross-referenced against current code to confirm the fix still exists and was not reverted | All previously fixed files |
+
+---
+
 ## Code Quality
 
 | ID | File | Line | Issue | Severity | Status |
