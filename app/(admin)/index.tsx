@@ -1,18 +1,19 @@
 // app/(admin)/index.tsx
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Badge, Card } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
 
-const STATS = [
-  { label: "Total Sessions", value: "1,284", change: "+12%", up: true },
-  { label: "POSITIVE Cases", value: "342", change: "+8%", up: true },
-  { label: "Active Clinics", value: "18", change: "+2", up: true },
-  { label: "Registered Users", value: "94", change: "+5", up: true },
-];
+interface OverviewStats {
+  totalSessions: number;
+  positiveCases: number;
+  activeClinics: number;
+  registeredUsers: number;
+}
 
 const RECENT_USERS = [
   {
@@ -68,6 +69,30 @@ type AdminTab = "overview" | "users" | "clinics";
 export default function AdminDashboardScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<AdminTab>("overview");
+  const [stats, setStats] = useState<OverviewStats>({
+    totalSessions: 0,
+    positiveCases: 0,
+    activeClinics: 0,
+    registeredUsers: 0,
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      const [sessions, positive, clinics, users] = await Promise.all([
+        supabase.from("screening_sessions").select("*", { count: "exact", head: true }),
+        supabase.from("classification_results").select("*", { count: "exact", head: true }).eq("classification", "POSITIVE"),
+        supabase.from("clinics").select("*", { count: "exact", head: true }).eq("is_active", true),
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+      ]);
+      setStats({
+        totalSessions: sessions.count ?? 0,
+        positiveCases: positive.count ?? 0,
+        activeClinics: clinics.count ?? 0,
+        registeredUsers: users.count ?? 0,
+      });
+    };
+    fetchStats();
+  }, []);
 
   return (
     <ScreenWrapper scrollable>
@@ -98,18 +123,15 @@ export default function AdminDashboardScreen() {
           <>
             {/* Stat grid */}
             <View style={styles.statGrid}>
-              {STATS.map((s) => (
+              {([
+                { label: "Total Sessions", value: stats.totalSessions },
+                { label: "POSITIVE Cases", value: stats.positiveCases },
+                { label: "Active Clinics", value: stats.activeClinics },
+                { label: "Registered Users", value: stats.registeredUsers },
+              ] as { label: string; value: number }[]).map((s) => (
                 <View key={s.label} style={styles.statCard}>
                   <Text style={styles.statValue}>{s.value}</Text>
                   <Text style={styles.statLabel}>{s.label}</Text>
-                  <Text
-                    style={[
-                      styles.statChange,
-                      s.up ? styles.changeUp : styles.changeDown,
-                    ]}
-                  >
-                    {s.change}
-                  </Text>
                 </View>
               ))}
             </View>
