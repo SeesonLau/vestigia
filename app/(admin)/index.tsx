@@ -165,7 +165,7 @@ export default function AdminDashboardScreen() {
               </TouchableOpacity>
             </View>
             {RECENT_USERS.map((user) => (
-              <View key={user.id} style={styles.userCard}>
+              <TouchableOpacity key={user.id} style={styles.userCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/users")}>
                 <View style={styles.userAvatar}>
                   <Text style={styles.userAvatarText}>
                     {user.name.charAt(0)}
@@ -193,7 +193,7 @@ export default function AdminDashboardScreen() {
                     />
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </>
         )}
