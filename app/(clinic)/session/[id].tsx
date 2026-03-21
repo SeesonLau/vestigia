@@ -1,25 +1,22 @@
 // app/(clinic)/session/[id].tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-    AngiosomeTable,
-    ClassificationCard,
-    TCIDisplay,
+  AngiosomeTable,
+  ClassificationCard,
+  TCIDisplay,
 } from "../../../components/assessment/index";
 import Header from "../../../components/layout/Header";
 import ScreenWrapper from "../../../components/layout/ScreenWrapper";
 import ThermalMap, {
-    generateMockThermalMatrix,
+  generateMockThermalMatrix,
 } from "../../../components/thermal/ThermalMap";
 import { Badge, Card, Disclaimer } from "../../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../../constants/clinical";
 import { Colors, Spacing, Typography } from "../../../constants/theme";
-import {
-    MOCK_CLINIC_SESSIONS,
-    MOCK_PATIENTS,
-    MOCK_VITALS,
-} from "../../../data/mockData";
+import { supabase } from "../../../lib/supabase";
+import { ClassificationResult, PatientVitals, ScreeningSession } from "../../../types";
 
 const { width: W } = Dimensions.get("window");
 const THUMB_W = (W - Spacing.lg * 2 - Spacing.md) / 2;
@@ -28,39 +25,76 @@ const THUMB_H = Math.round(THUMB_W * (62 / 80));
 const leftMatrix = generateMockThermalMatrix();
 const rightMatrix = generateMockThermalMatrix();
 
+type SessionDetail = ScreeningSession & {
+  classification: ClassificationResult | null;
+  vitals: PatientVitals | null;
+};
+
 export default function ClinicSessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const session = MOCK_CLINIC_SESSIONS.find((s) => s.id === id);
-  const vitals = id ? MOCK_VITALS[id] : undefined;
-  const patient = session
-    ? MOCK_PATIENTS.find((p) => p.id === session.patient_id)
-    : undefined;
+  useEffect(() => {
+    if (!id) return;
+    supabase
+      .from("screening_sessions")
+      .select(`
+        *,
+        classification:classification_results(*),
+        vitals:patient_vitals(*)
+      `)
+      .eq("id", id)
+      .single()
+      .then(({ data, error: err }) => {
+        if (err || !data) setError("Session not found.");
+        else {
+          const raw = data as any;
+          setSession({
+            ...raw,
+            classification: Array.isArray(raw.classification)
+              ? raw.classification[0] ?? null
+              : raw.classification ?? null,
+            vitals: Array.isArray(raw.vitals)
+              ? raw.vitals[0] ?? null
+              : raw.vitals ?? null,
+          });
+        }
+        setLoading(false);
+      });
+  }, [id]);
 
-  if (!session) {
+  if (loading) {
     return (
       <ScreenWrapper>
-        <Header
-          title="Session Detail"
-          onLeftPress={() => router.back()}
-          leftIcon={<Text style={styles.backIcon}>←</Text>}
-        />
-        <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>Session not found.</Text>
+        <Header title="Session Detail" leftIcon={<Text style={styles.backIcon}>←</Text>} onLeftPress={() => router.back()} />
+        <View style={styles.centered}><ActivityIndicator color={Colors.primary[400]} /></View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <ScreenWrapper>
+        <Header title="Session Detail" leftIcon={<Text style={styles.backIcon}>←</Text>} onLeftPress={() => router.back()} />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error ?? "Session not found."}</Text>
         </View>
       </ScreenWrapper>
     );
   }
 
   const result = session.classification;
+  const vitals = session.vitals;
   const date = new Date(session.started_at);
 
   return (
     <ScreenWrapper>
       <Header
         title="Session Detail"
-        subtitle={session.id}
+        subtitle={session.id.slice(0, 8)}
         leftIcon={<Text style={styles.backIcon}>←</Text>}
         onLeftPress={() => router.back()}
       />
@@ -68,46 +102,25 @@ export default function ClinicSessionDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Patient info */}
+        {/* Session meta */}
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>Patient</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoKey}>Patient Code</Text>
-            <Text style={styles.infoVal}>{patient?.patient_code ?? "—"}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoKey}>Diabetes Type</Text>
-            <Text style={styles.infoVal}>{patient?.diabetes_type ?? "—"}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoKey}>Duration</Text>
-            <Text style={styles.infoVal}>
-              {patient?.diabetes_duration_years != null
-                ? `${patient.diabetes_duration_years} yrs`
-                : "—"}
-            </Text>
-          </View>
           <View style={styles.infoRow}>
             <Text style={styles.infoKey}>Date</Text>
             <Text style={styles.infoVal}>
-              {date.toLocaleDateString("en-PH", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
+              {date.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })}
+            </Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoKey}>Time</Text>
+            <Text style={styles.infoVal}>
+              {date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
             </Text>
           </View>
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.infoKey}>Status</Text>
             <Badge
               label={session.status}
-              variant={
-                session.status === "completed"
-                  ? "negative"
-                  : session.status === "failed"
-                    ? "positive"
-                    : "muted"
-              }
+              variant={session.status === "completed" ? "negative" : session.status === "failed" ? "positive" : "muted"}
               size="sm"
             />
           </View>
@@ -122,34 +135,20 @@ export default function ClinicSessionDetailScreen() {
               style={styles.section}
             />
 
-            {/* Thermal thumbnails */}
             <Card style={styles.section}>
               <Text style={styles.sectionTitle}>Thermal Captures</Text>
               <View style={styles.thumbRow}>
                 <View style={styles.thumbWrap}>
-                  <ThermalMap
-                    matrix={leftMatrix}
-                    minTemp={29}
-                    maxTemp={37}
-                    width={THUMB_W}
-                    height={THUMB_H}
-                  />
+                  <ThermalMap matrix={leftMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
                   <Text style={styles.thumbLabel}>LEFT FOOT</Text>
                 </View>
                 <View style={styles.thumbWrap}>
-                  <ThermalMap
-                    matrix={rightMatrix}
-                    minTemp={29}
-                    maxTemp={37}
-                    width={THUMB_W}
-                    height={THUMB_H}
-                  />
+                  <ThermalMap matrix={rightMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
                   <Text style={styles.thumbLabel}>RIGHT FOOT</Text>
                 </View>
               </View>
             </Card>
 
-            {/* Asymmetry */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Bilateral Asymmetry</Text>
               <AngiosomeTable
@@ -164,10 +163,19 @@ export default function ClinicSessionDetailScreen() {
               />
             </View>
 
-            <TCIDisplay
-              bilateralTci={result.bilateral_tci}
-              style={styles.section}
-            />
+            <TCIDisplay bilateralTci={result.bilateral_tci} style={styles.section} />
+
+            <Card style={styles.section}>
+              <Text style={styles.sectionTitle}>Model Info</Text>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoKey}>Model Version</Text>
+                <Text style={styles.infoVal}>{result.model_version}</Text>
+              </View>
+              <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.infoKey}>Processing Time</Text>
+                <Text style={styles.infoVal}>{result.processing_time_ms}ms</Text>
+              </View>
+            </Card>
           </>
         )}
 
@@ -178,34 +186,22 @@ export default function ClinicSessionDetailScreen() {
             {(
               [
                 ["Blood Glucose", `${vitals.blood_glucose_mgdl} mg/dL`],
-                [
-                  "Blood Pressure",
-                  `${vitals.systolic_bp_mmhg}/${vitals.diastolic_bp_mmhg} mmHg`,
-                ],
-                ["Heart Rate", `${vitals.heart_rate_bpm} bpm`],
-                ["HbA1c", vitals.hba1c_pct ? `${vitals.hba1c_pct}%` : "—"],
-              ] as [string, string][]
-            ).map(([k, v]) => (
-              <View key={k} style={styles.infoRow}>
-                <Text style={styles.infoKey}>{k}</Text>
-                <Text style={styles.infoVal}>{v}</Text>
-              </View>
-            ))}
-          </Card>
-        )}
-
-        {/* Model info */}
-        {result && (
-          <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Model Info</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoKey}>Model Version</Text>
-              <Text style={styles.infoVal}>{result.model_version}</Text>
-            </View>
-            <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-              <Text style={styles.infoKey}>Processing Time</Text>
-              <Text style={styles.infoVal}>{result.processing_time_ms}ms</Text>
-            </View>
+                vitals.systolic_bp_mmhg != null
+                  ? ["Blood Pressure", `${vitals.systolic_bp_mmhg}/${vitals.diastolic_bp_mmhg} mmHg`]
+                  : null,
+                vitals.heart_rate_bpm != null
+                  ? ["Heart Rate", `${vitals.heart_rate_bpm} bpm`]
+                  : null,
+                vitals.hba1c_pct != null ? ["HbA1c", `${vitals.hba1c_pct}%`] : null,
+              ] as ([string, string] | null)[]
+            )
+              .filter((item): item is [string, string] => item !== null)
+              .map(([k, v]) => (
+                <View key={k} style={styles.infoRow}>
+                  <Text style={styles.infoKey}>{k}</Text>
+                  <Text style={styles.infoVal}>{v}</Text>
+                </View>
+              ))}
           </Card>
         )}
 
@@ -217,6 +213,12 @@ export default function ClinicSessionDetailScreen() {
 
 const styles = StyleSheet.create({
   backIcon: { fontSize: 20, color: Colors.primary[300] },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: {
+    fontSize: Typography.sizes.base,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+  },
   content: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -256,11 +258,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 1.5,
     marginTop: Spacing.xs,
-  },
-  notFound: { flex: 1, alignItems: "center", justifyContent: "center" },
-  notFoundText: {
-    fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
 });
