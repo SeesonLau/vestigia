@@ -23,23 +23,12 @@ interface RecentUser {
   clinic_name: string | null;
 }
 
-const CLINICS = [
-  {
-    id: "c1",
-    name: "Cebu City Health Center",
-    type: "hospital",
-    sessions: 340,
-    devices: 2,
-  },
-  { id: "c2", name: "PHO Mandaue", type: "clinic", sessions: 218, devices: 1 },
-  {
-    id: "c3",
-    name: "Barangay Punta Princesa BHS",
-    type: "barangay_health_station",
-    sessions: 89,
-    devices: 1,
-  },
-];
+interface RecentClinic {
+  id: string;
+  name: string;
+  facility_type: string;
+  device_count: number;
+}
 
 type AdminTab = "overview" | "users" | "clinics";
 
@@ -53,6 +42,7 @@ export default function AdminDashboardScreen() {
     registeredUsers: 0,
   });
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [recentClinics, setRecentClinics] = useState<RecentClinic[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -80,6 +70,23 @@ export default function AdminDashboardScreen() {
           (usersData as any[]).map((u) => ({
             ...u,
             clinic_name: u.clinic?.name ?? null,
+          }))
+        );
+      }
+
+      const { data: clinicsData } = await supabase
+        .from("clinics")
+        .select("id, name, facility_type, devices:devices(id)")
+        .order("created_at", { ascending: false })
+        .limit(3);
+
+      if (clinicsData) {
+        setRecentClinics(
+          (clinicsData as any[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            facility_type: c.facility_type,
+            device_count: Array.isArray(c.devices) ? c.devices.length : 0,
           }))
         );
       }
@@ -214,28 +221,24 @@ export default function AdminDashboardScreen() {
         {tab === "clinics" && (
           <>
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>{CLINICS.length} clinics</Text>
+              <Text style={styles.listTitle}>{recentClinics.length} recent clinics</Text>
               <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/clinics")}>
-                <Text style={styles.addBtnText}>+ Add Clinic</Text>
+                <Text style={styles.addBtnText}>View All</Text>
               </TouchableOpacity>
             </View>
-            {CLINICS.map((clinic) => (
+            {recentClinics.map((clinic) => (
               <TouchableOpacity key={clinic.id} style={styles.clinicCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/clinics")}>
                 <View style={styles.clinicTop}>
                   <Text style={styles.clinicName}>{clinic.name}</Text>
                   <Badge
-                    label={clinic.type.replace("_", " ")}
+                    label={clinic.facility_type.replace(/_/g, " ")}
                     variant="info"
                     size="sm"
                   />
                 </View>
                 <View style={styles.clinicStats}>
                   <Text style={styles.clinicStat}>
-                    {clinic.sessions} sessions
-                  </Text>
-                  <Text style={styles.clinicStatDot}>·</Text>
-                  <Text style={styles.clinicStat}>
-                    {clinic.devices} device{clinic.devices > 1 ? "s" : ""}
+                    {clinic.device_count} device{clinic.device_count !== 1 ? "s" : ""}
                   </Text>
                 </View>
               </TouchableOpacity>
