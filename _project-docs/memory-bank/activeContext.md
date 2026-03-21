@@ -81,14 +81,15 @@
 ---
 
 ## Next Steps (priority order)
-1. **Deploy Edge Function** — run `npx supabase functions deploy auth-redirect ...` + add URL to Supabase Auth Redirect URLs
-2. **GAP-08** — Add abnormal region overlay on thermal map (FR-603) — 3–4 hrs
-3. **Angiosome temp computation** — Replace `MOCK_ANGIOSOMES` in clinical-data with real values computed from thermal matrix
-4. **Patient-select Supabase search** — Replace client-side filter with `.ilike()` for scalability
-5. Hardware integration (GAP-01–04) — deferred until device spec confirmed
+1. **FR-506 — Image preprocessing** — Create `lib/thermal/preprocessing.ts`: `normalizeMatrix()` (min-max using captured min/max temps) + `segmentFootRegion()` (ambient baseline mask). Prerequisite for FR-507.
+2. **FR-507 — AI model prototype** — Create `lib/classification/classifier.ts`: `extractAngiosomeTemps()` mapping 4 zones (MPA/LPA/MCA/LCA) to 80×62 matrix coords, `computeAsymmetry()`, `computeTCI()`, `classify()` outputting `ClassificationResult`. Replaces `MOCK_RESULT` in assessment.tsx (GAP-04) and `MOCK_ANGIOSOMES` in clinical-data.tsx (CODE-09).
+3. **FR-508 — Risk scoring** — Create `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH rules based on max asymmetry delta. Stored in `classification_results.feature_vector` JSONB — no schema change needed.
+4. **Deploy Edge Function** — run `npx supabase functions deploy auth-redirect ...` + add URL to Supabase Auth Redirect URLs
+5. **GAP-08** — Abnormal region overlay on thermal map (FR-603) — depends on FR-507 flagged angiosome output
+6. Hardware integration (GAP-01–04) — deferred until device spec confirmed
 
 ---
 
 ## Open Questions
-- What is the AI classification model — local inference or cloud API?
+- Angiosome zone pixel coordinates — exact mapping of MPA/LPA/MCA/LCA to the 80×62 matrix needs to be defined (consult thermal sensor documentation or thesis appendix)
 - Is BLE device hardware finalized? (deferred)

@@ -1,5 +1,5 @@
 # Progress — Vestigia
-**Current version:** 0.5.0
+**Current version:** 0.5.1
 **Last verified:** 2026-03-21
 
 > Detailed checklists: `_project-docs/progress/`
@@ -57,12 +57,22 @@
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
 
 ## Not Started ❌
-- **GAP-08** — No abnormal region overlay on thermal map (angiosome highlighting)
+
+### AI Pipeline (planned — next priority)
+- **FR-506** — Image preprocessing: contrast normalization + foot region segmentation (`lib/thermal/preprocessing.ts`)
+- **FR-507** — AI model prototype: bilateral temperature asymmetry detection + TCI computation (`lib/classification/classifier.ts`). Replaces `MOCK_RESULT` and `MOCK_ANGIOSOMES`.
+- **FR-508** — Preliminary risk scoring: Low / Medium / High rule-based thresholding (`lib/classification/riskScoring.ts`). Stored in `classification_results.feature_vector`.
+
+### Other Planned
+- **GAP-08** — No abnormal region overlay on thermal map (angiosome highlighting) — depends on FR-507
+- Deploy Edge Function (`auth-redirect`)
+
+### Deferred
 - WatermelonDB (offline-first local DB) — deferred
 - BLE device scanning and pairing (deferred — hardware not finalized)
 - Wi-Fi WebSocket to thermal device (deferred — hardware not finalized)
 - Real thermal frame reception (deferred — hardware not finalized)
-- AI classification cloud upload + polling + result retrieval (deferred)
+- AI cloud upload + polling (deferred — FR-506–508 cover client-side prototype first)
 - Offline queue and sync (deferred)
 - Push notifications (deferred)
 

@@ -58,6 +58,9 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-503 | Processing Status Polling | High | ❌ | Assessment screen has a mock progress animation — not real cloud polling |
 | FR-504 | Result Retrieval | High | ❌ | Assessment result is hardcoded `MOCK_RESULT` — no real AI response |
 | FR-505 | Offline Graceful Degradation | Medium | ❌ | WatermelonDB schema and models exist but sync logic not started. No offline queue |
+| FR-506 | Image Preprocessing (contrast normalization + foot region segmentation) | High | ❌ | New `lib/thermal/preprocessing.ts`. `normalizeMatrix()` using captured min/max; `segmentFootRegion()` using ambient baseline. Prerequisite for FR-507. |
+| FR-507 | AI Model Prototype — bilateral temperature asymmetry detection | High | ❌ | New `lib/classification/classifier.ts`. Extracts per-angiosome mean temps for each foot, computes bilateral asymmetry per zone, computes TCI, outputs `ClassificationResult`. Replaces `MOCK_RESULT` (GAP-04) and `MOCK_ANGIOSOMES` (CODE-09). |
+| FR-508 | Preliminary Risk Scoring — Low / Medium / High rule-based thresholding | High | ❌ | Extends FR-507. Rules: LOW = all asymmetries < 1°C; MEDIUM = any ≥ 1°C but < 2.2°C; HIGH = any ≥ 2.2°C (DPN POSITIVE). Stored in `classification_results.feature_vector` JSONB. |
 
 ---
 
@@ -81,6 +84,6 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-200 Device | 0 | 0 | 1 | 3 |
 | FR-300 Thermal | 3 | 1 | 1 | 0 |
 | FR-400 Patient Data | 2 | 1 | 0 | 0 |
-| FR-500 Cloud/AI | 1 | 1 | 3 | 0 |
+| FR-500 Cloud/AI | 1 | 1 | 6 | 0 |
 | FR-600 Results | 4 | 1 | 0 | 0 |
-| **Total** | **14** | **4** | **5** | **3** |
+| **Total** | **14** | **4** | **8** | **3** |
