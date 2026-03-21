@@ -3,6 +3,23 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.4.0] — 2026-03-21
+
+### Added
+- `hooks/useInactivityTimeout.ts` — 30-minute inactivity session timeout (FR-104, BUG-04); resets on touch, logs out if app backgrounded ≥30 min; wired in `app/_layout.tsx` via `View.onTouchStart`
+
+### Fixed
+- **UX-04** `app/(clinic)/settings.tsx` — All handlers wired: Sign Out (confirm dialog), Change Password → update-password, Paired Device/Scan → pairing, Clear Cache (destructive confirm), Delete Account (destructive confirm); all emoji icons replaced with Ionicons
+- **UX-06** `app/(admin)/settings.tsx` — Sign Out with confirmation dialog, Change Password → update-password, all stub handlers → "Coming Soon" alerts; emoji icons replaced with Ionicons
+- **CODE-02** — Audited all `console.` usage across 51 files; only non-sensitive `console.error` in WatermelonDB setup; no sensitive data logged
+
+### Documentation
+- `_project-docs/progress/qa-bugs.md` — Full codebase audit: 55 total issues tracked (37 fixed, 18 open); new findings: BUG-05, GAP-09–11, UX-07 expanded, UX-08, CODE-11
+- `.claude/commands/end-session.md` — Added steps 8 (qa-bugs.md sync) and 9 (session log creation)
+- `_project-docs/how-to-use.md` — Updated to reflect new /end-session behavior and sessions/ folder
+
+---
+
 ## [push] — 2026-03-20
 
 ### Fixed

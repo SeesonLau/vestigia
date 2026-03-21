@@ -7,7 +7,7 @@ These are typed directly in the Claude Code chat window.
 | Command | What it does |
 |---|---|
 | `/start-session` | Reads all memory-bank files and CLAUDE.md, then gives you a full project state report before you start working |
-| `/end-session` | Updates all memory-bank files, bumps the version, logs Supabase changes, and lists every file touched this session |
+| `/end-session` | Updates all memory-bank files, bumps the version, logs Supabase changes, lists every file touched, **updates `qa-bugs.md`** (marks fixes, adds new bugs, syncs counts), and **creates a session log** in `_project-docs/sessions/YYYY-MM-DD-vX.X.X.md` |
 | `/audit` | Scans the codebase for TypeScript errors, `any` types, empty stubs, broken imports, missing file path comments, and hardcoded secrets |
 | `/db-sync` | Queries Supabase live and reports all tables, columns, RLS status, policies, and flags anything misconfigured |
 | `/memory` | Quick summary of all memory-bank files — version, last worked on, in progress, pending, open questions |
@@ -88,13 +88,16 @@ _project-docs/progress/
 ├── fr-checklist.md     ←  exactly which requirements are met or not
 ├── data-checklist.md   ←  Supabase schema, WatermelonDB, types, security
 └── qa-bugs.md          ←  specific bugs with file + line numbers, fix priority
+
+_project-docs/sessions/
+└── YYYY-MM-DD-vX.X.X.md  ←  one log per session: what was done, files changed, pending
 ```
 
 ### Update workflow (when something is fixed)
 1. Mark it fixed in `qa-bugs.md`
 2. Update the relevant checklist (`ui-checklist.md`, `fr-checklist.md`, or `data-checklist.md`)
 3. Reflect it in `progress.md` if it's a meaningful milestone
-4. Run `/end-session` to sync everything
+4. Run `/end-session` to sync everything — it will also create the session log and re-sync `qa-bugs.md` automatically
 
 ---
 
@@ -109,7 +112,8 @@ Work on the project
        ↓
 Every Supabase change → supabase-changes.md auto-updated by Claude
        ↓
-Type /end-session → Claude updates all memory-bank files + bumps version
+Type /end-session → Claude updates memory-bank files + bumps version
+                  + updates qa-bugs.md + writes session log to _project-docs/sessions/
        ↓
 git commit (using prefix format) + git push to main
        ↓
