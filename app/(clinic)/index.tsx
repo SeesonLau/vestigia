@@ -1,11 +1,13 @@
 // app/(clinic)/index.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { StatusIndicator } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
+import { useAuthStore } from "../../store/authStore";
 
 interface QuickActionProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -47,13 +49,28 @@ function QuickAction({
 
 export default function ClinicHomeScreen() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const [clinicName, setClinicName] = useState("My Clinic");
+
+  useEffect(() => {
+    if (!user?.clinic_id) return;
+    supabase
+      .from("clinics")
+      .select("name")
+      .eq("id", user.clinic_id)
+      .single()
+      .then(({ data }) => {
+        if (data?.name) setClinicName(data.name);
+      });
+  }, [user?.clinic_id]);
+
   return (
     <ScreenWrapper scrollable>
       {/* Custom header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning 👋</Text>
-          <Text style={styles.clinicName}>Cebu City Health Center</Text>
+          <Text style={styles.clinicName}>{clinicName}</Text>
         </View>
         <View style={styles.headerRight}>
           <StatusIndicator status="connected" label="Scanner Online" />
