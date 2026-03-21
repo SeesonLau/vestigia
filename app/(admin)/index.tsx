@@ -1,7 +1,7 @@
 // app/(admin)/index.tsx
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Badge, Card } from "../../components/ui/index";
@@ -35,6 +35,8 @@ type AdminTab = "overview" | "users" | "clinics";
 export default function AdminDashboardScreen() {
   const router = useRouter();
   const [tab, setTab] = useState<AdminTab>("overview");
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [stats, setStats] = useState<OverviewStats>({
     totalSessions: 0,
     positiveCases: 0,
@@ -46,49 +48,66 @@ export default function AdminDashboardScreen() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      const [sessions, positive, clinics, users] = await Promise.all([
-        supabase.from("screening_sessions").select("*", { count: "exact", head: true }),
-        supabase.from("classification_results").select("*", { count: "exact", head: true }).eq("classification", "POSITIVE"),
-        supabase.from("clinics").select("*", { count: "exact", head: true }).eq("is_active", true),
-        supabase.from("profiles").select("*", { count: "exact", head: true }),
-      ]);
-      setStats({
-        totalSessions: sessions.count ?? 0,
-        positiveCases: positive.count ?? 0,
-        activeClinics: clinics.count ?? 0,
-        registeredUsers: users.count ?? 0,
-      });
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const [sessions, positive, clinics, users] = await Promise.all([
+          supabase.from("screening_sessions").select("*", { count: "exact", head: true }),
+          supabase.from("classification_results").select("*", { count: "exact", head: true }).eq("classification", "POSITIVE"),
+          supabase.from("clinics").select("*", { count: "exact", head: true }).eq("is_active", true),
+          supabase.from("profiles").select("*", { count: "exact", head: true }),
+        ]);
+        if (sessions.error || positive.error || clinics.error || users.error) {
+          throw new Error("Failed to load overview stats.");
+        }
+        setStats({
+          totalSessions: sessions.count ?? 0,
+          positiveCases: positive.count ?? 0,
+          activeClinics: clinics.count ?? 0,
+          registeredUsers: users.count ?? 0,
+        });
 
-      const { data: usersData } = await supabase
-        .from("profiles")
-        .select("id, full_name, role, is_active, clinic:clinics(name)")
-        .order("created_at", { ascending: false })
-        .limit(4);
+        const { data: usersData, error: usersErr } = await supabase
+          .from("profiles")
+          .select("id, full_name, role, is_active, clinic:clinics(name)")
+          .order("created_at", { ascending: false })
+          .limit(4);
+        if (usersErr) throw new Error("Failed to load recent users.");
 
-      if (usersData) {
-        setRecentUsers(
-          (usersData as any[]).map((u) => ({
-            ...u,
-            clinic_name: u.clinic?.name ?? null,
-          }))
-        );
-      }
+        if (usersData) {
+          const typedUsers = usersData as unknown as Array<{ id: string; full_name: string; role: string; is_active: boolean; clinic: { name: string }[] | null }>;
+          setRecentUsers(
+            typedUsers.map((u) => ({
+              id: u.id,
+              full_name: u.full_name,
+              role: u.role,
+              is_active: u.is_active,
+              clinic_name: Array.isArray(u.clinic) ? (u.clinic[0]?.name ?? null) : null,
+            }))
+          );
+        }
 
-      const { data: clinicsData } = await supabase
-        .from("clinics")
-        .select("id, name, facility_type, devices:devices(id)")
-        .order("created_at", { ascending: false })
-        .limit(3);
+        const { data: clinicsData, error: clinicsErr } = await supabase
+          .from("clinics")
+          .select("id, name, facility_type, devices:devices(id)")
+          .order("created_at", { ascending: false })
+          .limit(3);
+        if (clinicsErr) throw new Error("Failed to load recent clinics.");
 
-      if (clinicsData) {
-        setRecentClinics(
-          (clinicsData as any[]).map((c) => ({
-            id: c.id,
-            name: c.name,
-            facility_type: c.facility_type,
-            device_count: Array.isArray(c.devices) ? c.devices.length : 0,
-          }))
-        );
+        if (clinicsData) {
+          setRecentClinics(
+            clinicsData.map((c: { id: string; name: string; facility_type: string; devices: { id: string }[] }) => ({
+              id: c.id,
+              name: c.name,
+              facility_type: c.facility_type,
+              device_count: Array.isArray(c.devices) ? c.devices.length : 0,
+            }))
+          );
+        }
+      } catch (err: unknown) {
+        setFetchError(err instanceof Error ? err.message : "Failed to load dashboard data.");
+      } finally {
+        setLoading(false);
       }
     };
     fetchStats();
@@ -119,7 +138,13 @@ export default function AdminDashboardScreen() {
       </View>
 
       <View style={styles.container}>
-        {tab === "overview" && (
+        {loading && (
+          <ActivityIndicator size="small" color={Colors.primary[400]} style={{ marginVertical: Spacing.xl }} />
+        )}
+        {!loading && fetchError && (
+          <Text style={styles.errorText}>{fetchError}</Text>
+        )}
+        {!loading && !fetchError && tab === "overview" && (
           <>
             {/* Stat grid */}
             <View style={styles.statGrid}>
@@ -251,6 +276,13 @@ export default function AdminDashboardScreen() {
 }
 
 const styles = StyleSheet.create({
+  errorText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    marginVertical: Spacing.xl,
+  },
   adminBadge: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
