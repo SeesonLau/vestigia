@@ -145,24 +145,23 @@ export default function LiveFeedScreen() {
         <View style={styles.footSelector}>
           <Text style={styles.footLabel}>Capture Mode</Text>
           <View style={styles.footBtns}>
-            {(["Left", "Right", "Bilateral"] as const).map((f) => (
-              <TouchableOpacity
-                key={f}
-                style={[
-                  styles.footBtn,
-                  f === "Bilateral" ? styles.footBtnActive : undefined,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.footBtnText,
-                    f === "Bilateral" ? styles.footBtnTextActive : undefined,
-                  ]}
+            {(["Left", "Right", "Bilateral"] as const).map((f) => {
+              const val = f.toLowerCase() as "left" | "right" | "bilateral";
+              const active = selectedFoot === val;
+              return (
+                <TouchableOpacity
+                  key={f}
+                  onPress={() => setSelectedFoot(val)}
+                  style={[styles.footBtn, active ? styles.footBtnActive : undefined]}
+                  activeOpacity={0.7}
+                  disabled={captured}
                 >
-                  {f}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.footBtnText, active ? styles.footBtnTextActive : undefined]}>
+                    {f}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
