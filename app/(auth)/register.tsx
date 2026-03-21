@@ -97,7 +97,7 @@ export default function RegisterScreen() {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logoGlyph}>◈</Text>
+              <Ionicons name="pulse-outline" size={32} color={Colors.primary[300]} />
             </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join the DPN Thermal platform</Text>

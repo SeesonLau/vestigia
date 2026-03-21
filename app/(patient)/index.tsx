@@ -168,14 +168,21 @@ export default function PatientDashboardScreen() {
               />
             </View>
 
-            <Text
-              style={[
-                styles.latestClassification,
-                isPositive ? styles.positiveText : styles.negativeText,
-              ]}
-            >
-              {isPositive ? "⚠ DPN Indicators Detected" : "✓ No DPN Indicators"}
-            </Text>
+            <View style={styles.classificationRow}>
+              <Ionicons
+                name={isPositive ? "warning-outline" : "checkmark-circle-outline"}
+                size={20}
+                color={isPositive ? "#f87171" : Colors.teal[300]}
+              />
+              <Text
+                style={[
+                  styles.latestClassification,
+                  isPositive ? styles.positiveText : styles.negativeText,
+                ]}
+              >
+                {isPositive ? " DPN Indicators Detected" : " No DPN Indicators"}
+              </Text>
+            </View>
             <Text style={styles.latestDate}>
               Screened on{" "}
               {new Date(latestSession.started_at).toLocaleDateString("en-PH", {
@@ -354,10 +361,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: "uppercase",
   },
+  classificationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+  },
   latestClassification: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
-    marginBottom: Spacing.xs,
   },
   positiveText: { color: "#f87171" },
   negativeText: { color: Colors.teal[300] },

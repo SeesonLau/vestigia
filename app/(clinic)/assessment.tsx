@@ -1,4 +1,5 @@
 // app/(clinic)/assessment.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -140,7 +141,7 @@ export default function AssessmentScreen() {
       {state === "processing" ? (
         <View style={styles.processingContainer}>
           <View style={styles.processingCard}>
-            <Text style={styles.processingIcon}>🧠</Text>
+            <Ionicons name="analytics-outline" size={48} color={Colors.primary[400]} style={styles.processingIcon} />
             <Text style={styles.processingTitle}>Analyzing Thermal Data</Text>
             <Text style={styles.processingSubtitle}>
               Uploading and processing through the AI classification model...
@@ -180,9 +181,10 @@ export default function AssessmentScreen() {
           {/* Metadata row */}
           <View style={styles.metaRow}>
             <Badge label={MOCK_RESULT.model_version} variant="muted" />
-            <Text style={styles.processingTime}>
-              ⏱ {MOCK_RESULT.processing_time_ms}ms
-            </Text>
+            <View style={styles.processingTimeRow}>
+              <Ionicons name="timer-outline" size={12} color={Colors.text.muted} />
+              <Text style={styles.processingTime}> {MOCK_RESULT.processing_time_ms}ms</Text>
+            </View>
           </View>
 
           {/* Thermal thumbnails */}
@@ -256,7 +258,7 @@ export default function AssessmentScreen() {
                 size="md"
               />
               <Button
-                label="Save to Cloud ↑"
+                label="Save to Cloud"
                 onPress={handleSave}
                 loading={saving}
                 variant="teal"
@@ -265,7 +267,10 @@ export default function AssessmentScreen() {
             </View>
           ) : (
             <View style={styles.savedBanner}>
-              <Text style={styles.savedText}>✓ Session saved successfully</Text>
+              <View style={styles.savedRow}>
+                <Ionicons name="checkmark-circle-outline" size={18} color={Colors.teal[300]} />
+                <Text style={styles.savedText}> Session saved successfully</Text>
+              </View>
               <Button
                 label="New Session"
                 onPress={handleExit}
@@ -297,7 +302,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xl,
     alignItems: "center",
   },
-  processingIcon: { fontSize: 48, marginBottom: Spacing.lg },
+  processingIcon: { marginBottom: Spacing.lg },
   processingTitle: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
@@ -371,6 +376,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: Spacing.lg,
   },
+  processingTimeRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+  },
   processingTime: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
@@ -405,6 +414,10 @@ const styles = StyleSheet.create({
     color: "#f87171",
     textAlign: "center",
     marginBottom: Spacing.xs,
+  },
+  savedRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
   },
   savedBanner: {
     backgroundColor: "rgba(20,176,142,0.1)",

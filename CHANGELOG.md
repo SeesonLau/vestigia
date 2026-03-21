@@ -3,6 +3,38 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.5.0] — 2026-03-21
+
+### Added
+- `lib/debug.ts` — timestamped debug logger `dbg(tag, msg, data?)` using `APP_START` baseline for relative timing; used across auth, screens, and stores to trace cold-start sequence
+
+### Fixed — Supabase Backend Wiring
+- **GAP-07** `app/(clinic)/assessment.tsx` — "Save to Cloud" now inserts to `classification_results` and updates `screening_sessions.status = "completed"`
+- **GAP-09** `app/(clinic)/history.tsx` — Replaced `MOCK_CLINIC_SESSIONS` with live Supabase query filtered by `clinic_id`
+- **GAP-10** `app/(admin)/users.tsx` — Replaced `MOCK_ALL_USERS` with real `profiles` table query; Activate/Deactivate now calls `supabase.from("profiles").update()`
+- **GAP-11** `app/(admin)/clinics.tsx` — Replaced `MOCK_CLINICS` + `MOCK_DEVICES` with real `clinics` + `devices` tables; Activate/Deactivate wired to Supabase
+- **UX-07** `app/(clinic)/session/[id].tsx` + `app/(patient)/session/[id].tsx` — Both session detail screens now load real session from Supabase joining `classification_results`, `patient_vitals`, `thermal_captures`
+- **UX-08** `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` — Activate/Deactivate modal buttons now call Supabase `.update()` instead of only closing modal
+- **CODE-11** `app/(clinic)/index.tsx` — Clinic name and today's session stats now loaded from Supabase (`clinics` + `screening_sessions` tables); removed hardcoded "Cebu City Health Center"
+- **BUG-05** `app/(clinic)/live-feed.tsx` — Foot selector buttons wired with `onPress`; active style now mirrors `selectedFoot` state correctly
+- `app/(admin)/index.tsx` — Overview stats (sessions, positive cases, clinics, users) wired to real Supabase counts (S-01)
+- `app/(admin)/index.tsx` — Clinic cards on admin dashboard now navigate to `/(admin)/clinics` on tap (N-02)
+
+### Fixed — Startup Performance
+- **PERF-05** `app.json` — `"output": "static"` → `"output": "single"`; removes Expo Router Node.js SSR pre-render; fixes `window is not defined` crash on Metro start
+- **PERF-06** `lib/supabase.ts` — Supabase client lazy-initialized via `Proxy`; defers `createClient()` and `AsyncStorage` initialization until first use; eliminates 5+ second startup block
+- **PERF-07** `lib/supabase.ts` — Proxy `get` trap binds methods to client instance; fixes silent failures from lost `this` context on `supabase.from()` calls
+- **PERF-08** `store/authStore.ts` — Removed blocking `getSession()` call; auth now resolved via `INITIAL_SESSION` event using JWT `user_metadata`; cold start reduced to <1 second with no DB round-trip
+- **NAV-02** `app/index.tsx` — Replaced `useEffect + router.replace()` with `<Redirect>` component; fixes "Attempted to navigate before mounting Root Layout" crash on cold start
+
+### Fixed — UX
+- **UX-14** Icon standardization — All emoji characters and unclear Unicode symbols (`⌂ ◈ 📷 📋 ⚙ 📡 🧠 ⏱ 📊 📄 ⚠ ✓ › ← →`) replaced with `@expo/vector-icons` Ionicons across all 20 affected files; brand logo `◈` in auth screens replaced with `pulse-outline` Ionicons
+- `app/(patient)/index.tsx` — Added `PGRST116` guard; no linked patient record now shows empty state instead of error screen
+- `app/(clinic)/index.tsx` + `app/(patient)/index.tsx` — Logout button added to header via `rightIcon` prop using `Ionicons log-out-outline`
+- `app/(clinic)/_layout.tsx` — `TabIcon` component rewritten to use `<Ionicons>` with typed `keyof typeof Ionicons.glyphMap` prop; removed `<Text>` emoji rendering
+
+---
+
 ## [0.4.0] — 2026-03-21
 
 ### Added
@@ -17,39 +49,6 @@ Format: `Major.Minor.Patch`
 - `_project-docs/progress/qa-bugs.md` — Full codebase audit: 55 total issues tracked (37 fixed, 18 open); new findings: BUG-05, GAP-09–11, UX-07 expanded, UX-08, CODE-11
 - `.claude/commands/end-session.md` — Added steps 8 (qa-bugs.md sync) and 9 (session log creation)
 - `_project-docs/how-to-use.md` — Updated to reflect new /end-session behavior and sessions/ folder
-
----
-
-## [push] — 2026-03-20
-
-### Fixed
-- FIX: clear session and thermal state on assessment exit (CODE-10)
-- FIX: wire admin dashboard action buttons (UX-03)
-- FIX: patient session cards now navigate to session detail screen (UX-02)
-
-### Changed
-- chore: update changelog [skip ci]
-- chore: update changelog [skip ci]
-
----
-
-## [push] — 2026-03-20
-
-### Fixed
-- FIX: wire admin dashboard action buttons (UX-03)
-- FIX: patient session cards now navigate to session detail screen (UX-02)
-
-### Changed
-- chore: update changelog [skip ci]
-
----
-
-## [push] — 2026-03-20
-
-### Fixed
-- FIX: patient session cards now navigate to session detail screen (UX-02)
-
----
 
 ---
 

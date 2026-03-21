@@ -1,5 +1,5 @@
 # Progress — Vestigia
-**Current version:** 0.4.0
+**Current version:** 0.5.0
 **Last verified:** 2026-03-21
 
 > Detailed checklists: `_project-docs/progress/`
@@ -10,7 +10,8 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
-| 0.4.0 | 2026-03-21 | Inactivity timeout, clinic + admin settings wired, full QA audit (55 issues tracked) |
+| 0.5.0 | 2026-03-21 | All Supabase screens wired (8 features), startup perf overhaul, icon standardization (20 files) |
+| 0.4.0 | 2026-03-21 | Inactivity timeout, clinic + admin settings wired, full QA audit (79 issues tracked) |
 | 0.3.0 | 2026-03-20 | Email confirmation deep link flow, account-activated screen, Edge Function redirect page |
 | 0.2.0 | 2026-03-20 | Auth full audit + 10 bug fixes, clinic navigation wired, SafeAreaView fix, Ionicons, type fixes |
 | 0.1.0 | 2026-03-20 | Initial setup — UI, auth, stores, mock data, MCP, memory bank |
@@ -31,50 +32,42 @@
 - Memory bank + CLAUDE.md + slash commands + QA tracking system
 - Clinical thresholds defined (2.2°C, blood glucose 30–600, BP ranges)
 - Clinic screening flow fully wired: Dashboard → Pair → Patient Select → Live Feed → Clinical Data → Assessment
-- GAP-05: clinical-data form writes to `screening_sessions`, `patient_vitals`, `thermal_captures`
-- Patient select screen (`patient-select.tsx`) fetches real patients from Supabase by clinic_id
-- sessionStore extended: `selectedPatient`, `clearSession`
-- thermalStore extended: `discardCapture`
+- **GAP-05** clinical-data form writes to `screening_sessions`, `patient_vitals`, `thermal_captures`
+- **GAP-07** Assessment "Save to Cloud" inserts to `classification_results`, updates session status
+- **GAP-09** History screen loads real sessions from Supabase by `clinic_id`
+- **GAP-10** Admin users screen loads real `profiles` table; Activate/Deactivate wired
+- **GAP-11** Admin clinics screen loads real `clinics` + `devices` tables; Activate/Deactivate wired
+- **UX-07** Both session detail screens (`clinic` + `patient`) load real Supabase data with joins
+- **UX-08** Admin Activate/Deactivate modal buttons call Supabase `.update()`
+- **CODE-11** Clinic dashboard fetches real clinic name and today's session stats from Supabase
+- **BUG-05** Live-feed foot selector buttons wired with `onPress`; active style mirrors state
+- Patient select screen fetches real Supabase patients by clinic_id
+- sessionStore + thermalStore cleanup on session exit (CODE-10)
 - Mock accounts fully removed — all auth through Supabase
-- All auth screens use Ionicons (no emoji icons)
-- Auth error messages all user-friendly (mapAuthError covers all known codes)
-- Client-side rate limiting on login (5 attempts → 30s lockout)
-- All 15 auth bugs fixed (AUTH-01 through AUTH-15)
-- All 8 DB tables verified against thesis schema; RLS on all tables
-- All role dashboards + admin tabs navigable
-- Patient session card navigates to session detail
-- Admin dashboard action buttons wired (+ Invite User, + Add Clinic, Configure Model, Export alerts)
-- Assessment exit calls `clearSession()` + `discardCapture()` (CODE-10)
-- **Clinic settings screen** — all handlers wired (Sign Out confirm, Change Password, Device, Cache, Delete) (UX-04)
-- **Admin settings screen** — all handlers wired (Sign Out confirm, Change Password, Coming Soon stubs) (UX-06)
-- **Patient settings screen** — Sign Out, Change Password, Notifications (UX-05)
-- **30-minute inactivity timeout** — `hooks/useInactivityTimeout.ts` + wired in root `_layout.tsx` (BUG-04)
+- **Icon standardization (UX-14)** — All emoji and unclear symbols replaced with Ionicons across 20 files
+- **Startup perf overhaul** — Lazy Supabase init via Proxy, JWT-based auth (no DB call on cold start), `"output": "single"`, `<Redirect>` in index.tsx; cold start <1 second
+- `lib/debug.ts` — timestamped debug logger for startup tracing
+- All role dashboards + admin tabs navigable and data-wired
+- 30-minute inactivity timeout on all roles (BUG-04)
+- All settings screens handlers wired (clinic, patient, admin)
 - console.log audited — no sensitive data (CODE-02)
-- Full codebase QA audit — 55 issues tracked, 37 fixed, 18 open
+- Full codebase QA audit — 79 issues tracked, 70 fixed, 9 open
 
 ## In Progress 🔄
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
 
 ## Not Started ❌
-- **BUG-05** — Live-feed foot selector buttons non-functional (no `onPress`)
-- **UX-07** — Session detail screens read mock data (real sessions show "not found")
-- **GAP-09** — History screen reads mock sessions, not Supabase
-- **CODE-11** — Clinic dashboard shows hardcoded clinic name
-- **GAP-07** — Assessment "Save to Cloud" doesn't write to `classification_results`
-- **UX-08** — Admin Deactivate/Activate modal buttons are stubs
-- **GAP-10/11** — Admin users + clinics screens serve mock data
-- WatermelonDB (offline-first local DB)
+- **GAP-08** — No abnormal region overlay on thermal map (angiosome highlighting)
+- WatermelonDB (offline-first local DB) — deferred
 - BLE device scanning and pairing (deferred — hardware not finalized)
 - Wi-Fi WebSocket to thermal device (deferred — hardware not finalized)
 - Real thermal frame reception (deferred — hardware not finalized)
-- AI classification cloud upload + polling + result retrieval
-- Offline queue and sync
-- Abnormal region overlay on thermal map
-- Push notifications
+- AI classification cloud upload + polling + result retrieval (deferred)
+- Offline queue and sync (deferred)
+- Push notifications (deferred)
 
 ## Known Issues
-- 1 Critical open: BUG-05 (foot selector broken — always saves as "bilateral")
-- 10 High gaps (mostly hardware-deferred, but GAP-07/09/10/11 are wirable)
-- 2 Medium UX gaps: UX-07, UX-08
-- Most screens still display mock data except: auth, patient-select, clinical-data submit
+- 1 Open nav: NAV-01 (no back button in assessment — intentional design, low priority)
+- 1 Open data gap: GAP-08 (thermal map overlay — deferred)
+- Multiple deferred hardware items (BLE, Wi-Fi, real thermal, AI)
 - Edge Function not yet deployed

@@ -10,14 +10,11 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | BUG-05 | Fix live-feed foot selector `onPress` — always saves as "bilateral" | 30 min | One-liner per button; active style must mirror `selectedFoot` state |
-| 2 | UX-07 | Wire session detail screens to real Supabase data | 2–3 hrs | Both `(clinic)/session/[id].tsx` and `(patient)/session/[id].tsx`; join `classification_results`, `patient_vitals`, `thermal_captures` |
-| 3 | GAP-09 | Wire history.tsx to real `screening_sessions` from Supabase | 1–2 hrs | Filter by `clinic_id`; replace `MOCK_CLINIC_SESSIONS` |
-| 4 | CODE-11 | Fetch real clinic name on clinic dashboard | 30 min | Read from `clinics` table using `user.clinic_id` on mount |
-| 5 | GAP-07 | Wire assessment "Save to Cloud" to `classification_results` insert | 1 hr | Currently only calls `setSaved(true)`; result is never persisted |
-| 6 | UX-08 | Wire admin Activate/Deactivate modal buttons to Supabase | 1–2 hrs | `profiles` update for users; `clinics` update for clinics |
-| 7 | GAP-10 | Wire admin users screen to real `profiles` table | 2–3 hrs | Replace `MOCK_ALL_USERS`; add role/status filter via `.eq()` |
-| 8 | GAP-11 | Wire admin clinics screen to real `clinics` + `devices` tables | 2–3 hrs | Replace `MOCK_CLINICS` + `MOCK_DEVICES` |
+| 1 | — | Deploy Edge Function | 15 min | `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`; add URL to Supabase Auth Redirect URLs in dashboard |
+| 2 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Visual highlight of flagged angiosomes for clinicians; needs new component layer on top of `ThermalMap` |
+| 3 | — | Angiosome temperature computation from thermal matrix | 4–5 hrs | Replaces `MOCK_ANGIOSOMES` in clinical-data.tsx; required before real AI wiring (CODE-09) |
+| 4 | — | Patient-select Supabase search | 1 hr | Replace client-side `.filter()` with Supabase `.ilike()` on `full_name` + `patient_code`; current approach breaks at ~200+ patients |
+| 5 | — | `useEffect` cleanup in assessment.tsx | 15 min | Call `clearSession()` on unmount to guard stale state if user leaves without pressing Save or Discard |
 
 ---
 
@@ -27,12 +24,10 @@
 |---|---|---|
 | Add `captured_at` explicitly in `thermal_captures.insert` | Don't rely on server-side default; makes insert intent clear | 5 min |
 | Replace hardcoded `leftTci={0.038}` + `rightTci={0.046}` in assessment + session detail | TCI values should come from real computation, not magic numbers | Medium |
-| Add patient greeting from `authStore.user` in `(patient)/index.tsx` | Currently hardcoded as "Hello, Juan" + "DPN-P-0042" | 30 min |
-| Add Supabase `.ilike()` search to patient-select.tsx | Current search is client-side only; will break at ~200+ patients | 1 hr |
-| Add `useEffect` cleanup to assessment.tsx calling `clearSession()` on unmount | Guards stale state if user leaves without pressing a button | 15 min |
-| Replace `🏥` emoji in `(admin)/clinics.tsx` with Ionicons | Inconsistent with rest of app after UX-04/06 Ionicons migration | 15 min |
-| Add abnormal region overlay on thermal map (FR-603) | Visual highlight of flagged angiosomes for clinicians | 3–4 hrs |
-| Implement angiosome temperature computation from thermal matrix | Removes `MOCK_ANGIOSOMES` from clinical-data; needed before AI wiring | 4–5 hrs |
+| Add Supabase real-time subscription to session detail screen | Live updates when classification result arrives from cloud | 2 hrs |
+| Add patient registration form in clinic flow | Currently patients must be pre-loaded in DB; clinic staff should be able to register new patients | 3–4 hrs |
+| Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
+| Add search/filter to session history screen | Useful once sessions accumulate; filter by date range, result type | 1–2 hrs |
 
 ---
 
@@ -66,4 +61,16 @@
 | v0.4.0 | Admin settings fully wired (UX-06) | 2026-03-21 |
 | v0.4.0 | 30-minute inactivity timeout (BUG-04) | 2026-03-21 |
 | v0.4.0 | console.log audit — clean (CODE-02) | 2026-03-21 |
-| v0.4.0 | Full codebase QA audit — 55 issues tracked | 2026-03-21 |
+| v0.4.0 | Full codebase QA audit — 79 issues tracked | 2026-03-21 |
+| v0.5.0 | Startup perf overhaul — lazy Supabase init, JWT auth, no blocking DB call (PERF-05–08, NAV-02) | 2026-03-21 |
+| v0.5.0 | Assessment Save to Cloud → classification_results insert (GAP-07) | 2026-03-21 |
+| v0.5.0 | History screen wired to Supabase (GAP-09) | 2026-03-21 |
+| v0.5.0 | Admin users screen wired to profiles table + Activate/Deactivate (GAP-10, UX-08) | 2026-03-21 |
+| v0.5.0 | Admin clinics screen wired to clinics + devices tables (GAP-11) | 2026-03-21 |
+| v0.5.0 | Both session detail screens wired to Supabase joins (UX-07) | 2026-03-21 |
+| v0.5.0 | Clinic dashboard: real clinic name + today's stats from Supabase (CODE-11) | 2026-03-21 |
+| v0.5.0 | Live-feed foot selector wired (BUG-05) | 2026-03-21 |
+| v0.5.0 | Admin overview stats wired to Supabase | 2026-03-21 |
+| v0.5.0 | Icon standardization — all emoji/unclear symbols → Ionicons across 20 files (UX-14) | 2026-03-21 |
+| v0.5.0 | PGRST116 guard in patient dashboard | 2026-03-21 |
+| v0.5.0 | Logout buttons on clinic home + patient dashboard | 2026-03-21 |

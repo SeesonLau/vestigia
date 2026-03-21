@@ -1,4 +1,5 @@
 // app/(clinic)/_layout.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -9,13 +10,13 @@ function TabIcon({
   label,
   focused,
 }: {
-  icon: string;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   focused: boolean;
 }) {
   return (
     <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapFocused]}>
-      <Text style={tabStyles.icon}>{icon}</Text>
+      <Ionicons name={icon} size={22} color={focused ? Colors.primary[300] : Colors.text.muted} />
       <Text style={[tabStyles.label, focused && tabStyles.labelFocused]}>
         {label}
       </Text>
@@ -36,7 +37,7 @@ export default function ClinicLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⌂" label="Home" focused={focused} />
+            <TabIcon icon="home-outline" label="Home" focused={focused} />
           ),
         }}
       />
@@ -44,7 +45,7 @@ export default function ClinicLayout() {
         name="pairing"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="◈" label="Device" focused={focused} />
+            <TabIcon icon="bluetooth-outline" label="Device" focused={focused} />
           ),
         }}
       />
@@ -52,7 +53,7 @@ export default function ClinicLayout() {
         name="live-feed"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="📷" label="Scan" focused={focused} />
+            <TabIcon icon="camera-outline" label="Scan" focused={focused} />
           ),
         }}
       />
@@ -60,7 +61,7 @@ export default function ClinicLayout() {
         name="history"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="📋" label="History" focused={focused} />
+            <TabIcon icon="time-outline" label="History" focused={focused} />
           ),
         }}
       />
@@ -68,7 +69,7 @@ export default function ClinicLayout() {
         name="settings"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⚙" label="Settings" focused={focused} />
+            <TabIcon icon="settings-outline" label="Settings" focused={focused} />
           ),
         }}
       />
@@ -98,7 +99,6 @@ const tabStyles = StyleSheet.create({
   iconWrapFocused: {
     backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
-  icon: { fontSize: 18, marginBottom: 2 },
   label: {
     fontSize: 9,
     fontFamily: Typography.fonts.label,

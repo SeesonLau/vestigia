@@ -1,4 +1,5 @@
 // app/(clinic)/pairing.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -108,9 +109,10 @@ export default function PairingScreen() {
           </View>
           {isPaired && (
             <View style={styles.pairedBanner}>
-              <Text style={styles.pairedText}>
-                ✓ Device paired and data stream active
-              </Text>
+              <View style={styles.pairedRow}>
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.teal[300]} />
+                <Text style={styles.pairedText}> Device paired and data stream active</Text>
+              </View>
             </View>
           )}
         </View>
@@ -143,7 +145,7 @@ export default function PairingScreen() {
                   activeOpacity={0.75}
                 >
                   <View style={styles.deviceIcon}>
-                    <Text style={styles.deviceIconText}>◈</Text>
+                    <Ionicons name="hardware-chip-outline" size={22} color={Colors.text.secondary} />
                   </View>
                   <View style={styles.deviceInfo}>
                     <Text style={styles.deviceName}>{device.name}</Text>
@@ -162,7 +164,7 @@ export default function PairingScreen() {
         {/* Empty state */}
         {!scanning && devices.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📡</Text>
+            <Ionicons name="radio-outline" size={48} color={Colors.text.muted} style={styles.emptyIcon} />
             <Text style={styles.emptyTitle}>No devices found</Text>
             <Text style={styles.emptySubtitle}>
               Make sure your DPN Scanner is powered on and in range, then tap
@@ -187,7 +189,7 @@ export default function PairingScreen() {
 
         {isPaired && (
           <Button
-            label="Proceed to Patient Select →"
+            label="Proceed to Patient Select"
             onPress={() => router.push("/(clinic)/patient-select" as any)}
             variant="teal"
             size="lg"
@@ -247,6 +249,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     borderWidth: 1,
     borderColor: "rgba(20, 176, 142, 0.3)",
+  },
+  pairedRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   pairedText: {
     fontSize: Typography.sizes.sm,
@@ -324,7 +330,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing["2xl"],
     paddingVertical: Spacing["3xl"],
   },
-  emptyIcon: { fontSize: 48, marginBottom: Spacing.lg },
+  emptyIcon: { marginBottom: Spacing.lg },
   emptyTitle: {
     fontSize: Typography.sizes.lg,
     fontFamily: Typography.fonts.heading,

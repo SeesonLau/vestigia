@@ -1,4 +1,5 @@
 // app/(patient)/session/[id].tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -69,7 +70,7 @@ export default function SessionDetailScreen() {
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header title="Session Detail" leftIcon={<Text style={styles.back}>←</Text>} onLeftPress={() => router.back()} />
+        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />} onLeftPress={() => router.back()} />
         <View style={styles.centered}><ActivityIndicator color={Colors.primary[400]} /></View>
       </ScreenWrapper>
     );
@@ -78,7 +79,7 @@ export default function SessionDetailScreen() {
   if (error || !session) {
     return (
       <ScreenWrapper>
-        <Header title="Session Detail" leftIcon={<Text style={styles.back}>←</Text>} onLeftPress={() => router.back()} />
+        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />} onLeftPress={() => router.back()} />
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error ?? "Session not found."}</Text>
         </View>
@@ -93,7 +94,7 @@ export default function SessionDetailScreen() {
     <ScreenWrapper>
       <Header
         title="Session Detail"
-        leftIcon={<Text style={styles.back}>←</Text>}
+        leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />}
         onLeftPress={() => router.back()}
       />
       <ScrollView

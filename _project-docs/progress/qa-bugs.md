@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-03-21 (Full codebase QA audit — 51 source files reviewed, v3 — startup perf fixes)
+**Last verified:** 2026-03-21 (v0.5.0 — Supabase wiring, startup perf, icon standardization)
 
 ---
 
@@ -61,6 +61,7 @@
 | UX-11 | `app/(clinic)/index.tsx` | 159–178 | Device status card fully hardcoded: "DPN-Scanner-01", "MI0802M5S", "v2.1.4", "Feb 10" | Low | Deferred (hardware) |
 | ~~UX-12~~ | `app/(admin)/settings.tsx` | 88–101 | `system_config` load failure silently ignored — toggles show default values with no user feedback | Low | ✅ Fixed 2026-03-21 |
 | ~~UX-13~~ | `app/(clinic)/index.tsx` | 93 | "Good morning 👋" hardcoded — displays "morning" at all hours | Low | ✅ Fixed 2026-03-21 |
+| ~~UX-14~~ | Multiple files (20) | — | All emoji / unclear Unicode symbols (`⌂ ◈ 📷 📋 ⚙ 📡 🧠 ⏱ 📊 📄 ⚠ ✓ › ← →`) replaced with `@expo/vector-icons` Ionicons; brand logo `◈` in auth screens → `pulse-outline` | Medium | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -166,8 +167,8 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 13 | 0 | 11 | 2 |
-| UI / UX | 17 | 2 | 14 | 1 |
+| Code Quality | 13 | 0 | 12 | 1 |
+| UI / UX | 18 | 1 | 16 | 1 |
 | Supabase / Data | 10 | 1 | 7 | 2 |
 | Performance | 8 | 0 | 8 | 0 |
 | Accessibility | 3 | 0 | 3 | 0 |
@@ -175,4 +176,4 @@
 | Navigation | 2 | 1 | 1 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **79** | **4** | **65** | **10** |
+| **Total** | **80** | **3** | **68** | **9** |

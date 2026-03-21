@@ -190,7 +190,7 @@ export default function LiveFeedScreen() {
                 style={styles.halfBtn}
               />
               <Button
-                label="Use This Frame →"
+                label="Use This Frame"
                 onPress={() => router.push("/(clinic)/clinical-data")}
                 variant="teal"
                 size="md"

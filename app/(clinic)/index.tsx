@@ -44,7 +44,7 @@ function QuickAction({
         <Text style={styles.actionTitle}>{title}</Text>
         <Text style={styles.actionSubtitle}>{subtitle}</Text>
       </View>
-      <Text style={styles.actionChevron}>›</Text>
+      <Ionicons name="chevron-forward" size={20} color={Colors.text.muted} />
     </TouchableOpacity>
   );
 }
@@ -317,8 +317,6 @@ actionText: { flex: 1 },
     marginTop: 2,
   },
   actionChevron: {
-    fontSize: 22,
-    color: Colors.text.muted,
     marginLeft: Spacing.sm,
   },
 

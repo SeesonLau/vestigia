@@ -1,4 +1,5 @@
 // app/(admin)/clinics.tsx
+import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -121,7 +122,7 @@ export default function AdminClinicsScreen() {
                       />
                     </View>
                   </View>
-                  <Text style={styles.chevron}>›</Text>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
                 </View>
                 <View style={styles.clinicStats}>
                   <View style={styles.statItem}>
@@ -179,7 +180,10 @@ export default function AdminClinicsScreen() {
                     <Text style={styles.devicesHeader}>Registered Devices</Text>
                     {selected.devices.map((dev) => (
                       <View key={dev.id} style={styles.deviceRow}>
-                        <Text style={styles.deviceCode}>◈ {dev.device_code}</Text>
+                        <View style={styles.deviceCodeRow}>
+                          <Ionicons name="hardware-chip-outline" size={12} color={Colors.text.muted} />
+                          <Text style={styles.deviceCode}> {dev.device_code}</Text>
+                        </View>
                         <Text style={styles.deviceFw}>{dev.firmware_version ?? "—"}</Text>
                         <Badge
                           label={dev.is_active ? "Active" : "Inactive"}
@@ -343,8 +347,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     gap: Spacing.sm,
   },
-  deviceCode: {
+  deviceCodeRow: {
     flex: 1,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+  },
+  deviceCode: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
     color: Colors.primary[300],

@@ -257,7 +257,7 @@ export default function ClinicalDataScreen() {
               style={styles.cancelBtn}
             />
             <Button
-              label="Submit for AI Analysis →"
+              label="Submit for AI Analysis"
               onPress={handleSubmit}
               loading={loading}
               variant="primary"

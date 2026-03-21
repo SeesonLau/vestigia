@@ -77,7 +77,7 @@ export default function LoginScreen() {
           {/* Logo / Brand */}
           <View style={styles.brandArea}>
             <View style={styles.logoContainer}>
-              <Text style={styles.logoGlyph}>◈</Text>
+              <Ionicons name="pulse-outline" size={32} color={Colors.primary[300]} />
             </View>
             <Text style={styles.appName}>Vestigia</Text>
             <Text style={styles.tagline}>

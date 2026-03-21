@@ -1,4 +1,5 @@
 // app/(clinic)/history.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -138,7 +139,7 @@ export default function HistoryScreen() {
             contentContainerStyle={styles.list}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📋</Text>
+                <Ionicons name="time-outline" size={48} color={Colors.text.muted} style={styles.emptyIcon} />
                 <Text style={styles.emptyText}>No sessions found</Text>
               </View>
             }
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing["3xl"],
     alignItems: "center",
   },
-  emptyIcon: { fontSize: 40, marginBottom: Spacing.md },
+  emptyIcon: { marginBottom: Spacing.md },
   emptyText: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,

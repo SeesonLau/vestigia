@@ -1,4 +1,5 @@
 // app/(admin)/index.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
@@ -179,9 +180,8 @@ export default function AdminDashboardScreen() {
                 <Badge label="Standard" variant="info" />
               </View>
               <TouchableOpacity style={styles.configBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/settings")}>
-                <Text style={styles.configBtnText}>
-                  Configure Model Settings →
-                </Text>
+                <Text style={styles.configBtnText}>Configure Model Settings</Text>
+                <Ionicons name="chevron-forward" size={14} color={Colors.primary[400]} />
               </TouchableOpacity>
             </Card>
 
@@ -193,10 +193,12 @@ export default function AdminDashboardScreen() {
               </Text>
               <View style={styles.exportBtns}>
                 <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "CSV export is not yet available.")}>
-                  <Text style={styles.exportBtnText}>📊 Export CSV</Text>
+                  <Ionicons name="bar-chart-outline" size={16} color={Colors.text.secondary} />
+                  <Text style={styles.exportBtnText}>Export CSV</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "PDF export is not yet available.")}>
-                  <Text style={styles.exportBtnText}>📄 Export PDF</Text>
+                  <Ionicons name="document-text-outline" size={16} color={Colors.text.secondary} />
+                  <Text style={styles.exportBtnText}>Export PDF</Text>
                 </TouchableOpacity>
               </View>
             </Card>
@@ -389,6 +391,9 @@ const styles = StyleSheet.create({
   },
   configBtn: {
     marginTop: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
   },
   configBtnText: {
     fontSize: Typography.sizes.sm,
@@ -406,12 +411,15 @@ const styles = StyleSheet.create({
   exportBtns: { flexDirection: "row", gap: Spacing.md },
   exportBtn: {
     flex: 1,
+    flexDirection: "row",
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Colors.border.default,
     backgroundColor: Colors.bg.glassLight,
     alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
   },
   exportBtnText: {
     fontSize: Typography.sizes.sm,

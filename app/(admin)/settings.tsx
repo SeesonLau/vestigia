@@ -70,7 +70,7 @@ function SettingRow({
       ) : value ? (
         <Text style={styles.rowValue}>{value}</Text>
       ) : onPress ? (
-        <Text style={styles.chevron}>›</Text>
+        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
       ) : null}
     </TouchableOpacity>
   );
