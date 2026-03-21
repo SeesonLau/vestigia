@@ -1,6 +1,6 @@
 // app/(clinic)/session/[id].tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
   AngiosomeTable,
@@ -22,8 +22,6 @@ const { width: W } = Dimensions.get("window");
 const THUMB_W = (W - Spacing.lg * 2 - Spacing.md) / 2;
 const THUMB_H = Math.round(THUMB_W * (62 / 80));
 
-const leftMatrix = generateMockThermalMatrix();
-const rightMatrix = generateMockThermalMatrix();
 
 type SessionDetail = ScreeningSession & {
   classification: ClassificationResult | null;
@@ -35,6 +33,8 @@ export default function ClinicSessionDetailScreen() {
   const router = useRouter();
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const leftMatrix = useRef(generateMockThermalMatrix()).current;
+  const rightMatrix = useRef(generateMockThermalMatrix()).current;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
