@@ -1,5 +1,5 @@
 # QA Report — Bugs, Stubs & Issues
-**Last verified:** 2026-03-21 (UX-01, GAP-05 implementation + pre-commit QA review)
+**Last verified:** 2026-03-21 (Full codebase QA audit — 51 source files reviewed)
 
 ---
 
@@ -11,6 +11,7 @@
 | ~~BUG-02~~ | `app/(clinic)/live-feed.tsx` | ✅ Fixed 2026-03-20 — navigates to `/(clinic)/clinical-data` | |
 | ~~BUG-03~~ | `app/(clinic)/clinical-data.tsx` | ✅ Fixed 2026-03-20 — navigates to `/(clinic)/assessment` after submit; Cancel returns to home | |
 | ~~BUG-04~~ | All roles | ✅ Fixed 2026-03-21 — `hooks/useInactivityTimeout.ts` created. 30-min timer resets on any touch via root `View.onTouchStart`. AppState listener logs out if app was backgrounded ≥30 min. Wired in `app/_layout.tsx`. | |
+| BUG-05 | `app/(clinic)/live-feed.tsx:148–165` | Foot selector buttons (Left / Right / Bilateral) have no `onPress` handler. The active style is hardcoded to "Bilateral". Tapping Left or Right has no effect — `selectedFoot` is always `"bilateral"` at capture. | Capture foot metadata is always wrong; thermal capture saved with incorrect foot value |
 
 ---
 
@@ -24,8 +25,11 @@
 | GAP-04 | `app/(clinic)/assessment.tsx` | AI classification result is hardcoded mock, no cloud polling | FR-503, FR-504 not met |
 | ~~GAP-05~~ | `app/(clinic)/clinical-data.tsx` | ✅ Fixed 2026-03-21 — submit writes `screening_sessions`, `patient_vitals`, `thermal_captures` to Supabase. Added `patient-select.tsx` screen. sessionStore extended with `selectedPatient` + `clearSession`. Cancel clears session state. | |
 | GAP-06 | Entire app | WatermelonDB not installed — no offline support | FR-505 not met |
-| GAP-07 | `app/(clinic)/assessment.tsx` | Save/Discard buttons present but logic is stub | FR-604 not met |
+| GAP-07 | `app/(clinic)/assessment.tsx` | "Save to Cloud ↑" button calls `setSaved(true)` only — does NOT write to `classification_results` table | FR-604 not met; result is never persisted |
 | GAP-08 | `app/(clinic)/assessment.tsx` | No abnormal region overlay on thermal map | FR-603 partial |
+| GAP-09 | `app/(clinic)/history.tsx` | Reads `MOCK_CLINIC_SESSIONS` from `data/mockData` — real Supabase sessions are never shown | Clinic operator always sees demo data in history |
+| GAP-10 | `app/(admin)/users.tsx` | Reads `MOCK_ALL_USERS` — not wired to `profiles` table | Admin sees hardcoded mock users, not real accounts |
+| GAP-11 | `app/(admin)/clinics.tsx` | Reads `MOCK_CLINICS` + `MOCK_DEVICES` — not wired to `clinics` + `devices` tables | Admin sees hardcoded mock clinics, not real database |
 
 ---
 
@@ -34,12 +38,13 @@
 | ID | File | Issue | Impact |
 |---|---|---|---|
 | ~~UX-01~~ | `app/(clinic)/index.tsx` | ✅ Fixed 2026-03-21 — all 4 buttons wired: Pair Device→pairing, New Screening→patient-select, Session History→history, Settings→settings. Ionicons replaced emojis. | |
-| UX-02 | `app/(patient)/index.tsx` | Session card `onPress` is empty | Patient cannot view session detail |
-| UX-03 | `app/(admin)/index.tsx` | Multiple action buttons with empty handlers | Admin actions non-functional |
+| ~~UX-02~~ | `app/(patient)/index.tsx` | ✅ Fixed — session card `onPress` navigates to `/(patient)/session/[id]` | |
+| ~~UX-03~~ | `app/(admin)/index.tsx` | ✅ Fixed — "+ Invite User" → users, "+ Add Clinic" → clinics, "Configure Model Settings" → settings, Export buttons → Coming Soon alerts | |
 | ~~UX-04~~ | `app/(clinic)/settings.tsx` | ✅ Fixed 2026-03-21 — all handlers wired: Sign Out (with confirm), Change Password → update-password, Paired Device/Scan → pairing, Clear Cache (destructive confirm), Delete Account (destructive confirm). Emojis replaced with Ionicons. Version updated to 0.3.0. | |
 | ~~UX-05~~ | `app/(patient)/settings.tsx` | ✅ Fixed 2026-03-20 — proper settings screen with Sign Out, Change Password, etc. | |
 | ~~UX-06~~ | `app/(admin)/settings.tsx` | ✅ Fixed 2026-03-21 — Sign Out wired with confirmation dialog, Change Password → update-password, all stub onPress handlers → Alert "Coming Soon". Emojis replaced with Ionicons. Version updated to 0.3.0. | |
-| UX-07 | `app/(patient)/session/[id].tsx` | Session detail view is minimal stub | Patient cannot see session details |
+| UX-07 | `app/(patient)/session/[id].tsx` + `app/(clinic)/session/[id].tsx` | Both session detail screens read from `MOCK_CLINIC_SESSIONS`. Real sessions created via GAP-05 will return "Session not found." | Patient and clinic operators cannot view any real session they've created |
+| UX-08 | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | "Deactivate/Activate Account" and "Deactivate/Activate Clinic" modal action buttons call `setSelected(null)` only — no Supabase update | Admin cannot actually change account or clinic status |
 
 ---
 
@@ -75,10 +80,11 @@
 | ~~CODE-04~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `ScreeningSession.app_version` added | |
 | ~~CODE-05~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `PatientVitals.recorded_at`, `id`, `session_id` added | |
 | ~~CODE-06~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `ThermalCapture.resolution_x`, `resolution_y` added | |
-| CODE-07 | Multiple files | File path comments missing — violates CLAUDE.md rule | Needs audit |
-| ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | ✅ Partially fixed 2026-03-21 — session + vitals + thermal captures now write to Supabase. Assessment still uses mock result. |  |
+| CODE-07 | Multiple files | File path comments missing on some utility/edge function files — violates CLAUDE.md rule | Needs audit |
+| ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | ✅ Partially fixed 2026-03-21 — session + vitals + thermal captures now write to Supabase. Assessment still uses mock result. | |
 | CODE-09 | `app/(clinic)/clinical-data.tsx` | `MOCK_ANGIOSOMES` still displayed in thermal preview — real angiosome values not yet computed from matrix | Misleading UI; angiosome computation deferred to GAP-04 |
-| CODE-10 | `app/(clinic)/assessment.tsx` | `clearSession()` not called after assessment complete/discard — `selectedPatient` + `activeSession` persist in store | Stale state if user returns to dashboard and starts new flow |
+| ~~CODE-10~~ | `app/(clinic)/assessment.tsx` | ✅ Fixed 2026-03-21 — `clearSession()` + `discardCapture()` called in `handleExit()` for both Discard and New Session buttons | |
+| CODE-11 | `app/(clinic)/index.tsx:56` | Clinic name is hardcoded as `"Cebu City Health Center"` — does not read from the logged-in user's linked clinic | Wrong clinic shown to any non-Cebu-City operator |
 
 ---
 
@@ -97,13 +103,13 @@
 
 | Severity | Total | Open | Fixed |
 |---|---|---|---|
-| Critical | 4 | 0 | 4 |
-| High (Gaps) | 8 | 7 | 1 |
-| Medium (UX) | 7 | 2 | 5 |
+| Critical | 5 | 1 | 4 |
+| High (Gaps) | 11 | 10 | 1 |
+| Medium (UX) | 9 | 2 | 7 |
 | Auth | 15 | 0 | 15 |
-| Low (Code) | 10 | 2 | 8 |
+| Low (Code) | 11 | 3 | 8 |
 | Schema/DB | 4 | 2 | 2 |
-| **Total** | **48** | **13** | **35** |
+| **Total** | **55** | **18** | **37** |
 
 ---
 
@@ -114,7 +120,16 @@
 4. ~~UX-02~~ — ✅ Done
 5. ~~UX-03~~ — ✅ Done
 6. ~~CODE-10~~ — ✅ Done
-7. CODE-09 — real angiosome values in clinical-data preview (blocked on GAP-04)
-8. DB-03, DB-04 — install WatermelonDB + sync logic
-9. GAP-01 through GAP-04 — hardware + cloud integration (deferred until hardware finalized)
-10. BUG-04 — inactivity timeout
+7. ~~UX-04, UX-06~~ — ✅ Done 2026-03-21
+8. ~~CODE-02~~ — ✅ Audited clean 2026-03-21
+9. ~~BUG-04~~ — ✅ Done 2026-03-21
+10. **BUG-05** — fix live-feed foot selector `onPress` (1-line fix per button, 30 min)
+11. **UX-07** — wire session detail screens to real Supabase data (2–3 hrs)
+12. **GAP-09** — wire history.tsx to real Supabase sessions (1–2 hrs)
+13. **CODE-11** — fetch real clinic name in clinic dashboard (30 min)
+14. **UX-08** — wire admin Deactivate/Activate to Supabase (1–2 hrs)
+15. **GAP-10, GAP-11** — wire admin users + clinics to Supabase (2–3 hrs)
+16. **GAP-07** — wire assessment Save button to `classification_results` (1 hr)
+17. CODE-09 — real angiosome values (blocked on GAP-04 AI model)
+18. DB-03, DB-04 — install WatermelonDB + sync logic (deferred)
+19. GAP-01 through GAP-04 — hardware + cloud integration (deferred until hardware finalized)
