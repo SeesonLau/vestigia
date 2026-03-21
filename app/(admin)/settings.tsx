@@ -1,12 +1,14 @@
 // app/(admin)/settings.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
@@ -22,7 +24,7 @@ interface SettingRowProps {
   toggleValue?: boolean;
   onToggle?: (v: boolean) => void;
   onPress?: () => void;
-  icon?: string;
+  icon: keyof typeof Ionicons.glyphMap;
   danger?: boolean;
 }
 
@@ -44,11 +46,13 @@ function SettingRow({
       style={styles.row}
       activeOpacity={0.7}
     >
-      {icon ? (
-        <View style={styles.rowIcon}>
-          <Text style={styles.rowIconText}>{icon}</Text>
-        </View>
-      ) : null}
+      <View style={styles.rowIcon}>
+        <Ionicons
+          name={icon}
+          size={18}
+          color={danger ? "#f87171" : Colors.text.muted}
+        />
+      </View>
       <View style={styles.rowText}>
         <Text style={[styles.rowLabel, danger ? styles.danger : null]}>
           {label}
@@ -59,10 +63,7 @@ function SettingRow({
         <Switch
           value={toggleValue}
           onValueChange={onToggle}
-          trackColor={{
-            false: Colors.border.default,
-            true: Colors.primary[500],
-          }}
+          trackColor={{ false: Colors.border.default, true: Colors.primary[500] }}
           thumbColor={toggleValue ? Colors.primary[200] : Colors.text.muted}
         />
       ) : value ? (
@@ -74,11 +75,28 @@ function SettingRow({
   );
 }
 
+const soon = (feature: string) =>
+  Alert.alert("Coming Soon", `${feature} is not yet available.`);
+
 export default function AdminSettingsScreen() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
+
+  const handleSignOut = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
+  };
 
   return (
     <ScreenWrapper scrollable>
@@ -87,7 +105,7 @@ export default function AdminSettingsScreen() {
         rightIcon={<Text style={styles.adminBadge}>ADMIN</Text>}
       />
       <View style={styles.container}>
-        {/* Profile */}
+        {/* Profile card */}
         <View style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
@@ -104,7 +122,7 @@ export default function AdminSettingsScreen() {
         <Text style={styles.sectionHeader}>System</Text>
         <Card style={styles.card}>
           <SettingRow
-            icon="🔧"
+            icon="construct-outline"
             label="Maintenance Mode"
             subtitle="Disable access for non-admin users"
             toggle
@@ -113,7 +131,7 @@ export default function AdminSettingsScreen() {
           />
           <View style={styles.divider} />
           <SettingRow
-            icon="📋"
+            icon="clipboard-outline"
             label="Audit Log"
             subtitle="Track all user actions"
             toggle
@@ -122,50 +140,59 @@ export default function AdminSettingsScreen() {
           />
           <View style={styles.divider} />
           <SettingRow
-            icon="🤖"
+            icon="hardware-chip-outline"
             label="AI Model Version"
             value="dpn-v1.2.0"
-            onPress={() => {}}
+            onPress={() => soon("AI model configuration")}
           />
           <View style={styles.divider} />
           <SettingRow
-            icon="📊"
+            icon="thermometer-outline"
             label="Asymmetry Threshold"
             value="2.2°C"
-            onPress={() => {}}
+            onPress={() => soon("Threshold configuration")}
           />
         </Card>
 
         <Text style={styles.sectionHeader}>Account</Text>
         <Card style={styles.card}>
-          <SettingRow icon="🔒" label="Change Password" onPress={() => {}} />
+          <SettingRow
+            icon="lock-closed-outline"
+            label="Change Password"
+            onPress={() => router.push("/(auth)/update-password" as any)}
+          />
           <View style={styles.divider} />
-          <SettingRow icon="🔔" label="Notifications" onPress={() => {}} />
+          <SettingRow
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => soon("Notification settings")}
+          />
         </Card>
 
         <Text style={styles.sectionHeader}>About</Text>
         <Card style={styles.card}>
-          <SettingRow icon="ℹ" label="App Version" value="1.0.0" />
+          <SettingRow icon="information-circle-outline" label="App Version" value="0.3.0" />
           <View style={styles.divider} />
-          <SettingRow icon="🗄" label="Database" value="Supabase (pending)" />
+          <SettingRow icon="server-outline" label="Database" value="Supabase" />
           <View style={styles.divider} />
-          <SettingRow icon="📄" label="Privacy Policy" onPress={() => {}} />
+          <SettingRow
+            icon="document-text-outline"
+            label="Privacy Policy"
+            onPress={() => soon("Privacy Policy")}
+          />
         </Card>
 
         <Text style={styles.sectionHeader}>Danger Zone</Text>
         <Card style={styles.card}>
           <SettingRow
-            icon="🚪"
+            icon="log-out-outline"
             label="Sign Out"
             danger
-            onPress={async () => {
-              await logout();
-              router.replace("/(auth)/login");
-            }}
+            onPress={handleSignOut}
           />
         </Card>
 
-        <Text style={styles.version}>DPN Thermal Admin · v1.0.0</Text>
+        <Text style={styles.version}>DPN Thermal Admin · v0.3.0</Text>
       </View>
     </ScreenWrapper>
   );
@@ -247,7 +274,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   rowIcon: { width: 32, alignItems: "center", marginRight: Spacing.md },
-  rowIconText: { fontSize: 18 },
   rowText: { flex: 1 },
   rowLabel: {
     fontSize: Typography.sizes.base,

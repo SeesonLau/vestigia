@@ -1,16 +1,20 @@
 // app/(clinic)/settings.tsx
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   StyleSheet,
   Switch,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Card } from "../../components/ui/index";
 import { Colors, Spacing, Typography } from "../../constants/theme";
+import { useAuthStore } from "../../store/authStore";
 
 interface SettingRowProps {
   label: string;
@@ -20,7 +24,7 @@ interface SettingRowProps {
   toggleValue?: boolean;
   onToggle?: (v: boolean) => void;
   onPress?: () => void;
-  icon?: string;
+  icon: keyof typeof Ionicons.glyphMap;
   danger?: boolean;
 }
 
@@ -42,15 +46,15 @@ function SettingRow({
       style={styles.settingRow}
       activeOpacity={0.7}
     >
-      {icon && (
-        <View style={styles.settingIcon}>
-          <Text style={styles.settingIconText}>{icon}</Text>
-        </View>
-      )}
+      <View style={styles.settingIcon}>
+        <Ionicons
+          name={icon}
+          size={18}
+          color={danger ? "#f87171" : Colors.text.muted}
+        />
+      </View>
       <View style={styles.settingTextGroup}>
-        <Text
-          style={[styles.settingLabel, danger ? styles.dangerText : undefined]}
-        >
+        <Text style={[styles.settingLabel, danger ? styles.dangerText : undefined]}>
           {label}
         </Text>
         {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
@@ -59,10 +63,7 @@ function SettingRow({
         <Switch
           value={toggleValue}
           onValueChange={onToggle}
-          trackColor={{
-            false: Colors.border.default,
-            true: Colors.primary[500],
-          }}
+          trackColor={{ false: Colors.border.default, true: Colors.primary[500] }}
           thumbColor={toggleValue ? Colors.primary[200] : Colors.text.muted}
         />
       ) : value ? (
@@ -78,10 +79,52 @@ function SectionHeader({ label }: { label: string }) {
   return <Text style={styles.sectionHeader}>{label}</Text>;
 }
 
+const soon = (feature: string) =>
+  Alert.alert("Coming Soon", `${feature} is not yet available.`);
+
 export default function SettingsScreen() {
+  const router = useRouter();
+  const logout = useAuthStore((s) => s.logout);
   const [haptics, setHaptics] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
   const [autoUpload, setAutoUpload] = useState(true);
+  const [autoReconnect, setAutoReconnect] = useState(true);
+
+  const handleSignOut = () => {
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/(auth)/login");
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently remove your account and all associated data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => soon("Account deletion") },
+      ]
+    );
+  };
+
+  const handleClearCache = () => {
+    Alert.alert(
+      "Clear Local Cache",
+      "This will remove all locally stored session data that hasn't been uploaded yet.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Clear", style: "destructive", onPress: () => soon("Clear local cache") },
+      ]
+    );
+  };
 
   return (
     <ScreenWrapper scrollable>
@@ -92,40 +135,48 @@ export default function SettingsScreen() {
         <SectionHeader label="Account" />
         <Card style={styles.card}>
           <SettingRow
-            icon="👤"
+            icon="person-outline"
             label="Profile"
             subtitle="Manage your account info"
-            onPress={() => {}}
+            onPress={() => soon("Profile management")}
           />
           <View style={styles.rowDivider} />
-          <SettingRow icon="🔒" label="Change Password" onPress={() => {}} />
+          <SettingRow
+            icon="lock-closed-outline"
+            label="Change Password"
+            onPress={() => router.push("/(auth)/update-password" as any)}
+          />
           <View style={styles.rowDivider} />
-          <SettingRow icon="🔔" label="Notifications" onPress={() => {}} />
+          <SettingRow
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => soon("Notification settings")}
+          />
         </Card>
 
         {/* Device */}
         <SectionHeader label="Device" />
         <Card style={styles.card}>
           <SettingRow
-            icon="◈"
+            icon="hardware-chip-outline"
             label="Paired Device"
             subtitle="DPN-Scanner-01"
             value="Connected"
-            onPress={() => {}}
+            onPress={() => router.push("/(clinic)/pairing")}
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="📡"
+            icon="wifi-outline"
             label="Scan for New Device"
-            onPress={() => {}}
+            onPress={() => router.push("/(clinic)/pairing")}
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="🔁"
+            icon="refresh-outline"
             label="Auto-Reconnect"
             toggle
-            toggleValue={true}
-            onToggle={() => {}}
+            toggleValue={autoReconnect}
+            onToggle={setAutoReconnect}
           />
         </Card>
 
@@ -133,7 +184,7 @@ export default function SettingsScreen() {
         <SectionHeader label="Data & Sync" />
         <Card style={styles.card}>
           <SettingRow
-            icon="☁"
+            icon="cloud-upload-outline"
             label="Auto-Upload"
             subtitle="Upload sessions when connected"
             toggle
@@ -142,7 +193,7 @@ export default function SettingsScreen() {
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="📦"
+            icon="archive-outline"
             label="Offline Mode"
             subtitle="Store sessions locally for later upload"
             toggle
@@ -151,20 +202,24 @@ export default function SettingsScreen() {
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="🗂"
+            icon="time-outline"
             label="Pending Uploads"
             value="0"
-            onPress={() => {}}
+            onPress={() => soon("Pending uploads view")}
           />
           <View style={styles.rowDivider} />
-          <SettingRow icon="🗑" label="Clear Local Cache" onPress={() => {}} />
+          <SettingRow
+            icon="trash-outline"
+            label="Clear Local Cache"
+            onPress={handleClearCache}
+          />
         </Card>
 
         {/* App */}
         <SectionHeader label="Application" />
         <Card style={styles.card}>
           <SettingRow
-            icon="📳"
+            icon="phone-portrait-outline"
             label="Haptic Feedback"
             toggle
             toggleValue={haptics}
@@ -172,50 +227,67 @@ export default function SettingsScreen() {
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="🎨"
+            icon="color-palette-outline"
             label="Theme"
             value="Dark (Default)"
-            onPress={() => {}}
+            onPress={() => soon("Theme selection")}
           />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="🌐"
+            icon="language-outline"
             label="Language"
             value="English"
-            onPress={() => {}}
+            onPress={() => soon("Language selection")}
           />
         </Card>
 
         {/* About */}
         <SectionHeader label="About" />
         <Card style={styles.card}>
-          <SettingRow icon="ℹ" label="App Version" value="1.0.0" />
+          <SettingRow icon="information-circle-outline" label="App Version" value="0.3.0" />
           <View style={styles.rowDivider} />
-          <SettingRow icon="🤖" label="AI Model" value="dpn-v1.2.0" />
+          <SettingRow icon="hardware-chip-outline" label="AI Model" value="dpn-v1.2.0" />
           <View style={styles.rowDivider} />
-          <SettingRow icon="📄" label="Privacy Policy" onPress={() => {}} />
+          <SettingRow
+            icon="document-text-outline"
+            label="Privacy Policy"
+            onPress={() => soon("Privacy Policy")}
+          />
           <View style={styles.rowDivider} />
-          <SettingRow icon="📜" label="Terms of Service" onPress={() => {}} />
+          <SettingRow
+            icon="reader-outline"
+            label="Terms of Service"
+            onPress={() => soon("Terms of Service")}
+          />
           <View style={styles.rowDivider} />
-          <SettingRow icon="📬" label="Contact Support" onPress={() => {}} />
+          <SettingRow
+            icon="mail-outline"
+            label="Contact Support"
+            onPress={() => soon("Contact Support")}
+          />
         </Card>
 
         {/* Danger zone */}
         <SectionHeader label="Danger Zone" />
         <Card style={styles.card}>
-          <SettingRow icon="🚪" label="Sign Out" danger onPress={() => {}} />
+          <SettingRow
+            icon="log-out-outline"
+            label="Sign Out"
+            danger
+            onPress={handleSignOut}
+          />
           <View style={styles.rowDivider} />
           <SettingRow
-            icon="⛔"
+            icon="close-circle-outline"
             label="Delete Account"
             subtitle="Permanently remove your account and data"
             danger
-            onPress={() => {}}
+            onPress={handleDeleteAccount}
           />
         </Card>
 
         <Text style={styles.versionFooter}>
-          DPN Thermal · v1.0.0 · Build 100
+          DPN Thermal · v0.3.0 · Build 300
         </Text>
       </View>
     </ScreenWrapper>
@@ -253,7 +325,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: Spacing.md,
   },
-  settingIconText: { fontSize: 18 },
   settingTextGroup: { flex: 1 },
   settingLabel: {
     fontSize: Typography.sizes.base,

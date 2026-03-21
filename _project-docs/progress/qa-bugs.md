@@ -36,9 +36,9 @@
 | ~~UX-01~~ | `app/(clinic)/index.tsx` | ✅ Fixed 2026-03-21 — all 4 buttons wired: Pair Device→pairing, New Screening→patient-select, Session History→history, Settings→settings. Ionicons replaced emojis. | |
 | UX-02 | `app/(patient)/index.tsx` | Session card `onPress` is empty | Patient cannot view session detail |
 | UX-03 | `app/(admin)/index.tsx` | Multiple action buttons with empty handlers | Admin actions non-functional |
-| UX-04 | `app/(clinic)/settings.tsx` | Settings screen is a stub — no functional settings | UI-07 not met |
+| ~~UX-04~~ | `app/(clinic)/settings.tsx` | ✅ Fixed 2026-03-21 — all handlers wired: Sign Out (with confirm), Change Password → update-password, Paired Device/Scan → pairing, Clear Cache (destructive confirm), Delete Account (destructive confirm). Emojis replaced with Ionicons. Version updated to 0.3.0. | |
 | ~~UX-05~~ | `app/(patient)/settings.tsx` | ✅ Fixed 2026-03-20 — proper settings screen with Sign Out, Change Password, etc. | |
-| UX-06 | `app/(admin)/settings.tsx` | Settings screen is a stub | UI-07 not met |
+| ~~UX-06~~ | `app/(admin)/settings.tsx` | ✅ Fixed 2026-03-21 — Sign Out wired with confirmation dialog, Change Password → update-password, all stub onPress handlers → Alert "Coming Soon". Emojis replaced with Ionicons. Version updated to 0.3.0. | |
 | UX-07 | `app/(patient)/session/[id].tsx` | Session detail view is minimal stub | Patient cannot see session details |
 
 ---
@@ -99,11 +99,11 @@
 |---|---|---|---|
 | Critical | 4 | 1 | 3 |
 | High (Gaps) | 8 | 7 | 1 |
-| Medium (UX) | 7 | 4 | 3 |
+| Medium (UX) | 7 | 2 | 5 |
 | Auth | 15 | 0 | 15 |
 | Low (Code) | 10 | 3 | 7 |
 | Schema/DB | 4 | 2 | 2 |
-| **Total** | **48** | **17** | **31** |
+| **Total** | **48** | **15** | **33** |
 
 ---
 
@@ -111,9 +111,9 @@
 1. ~~BUG-01, BUG-02, BUG-03~~ — ✅ Done
 2. ~~UX-01~~ — ✅ Done 2026-03-21
 3. ~~GAP-05~~ — ✅ Done 2026-03-21
-4. UX-02 — patient session card onPress (next up)
-5. UX-03 — admin action buttons
-6. CODE-10 — call `clearSession()` after assessment complete/discard
+4. ~~UX-02~~ — ✅ Done
+5. ~~UX-03~~ — ✅ Done
+6. ~~CODE-10~~ — ✅ Done
 7. CODE-09 — real angiosome values in clinical-data preview (blocked on GAP-04)
 8. DB-03, DB-04 — install WatermelonDB + sync logic
 9. GAP-01 through GAP-04 — hardware + cloud integration (deferred until hardware finalized)
