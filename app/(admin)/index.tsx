@@ -15,36 +15,13 @@ interface OverviewStats {
   registeredUsers: number;
 }
 
-const RECENT_USERS = [
-  {
-    id: "1",
-    name: "Dr. Maria Santos",
-    role: "clinic",
-    clinic: "Cebu City Health Center",
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Juan dela Cruz",
-    role: "patient",
-    clinic: "—",
-    status: "active",
-  },
-  {
-    id: "3",
-    name: "Dr. Ben Reyes",
-    role: "clinic",
-    clinic: "PHO Mandaue",
-    status: "active",
-  },
-  {
-    id: "4",
-    name: "Ana Lim",
-    role: "patient",
-    clinic: "—",
-    status: "inactive",
-  },
-];
+interface RecentUser {
+  id: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+  clinic_name: string | null;
+}
 
 const CLINICS = [
   {
@@ -75,6 +52,7 @@ export default function AdminDashboardScreen() {
     activeClinics: 0,
     registeredUsers: 0,
   });
+  const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -90,6 +68,21 @@ export default function AdminDashboardScreen() {
         activeClinics: clinics.count ?? 0,
         registeredUsers: users.count ?? 0,
       });
+
+      const { data: usersData } = await supabase
+        .from("profiles")
+        .select("id, full_name, role, is_active, clinic:clinics(name)")
+        .order("created_at", { ascending: false })
+        .limit(4);
+
+      if (usersData) {
+        setRecentUsers(
+          (usersData as any[]).map((u) => ({
+            ...u,
+            clinic_name: u.clinic?.name ?? null,
+          }))
+        );
+      }
     };
     fetchStats();
   }, []);
@@ -181,22 +174,22 @@ export default function AdminDashboardScreen() {
         {tab === "users" && (
           <>
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>{RECENT_USERS.length} users</Text>
+              <Text style={styles.listTitle}>{recentUsers.length} recent users</Text>
               <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/users")}>
-                <Text style={styles.addBtnText}>+ Invite User</Text>
+                <Text style={styles.addBtnText}>View All</Text>
               </TouchableOpacity>
             </View>
-            {RECENT_USERS.map((user) => (
+            {recentUsers.map((user) => (
               <TouchableOpacity key={user.id} style={styles.userCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/users")}>
                 <View style={styles.userAvatar}>
                   <Text style={styles.userAvatarText}>
-                    {user.name.charAt(0)}
+                    {user.full_name.charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{user.name}</Text>
+                  <Text style={styles.userName}>{user.full_name}</Text>
                   <Text style={styles.userMeta}>
-                    {user.clinic !== "—" ? user.clinic : "Patient account"}
+                    {user.clinic_name ?? "Patient account"}
                   </Text>
                 </View>
                 <View style={styles.userRight}>
@@ -207,10 +200,8 @@ export default function AdminDashboardScreen() {
                   />
                   <View style={{ marginTop: 4 }}>
                     <Badge
-                      label={user.status}
-                      variant={
-                        user.status === "active" ? "negative" : "warning"
-                      }
+                      label={user.is_active ? "active" : "inactive"}
+                      variant={user.is_active ? "negative" : "warning"}
                       size="sm"
                     />
                   </View>
