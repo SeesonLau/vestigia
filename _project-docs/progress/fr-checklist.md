@@ -1,5 +1,5 @@
 # Functional Requirements Checklist
-**Last verified:** 2026-03-20 (full codebase scan)
+**Last verified:** 2026-03-21 (full codebase scan v2)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
@@ -9,10 +9,10 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-101 | User Registration | High | ✅ | Supabase signUp, role picker, clinic selector, validation in place |
-| FR-102 | User Login | High | ✅ | Supabase signInWithPassword, session persists via AsyncStorage |
-| FR-103 | Password Recovery | Medium | ✅ | Supabase resetPasswordForEmail, UI complete |
-| FR-104 | Session Management (30min timeout) | Medium | ❌ | No inactivity timeout implemented. Supabase handles token refresh but no 30min idle timer |
+| FR-101 | User Registration | High | ✅ | Supabase signUp, role picker, clinic selector, email confirm flow, validation |
+| FR-102 | User Login | High | ✅ | Supabase signInWithPassword, session persists via AsyncStorage, lockout after 5 fails |
+| FR-103 | Password Recovery | Medium | ✅ | Supabase resetPasswordForEmail, deep link handler, update-password screen wired |
+| FR-104 | Session Management (30min timeout) | Medium | ✅ | `useInactivityTimeout` hook mounted in `_layout.tsx`; resets on touch, handles app background |
 
 ---
 
@@ -34,7 +34,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-301 | Thermal Data Reception (80×62 @ 10fps) | High | ❌ | No real data reception. setInterval generates mock matrix |
 | FR-302 | Real-Time Thermal Map Rendering | High | ✅ | ThermalMap.tsx renders 80×62 SVG with iron colormap at target fps |
 | FR-303 | Temperature Annotation Display | Medium | ✅ | ThermalAnnotation.tsx shows min/max/mean in real-time |
-| FR-304 | Thermal Image Capture | High | 🔄 | thermalStore.capture() works. Freeze on screen works. But no real frame from hardware |
+| FR-304 | Thermal Image Capture | High | 🔄 | thermalStore.capture() works. Freeze on screen works. Saved to `thermal_captures` table. No real frame from hardware |
 | FR-305 | Bilateral Foot Positioning Guidance | Medium | ✅ | FootGuidanceOverlay.tsx dashed overlay implemented |
 
 ---
@@ -43,9 +43,9 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-401 | Blood Glucose Input (30–600 mg/dL) | High | 🔄 | VitalsForm UI done with field. Validation range defined in ClinicalThresholds. Submit not wired |
-| FR-402 | Blood Pressure Input (systolic > diastolic) | High | 🔄 | UI done. Validation logic defined. Submit not wired |
-| FR-403 | Session-Based Data Handling | High | ❌ | Vitals not cleared on session end. No session lifecycle management beyond mock |
+| FR-401 | Blood Glucose Input (30–600 mg/dL) | High | ✅ | VitalsForm with range validation; inserts to `patient_vitals` table |
+| FR-402 | Blood Pressure Input (systolic > diastolic) | High | ✅ | UI done. Validation enforces systolic > diastolic; writes to `patient_vitals` |
+| FR-403 | Session-Based Data Handling | High | 🔄 | `clearSession()` called on assessment exit. Session lifecycle wired. Vitals cleared on new session start |
 
 ---
 
@@ -53,11 +53,11 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-501 | Data Package Preparation (JSON payload) | High | ❌ | No payload builder implemented |
-| FR-502 | Secure Cloud Upload (HTTPS + TLS) | High | ❌ | Clinical-data submit is a dummy setTimeout |
-| FR-503 | Processing Status Polling | High | ❌ | Assessment screen has a mock loading animation, not real polling |
-| FR-504 | Result Retrieval | High | ❌ | Assessment result is hardcoded mock data |
-| FR-505 | Offline Graceful Degradation | Medium | ❌ | WatermelonDB not installed. No offline queue |
+| FR-501 | Data Package Preparation (JSON payload) | High | 🔄 | Sessions, vitals, thermal captures all inserted to Supabase. No AI payload builder yet |
+| FR-502 | Secure Cloud Upload (HTTPS + TLS) | High | ✅ | clinical-data.tsx inserts session + vitals + captures via HTTPS Supabase client |
+| FR-503 | Processing Status Polling | High | ❌ | Assessment screen has a mock progress animation — not real cloud polling |
+| FR-504 | Result Retrieval | High | ❌ | Assessment result is hardcoded `MOCK_RESULT` — no real AI response |
+| FR-505 | Offline Graceful Degradation | Medium | ❌ | WatermelonDB schema and models exist but sync logic not started. No offline queue |
 
 ---
 
@@ -67,19 +67,20 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 |---|---|---|---|---|
 | FR-601 | DPN Classification Display | High | ✅ | ClassificationCard shows POSITIVE/NEGATIVE with color + icon. Large text |
 | FR-602 | Temperature Asymmetry Report (2.2°C threshold) | High | ✅ | AngiosomeTable shows bilateral diff, flags >2.2°C in warning color |
-| FR-603 | Annotated Thermal Map Overlay | High | 🔄 | ThermalMap renders. Abnormal region overlay not yet implemented |
-| FR-604 | Save/Discard Option | Medium | 🔄 | Buttons present in assessment.tsx. Save/discard logic is stub |
-| FR-605 | Clinical Disclaimer | High | ✅ | Disclaimer.tsx component present. Used on result screens |
+| FR-603 | Annotated Thermal Map Overlay | High | 🔄 | ThermalMap renders. Abnormal region overlay not yet implemented (GAP-08) |
+| FR-604 | Save/Discard Option | High | ✅ | Save writes to `classification_results` + updates session status to `completed`. Discard clears store |
+| FR-605 | Clinical Disclaimer | High | ✅ | Disclaimer.tsx used on clinical-data, assessment, and patient dashboard |
 
 ---
 
 ## Summary
+
 | Category | ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub |
 |---|---|---|---|---|
-| FR-100 Auth | 3 | 0 | 1 | 0 |
+| FR-100 Auth | 4 | 0 | 0 | 0 |
 | FR-200 Device | 0 | 0 | 1 | 3 |
 | FR-300 Thermal | 3 | 1 | 1 | 0 |
-| FR-400 Patient Data | 0 | 2 | 1 | 0 |
-| FR-500 Cloud/AI | 0 | 0 | 5 | 0 |
-| FR-600 Results | 3 | 2 | 0 | 0 |
-| **Total** | **9** | **5** | **9** | **3** |
+| FR-400 Patient Data | 2 | 1 | 0 | 0 |
+| FR-500 Cloud/AI | 1 | 1 | 3 | 0 |
+| FR-600 Results | 4 | 1 | 0 | 0 |
+| **Total** | **14** | **4** | **5** | **3** |
