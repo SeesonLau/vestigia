@@ -1,6 +1,6 @@
 // app/(patient)/index.tsx
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Dimensions, StyleSheet, Text, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
@@ -19,50 +19,55 @@ const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
 const THUMB_H = Math.round(THUMB_W * (62 / 80));
 
-const leftMatrix = generateMockThermalMatrix();
-const rightMatrix = generateMockThermalMatrix();
-
 export default function PatientDashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [patient, setPatient] = useState<Patient | null>(null);
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const leftMatrix = useRef(generateMockThermalMatrix()).current;
+  const rightMatrix = useRef(generateMockThermalMatrix()).current;
 
   useEffect(() => {
     if (!user?.id) return;
 
     const fetchData = async () => {
-      // Fetch patient record linked to this user
-      const { data: patientData } = await supabase
-        .from("patients")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+      setFetchError(null);
+      try {
+        const { data: patientData, error: patientErr } = await supabase
+          .from("patients")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+        if (patientErr) throw new Error("Failed to load patient data.");
 
-      if (patientData) {
-        setPatient(patientData as Patient);
+        if (patientData) {
+          setPatient(patientData as Patient);
 
-        // Fetch sessions for this patient
-        const { data: sessionsData } = await supabase
-          .from("screening_sessions")
-          .select("*, classification:classification_results(*)")
-          .eq("patient_id", patientData.id)
-          .order("started_at", { ascending: false });
+          const { data: sessionsData, error: sessionsErr } = await supabase
+            .from("screening_sessions")
+            .select("*, classification:classification_results(*)")
+            .eq("patient_id", patientData.id)
+            .order("started_at", { ascending: false });
+          if (sessionsErr) throw new Error("Failed to load sessions.");
 
-        if (sessionsData) {
-          setSessions(
-            (sessionsData as any[]).map((s) => ({
-              ...s,
-              classification: Array.isArray(s.classification)
-                ? s.classification[0] ?? undefined
-                : s.classification ?? undefined,
-            })) as ScreeningSession[]
-          );
+          if (sessionsData) {
+            setSessions(
+              (sessionsData as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
+                ...s,
+                classification: Array.isArray(s.classification)
+                  ? s.classification[0] ?? undefined
+                  : s.classification ?? undefined,
+              })) as ScreeningSession[]
+            );
+          }
         }
+      } catch (err: unknown) {
+        setFetchError(err instanceof Error ? err.message : "Failed to load data.");
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     fetchData();
@@ -80,6 +85,17 @@ export default function PatientDashboardScreen() {
         <Header title="My Health" subtitle="Patient Dashboard" />
         <View style={styles.centered}>
           <ActivityIndicator color={Colors.primary[400]} />
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <ScreenWrapper>
+        <Header title="My Health" subtitle="Patient Dashboard" />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{fetchError}</Text>
         </View>
       </ScreenWrapper>
     );
@@ -245,6 +261,13 @@ export default function PatientDashboardScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    paddingHorizontal: Spacing.lg,
+  },
   container: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
