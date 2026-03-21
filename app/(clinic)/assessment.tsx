@@ -22,6 +22,7 @@ import Button from "../../components/ui/Button";
 import { Badge, Card, Disclaimer } from "../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
 import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -48,15 +49,56 @@ type ScreenState = "processing" | "result";
 
 export default function AssessmentScreen() {
   const router = useRouter();
-  const clearSession = useSessionStore((s) => s.clearSession);
+  const { activeSession, clearSession } = useSessionStore();
   const discardCapture = useThermalStore((s) => s.discardCapture);
   const [state, setState] = useState<ScreenState>("processing");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleExit = () => {
     clearSession();
     discardCapture();
     router.replace("/(clinic)");
+  };
+
+  const handleSave = async () => {
+    if (!activeSession?.id) {
+      setSaveError("No active session found. Please restart the screening.");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const { error: classErr } = await supabase.from("classification_results").insert({
+        session_id: activeSession.id,
+        classification: MOCK_RESULT.classification,
+        confidence_score: MOCK_RESULT.confidence_score,
+        asymmetry_mpa_c: MOCK_RESULT.asymmetry_mpa_c,
+        asymmetry_lpa_c: MOCK_RESULT.asymmetry_lpa_c,
+        asymmetry_mca_c: MOCK_RESULT.asymmetry_mca_c,
+        asymmetry_lca_c: MOCK_RESULT.asymmetry_lca_c,
+        max_asymmetry_c: MOCK_RESULT.max_asymmetry_c,
+        angiosomes_flagged: MOCK_RESULT.angiosomes_flagged,
+        bilateral_tci: MOCK_RESULT.bilateral_tci,
+        model_version: MOCK_RESULT.model_version,
+        processing_time_ms: MOCK_RESULT.processing_time_ms,
+        classified_at: MOCK_RESULT.classified_at,
+      });
+      if (classErr) throw new Error("Failed to save classification result.");
+
+      const { error: sessErr } = await supabase
+        .from("screening_sessions")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", activeSession.id);
+      if (sessErr) throw new Error("Failed to update session status.");
+
+      setSaved(true);
+    } catch (err: unknown) {
+      setSaveError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -202,6 +244,9 @@ export default function AssessmentScreen() {
           {/* Actions */}
           {!saved ? (
             <View style={styles.actions}>
+              {saveError && (
+                <Text style={styles.saveError}>{saveError}</Text>
+              )}
               <Button
                 label="Discard Result"
                 onPress={handleExit}
@@ -210,7 +255,8 @@ export default function AssessmentScreen() {
               />
               <Button
                 label="Save to Cloud ↑"
-                onPress={() => setSaved(true)}
+                onPress={handleSave}
+                loading={saving}
                 variant="teal"
                 size="lg"
               />
@@ -350,6 +396,13 @@ const styles = StyleSheet.create({
   // Actions
   actions: {
     gap: Spacing.sm,
+  },
+  saveError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    marginBottom: Spacing.xs,
   },
   savedBanner: {
     backgroundColor: "rgba(20,176,142,0.1)",
