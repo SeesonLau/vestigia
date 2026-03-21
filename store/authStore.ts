@@ -66,7 +66,6 @@ interface AuthState {
   ) => Promise<{ success: boolean; needsConfirmation?: boolean; role?: UserRole; error?: string }>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  restoreSession: () => Promise<UserRole | null>;
   clearError: () => void;
   setPendingClinicId: (id: string | null) => void;
 }
@@ -251,39 +250,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
         return { success: true };
       } catch (e: any) {
         return { success: false, error: mapAuthError(e) };
-      }
-    },
-
-    restoreSession: async () => {
-      try {
-        dbg("restoreSession", "calling getSession()");
-        const sessionResult = await Promise.race([
-          supabase.auth.getSession(),
-          new Promise<{ data: { session: null } }>((resolve) =>
-            setTimeout(() => {
-              dbg("restoreSession", "TIMEOUT — getSession() >5s, bailing to login");
-              resolve({ data: { session: null } });
-            }, 5000)
-          ),
-        ]);
-        const { data: { session } } = sessionResult;
-        dbg("restoreSession", `getSession() done — session=${session ? "found" : "null"}`);
-        if (!session?.user) return null;
-
-        dbg("restoreSession", "fetching profile");
-        const { data: profile, error } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
-        dbg("restoreSession", `profile done — error=${error?.message ?? "none"}, role=${(profile as AuthUser)?.role ?? "null"}`);
-        if (error || !profile) return null;
-
-        set({ user: profile as AuthUser });
-        return (profile as AuthUser).role;
-      } catch (e: unknown) {
-        dbg("restoreSession", "THREW", e);
-        return null;
       }
     },
 
