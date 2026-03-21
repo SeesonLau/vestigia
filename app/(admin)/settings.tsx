@@ -84,21 +84,35 @@ export default function AdminSettingsScreen() {
   const { user, logout } = useAuthStore();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
+  const [aiModel, setAiModel] = useState("dpn-v1.2.0");
+  const [threshold, setThreshold] = useState("2.2");
   const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase
       .from("system_config")
       .select("key, value")
-      .in("key", ["maintenance_mode", "audit_log_enabled"])
+      .in("key", ["maintenance_mode", "audit_log_enabled", "ai_model_version", "asymmetry_threshold"])
       .then(({ data, error }) => {
         if (error) {
           setConfigError("Failed to load system configuration.");
           return;
         }
+        const loadedKeys = data?.map((r) => r.key) ?? [];
+        // Seed missing keys on first admin visit
+        const toSeed: { key: string; value: unknown; updated_at: string }[] = [];
+        if (!loadedKeys.includes("ai_model_version"))
+          toSeed.push({ key: "ai_model_version", value: "dpn-v1.2.0", updated_at: new Date().toISOString() });
+        if (!loadedKeys.includes("asymmetry_threshold"))
+          toSeed.push({ key: "asymmetry_threshold", value: 2.2, updated_at: new Date().toISOString() });
+        if (toSeed.length > 0) {
+          supabase.from("system_config").upsert(toSeed, { onConflict: "key", ignoreDuplicates: true });
+        }
         data?.forEach((row) => {
           if (row.key === "maintenance_mode") setMaintenanceMode(row.value === true);
           if (row.key === "audit_log_enabled") setAuditLog(row.value === true);
+          if (row.key === "ai_model_version") setAiModel(String(row.value));
+          if (row.key === "asymmetry_threshold") setThreshold(String(row.value));
         });
       });
   }, []);
@@ -184,14 +198,14 @@ export default function AdminSettingsScreen() {
           <SettingRow
             icon="hardware-chip-outline"
             label="AI Model Version"
-            value="dpn-v1.2.0"
+            value={aiModel}
             onPress={() => soon("AI model configuration")}
           />
           <View style={styles.divider} />
           <SettingRow
             icon="thermometer-outline"
             label="Asymmetry Threshold"
-            value="2.2°C"
+            value={`${threshold}°C`}
             onPress={() => soon("Threshold configuration")}
           />
         </Card>

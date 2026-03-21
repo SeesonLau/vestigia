@@ -45,6 +45,8 @@ export default function AdminDashboardScreen() {
   });
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [recentClinics, setRecentClinics] = useState<RecentClinic[]>([]);
+  const [aiModel, setAiModel] = useState("dpn-v1.2.0");
+  const [threshold, setThreshold] = useState("2.2");
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -104,6 +106,15 @@ export default function AdminDashboardScreen() {
             }))
           );
         }
+
+        const { data: configData } = await supabase
+          .from("system_config")
+          .select("key, value")
+          .in("key", ["ai_model_version", "asymmetry_threshold"]);
+        configData?.forEach((row) => {
+          if (row.key === "ai_model_version") setAiModel(String(row.value));
+          if (row.key === "asymmetry_threshold") setThreshold(String(row.value));
+        });
       } catch (err: unknown) {
         setFetchError(err instanceof Error ? err.message : "Failed to load dashboard data.");
       } finally {
@@ -167,14 +178,14 @@ export default function AdminDashboardScreen() {
               <View style={styles.modelRow}>
                 <View>
                   <Text style={styles.modelKey}>Active Model</Text>
-                  <Text style={styles.modelValue}>dpn-v1.2.0</Text>
+                  <Text style={styles.modelValue}>{aiModel}</Text>
                 </View>
                 <Badge label="Live" variant="negative" />
               </View>
               <View style={styles.modelRow}>
                 <View>
                   <Text style={styles.modelKey}>Asymmetry Threshold</Text>
-                  <Text style={styles.modelValue}>2.2°C</Text>
+                  <Text style={styles.modelValue}>{threshold}°C</Text>
                 </View>
                 <Badge label="Standard" variant="info" />
               </View>

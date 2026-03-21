@@ -1,7 +1,7 @@
 // app/(clinic)/settings.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -14,6 +14,7 @@ import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Card } from "../../components/ui/index";
 import { Colors, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useDeviceStore } from "../../store/sessionStore";
 
@@ -91,6 +92,18 @@ export default function SettingsScreen() {
   const [offlineMode, setOfflineMode] = useState(false);
   const [autoUpload, setAutoUpload] = useState(true);
   const [autoReconnect, setAutoReconnect] = useState(true);
+  const [aiModel, setAiModel] = useState("dpn-v1.2.0");
+
+  useEffect(() => {
+    supabase
+      .from("system_config")
+      .select("key, value")
+      .eq("key", "ai_model_version")
+      .single()
+      .then(({ data }) => {
+        if (data?.value) setAiModel(String(data.value));
+      });
+  }, []);
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -248,7 +261,7 @@ export default function SettingsScreen() {
         <Card style={styles.card}>
           <SettingRow icon="information-circle-outline" label="App Version" value="0.3.0" />
           <View style={styles.rowDivider} />
-          <SettingRow icon="hardware-chip-outline" label="AI Model" value="dpn-v1.2.0" />
+          <SettingRow icon="hardware-chip-outline" label="AI Model" value={aiModel} />
           <View style={styles.rowDivider} />
           <SettingRow
             icon="document-text-outline"
