@@ -1,39 +1,79 @@
 // app/(admin)/users.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import { Badge } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
-import { MOCK_ALL_USERS } from "../../data/mockData";
+import { supabase } from "../../lib/supabase";
+import { AuthUser } from "../../types";
+
+type UserWithClinic = AuthUser & { clinic_name: string | null };
 
 type RoleFilter = "all" | "clinic" | "patient" | "admin";
 
 export default function AdminUsersScreen() {
+  const [users, setUsers] = useState<UserWithClinic[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<RoleFilter>("all");
-  const [selected, setSelected] = useState<(typeof MOCK_ALL_USERS)[0] | null>(
-    null,
-  );
+  const [selected, setSelected] = useState<UserWithClinic | null>(null);
+  const [toggling, setToggling] = useState(false);
 
-  const filtered =
-    filter === "all"
-      ? MOCK_ALL_USERS
-      : MOCK_ALL_USERS.filter((u) => u.role === filter);
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("profiles")
+      .select("*, clinic:clinics(name)")
+      .order("created_at", { ascending: false });
+
+    if (data) {
+      setUsers(
+        (data as any[]).map((u) => ({
+          ...u,
+          clinic_name: u.clinic?.name ?? null,
+        }))
+      );
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
+
+  const filtered = filter === "all" ? users : users.filter((u) => u.role === filter);
+
+  const handleToggleActive = async () => {
+    if (!selected) return;
+    setToggling(true);
+    const newStatus = !selected.is_active;
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_active: newStatus })
+      .eq("id", selected.id);
+
+    if (!error) {
+      setUsers((prev) =>
+        prev.map((u) => u.id === selected.id ? { ...u, is_active: newStatus } : u)
+      );
+      setSelected({ ...selected, is_active: newStatus });
+    }
+    setToggling(false);
+  };
 
   return (
     <ScreenWrapper>
       <Header
         title="User Management"
-        subtitle={`${MOCK_ALL_USERS.length} accounts`}
+        subtitle={loading ? "Loading..." : `${users.length} accounts`}
       />
 
       <View style={styles.container}>
@@ -44,17 +84,9 @@ export default function AdminUsersScreen() {
               key={f}
               onPress={() => setFilter(f)}
               activeOpacity={0.7}
-              style={[
-                styles.chip,
-                filter === f ? styles.chipActive : undefined,
-              ]}
+              style={[styles.chip, filter === f ? styles.chipActive : undefined]}
             >
-              <Text
-                style={[
-                  styles.chipText,
-                  filter === f ? styles.chipTextActive : undefined,
-                ]}
-              >
+              <Text style={[styles.chipText, filter === f ? styles.chipTextActive : undefined]}>
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </Text>
             </TouchableOpacity>
@@ -62,50 +94,50 @@ export default function AdminUsersScreen() {
         </View>
 
         {/* List */}
-        <FlatList
-          data={filtered}
-          keyExtractor={(u) => u.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.userCard}
-              activeOpacity={0.75}
-              onPress={() => setSelected(item)}
-            >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{item.name.charAt(0)}</Text>
-              </View>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.name}</Text>
-                <Text style={styles.userEmail}>{item.email}</Text>
-                <Text style={styles.userMeta}>
-                  {item.clinic !== "—" ? item.clinic : "No clinic"}
-                </Text>
-              </View>
-              <View style={styles.userBadges}>
-                <Badge
-                  label={item.role}
-                  variant={
-                    item.role === "clinic"
-                      ? "info"
-                      : item.role === "admin"
-                        ? "warning"
-                        : "muted"
-                  }
-                  size="sm"
-                />
-                <View style={{ marginTop: 4 }}>
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={Colors.primary[400]} />
+          </View>
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(u) => u.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.userCard}
+                activeOpacity={0.75}
+                onPress={() => setSelected(item)}
+              >
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{item.full_name}</Text>
+                  <Text style={styles.userEmail}>{item.email}</Text>
+                  <Text style={styles.userMeta}>
+                    {item.clinic_name ?? "No clinic"}
+                  </Text>
+                </View>
+                <View style={styles.userBadges}>
                   <Badge
-                    label={item.status}
-                    variant={item.status === "active" ? "negative" : "warning"}
+                    label={item.role}
+                    variant={item.role === "clinic" ? "info" : item.role === "admin" ? "warning" : "muted"}
                     size="sm"
                   />
+                  <View style={{ marginTop: 4 }}>
+                    <Badge
+                      label={item.is_active ? "active" : "inactive"}
+                      variant={item.is_active ? "negative" : "warning"}
+                      size="sm"
+                    />
+                  </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          )}
-        />
+              </TouchableOpacity>
+            )}
+          />
+        )}
       </View>
 
       {/* User detail modal */}
@@ -122,11 +154,11 @@ export default function AdminUsersScreen() {
                 <View style={styles.modalHeader}>
                   <View style={styles.modalAvatar}>
                     <Text style={styles.modalAvatarText}>
-                      {selected.name.charAt(0)}
+                      {selected.full_name.charAt(0)}
                     </Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.modalName}>{selected.name}</Text>
+                    <Text style={styles.modalName}>{selected.full_name}</Text>
                     <Text style={styles.modalEmail}>{selected.email}</Text>
                   </View>
                 </View>
@@ -134,8 +166,8 @@ export default function AdminUsersScreen() {
                 <View style={styles.modalSection}>
                   {[
                     ["Role", selected.role],
-                    ["Status", selected.status],
-                    ["Clinic", selected.clinic],
+                    ["Status", selected.is_active ? "active" : "inactive"],
+                    ["Clinic", selected.clinic_name ?? "—"],
                     ["User ID", selected.id],
                   ].map(([label, value]) => (
                     <View key={label} style={styles.modalRow}>
@@ -147,13 +179,10 @@ export default function AdminUsersScreen() {
 
                 <View style={styles.modalActions}>
                   <Button
-                    label={
-                      selected.status === "active"
-                        ? "Deactivate Account"
-                        : "Activate Account"
-                    }
-                    onPress={() => setSelected(null)}
-                    variant={selected.status === "active" ? "danger" : "teal"}
+                    label={selected.is_active ? "Deactivate Account" : "Activate Account"}
+                    onPress={handleToggleActive}
+                    loading={toggling}
+                    variant={selected.is_active ? "danger" : "teal"}
                     size="md"
                   />
                   <Button
@@ -173,6 +202,7 @@ export default function AdminUsersScreen() {
 }
 
 const styles = StyleSheet.create({
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   filterRow: {
     flexDirection: "row",
@@ -242,7 +272,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   userBadges: { alignItems: "flex-end" },
-  // Modal
+  //Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(5,13,26,0.85)",
