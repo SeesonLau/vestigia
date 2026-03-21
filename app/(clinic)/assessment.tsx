@@ -127,8 +127,8 @@ export default function AssessmentScreen() {
     outputRange: ["0%", "100%"],
   });
 
-  const leftMatrix = generateMockThermalMatrix();
-  const rightMatrix = generateMockThermalMatrix();
+  const leftMatrix = useRef(generateMockThermalMatrix()).current;
+  const rightMatrix = useRef(generateMockThermalMatrix()).current;
 
   return (
     <ScreenWrapper>
@@ -155,7 +155,7 @@ export default function AssessmentScreen() {
 
             {/* Step indicators */}
             <View style={styles.steps}>
-              {["Uploading", "Processing", "Classifying"].map((step, i) => (
+              {["Uploading", "Processing", "Classifying"].map((step) => (
                 <View key={step} style={styles.step}>
                   <View style={styles.stepDot} />
                   <Text style={styles.stepText}>{step}</Text>
