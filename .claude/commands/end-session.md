@@ -8,3 +8,9 @@ Session ending. Do the following:
 7. Suggest what to work on next session
 8. Update _project-docs/progress/qa-bugs.md — mark any newly fixed items as done (~~strikethrough~~), add any new bugs discovered, and update the Tracking counts table
 9. Create or update the session log file in _project-docs/sessions/ named YYYY-MM-DD-vX.X.X.md using today's date and the new version number. Follow the session log structure defined in CLAUDE.md exactly.
+10. Update _project-docs/roadmap.md:
+    - Move any completed Planned items to the Completed section (with version + date)
+    - Remove completed items from the Planned table
+    - Add any new bugs or tasks discovered this session to Planned (in priority order)
+    - Add any new improvement ideas to Suggestions
+    - Move any newly deferred items to Deferred with the reason why

@@ -6,12 +6,12 @@ These are typed directly in the Claude Code chat window.
 
 | Command | What it does |
 |---|---|
-| `/start-session` | Reads all memory-bank files and CLAUDE.md, then gives you a full project state report before you start working |
-| `/end-session` | Updates all memory-bank files, bumps the version, logs Supabase changes, lists every file touched, **updates `qa-bugs.md`** (marks fixes, adds new bugs, syncs counts), and **creates a session log** in `_project-docs/sessions/YYYY-MM-DD-vX.X.X.md` |
+| `/start-session` | Reads all memory-bank files, CLAUDE.md, and **roadmap.md** — gives a full project state report including the top 3 planned items. Ends with "What are we working on today?" |
+| `/end-session` | Updates memory-bank files, bumps version, logs Supabase changes, lists every file touched, updates `qa-bugs.md`, creates session log in `_project-docs/sessions/`, and **updates roadmap.md** (moves completed items, adds new tasks/suggestions) |
 | `/audit` | Scans the codebase for TypeScript errors, `any` types, empty stubs, broken imports, missing file path comments, and hardcoded secrets |
 | `/db-sync` | Queries Supabase live and reports all tables, columns, RLS status, policies, and flags anything misconfigured |
-| `/memory` | Quick summary of all memory-bank files — version, last worked on, in progress, pending, open questions |
-| `/version` | Shows current version number and recent changelog entries |
+| `/memory` | Quick summary of all memory-bank files and **roadmap.md** — version, last worked on, in progress, next 3 planned items, open questions |
+| `/version` | Shows current version, last 3 changelog entries, and what the **next planned version bump** is based on roadmap.md |
 
 ---
 
@@ -74,6 +74,7 @@ Located in `_project-docs/progress/`. These are the detailed checklists that bac
 | `fr-checklist.md` | Per-requirement status across all FR-100 to FR-600 groups |
 | `data-checklist.md` | Supabase schema match, WatermelonDB status, type alignment, security |
 | `qa-bugs.md` | All known bugs and gaps with file + line number, severity, fix order |
+| `roadmap.md` *(in _project-docs/)* | **Planned** tasks (priority ordered), **Suggestions** under consideration, **Deferred** items with reasons, **Completed** history |
 
 ### How they work together
 
@@ -83,11 +84,13 @@ The files in `progress/` are the **details** — drill into them when you need s
 ```
 progress.md  ←  "Auth done, navigation stubs, WatermelonDB not started"
      ↓
-_project-docs/progress/
-├── ui-checklist.md     ←  exactly which screens are done, partial, or stub
-├── fr-checklist.md     ←  exactly which requirements are met or not
-├── data-checklist.md   ←  Supabase schema, WatermelonDB, types, security
-└── qa-bugs.md          ←  specific bugs with file + line numbers, fix priority
+_project-docs/
+├── roadmap.md          ←  what's planned, what's suggested, what's deferred
+└── progress/
+    ├── ui-checklist.md     ←  exactly which screens are done, partial, or stub
+    ├── fr-checklist.md     ←  exactly which requirements are met or not
+    ├── data-checklist.md   ←  Supabase schema, WatermelonDB, types, security
+    └── qa-bugs.md          ←  specific bugs with file + line numbers, fix priority
 
 _project-docs/sessions/
 └── YYYY-MM-DD-vX.X.X.md  ←  one log per session: what was done, files changed, pending
