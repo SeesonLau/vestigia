@@ -1,20 +1,38 @@
 // app/(admin)/clinics.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import { Badge } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
-import { MOCK_CLINICS, MOCK_DEVICES } from "../../data/mockData";
+import { supabase } from "../../lib/supabase";
+
+//Types
+interface DeviceRow {
+  id: string;
+  device_code: string;
+  firmware_version: string | null;
+  is_active: boolean;
+}
+
+interface ClinicRow {
+  id: string;
+  name: string;
+  facility_type: string;
+  is_active: boolean;
+  created_at: string;
+  devices: DeviceRow[];
+}
 
 const FACILITY_LABELS: Record<string, string> = {
   hospital: "Hospital",
@@ -24,26 +42,61 @@ const FACILITY_LABELS: Record<string, string> = {
 };
 
 export default function AdminClinicsScreen() {
-  const [selected, setSelected] = useState<(typeof MOCK_CLINICS)[0] | null>(
-    null,
-  );
+  const [clinics, setClinics] = useState<ClinicRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ClinicRow | null>(null);
+  const [toggling, setToggling] = useState(false);
+
+  const fetchClinics = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("clinics")
+      .select("*, devices:devices(*)")
+      .order("created_at", { ascending: false });
+
+    if (data) setClinics(data as ClinicRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchClinics(); }, []);
+
+  const handleToggleActive = async () => {
+    if (!selected) return;
+    setToggling(true);
+    const newStatus = !selected.is_active;
+    const { error } = await supabase
+      .from("clinics")
+      .update({ is_active: newStatus })
+      .eq("id", selected.id);
+
+    if (!error) {
+      setClinics((prev) =>
+        prev.map((c) => c.id === selected.id ? { ...c, is_active: newStatus } : c)
+      );
+      setSelected({ ...selected, is_active: newStatus });
+    }
+    setToggling(false);
+  };
 
   return (
     <ScreenWrapper>
       <Header
         title="Clinic Management"
-        subtitle={`${MOCK_CLINICS.length} facilities`}
+        subtitle={loading ? "Loading..." : `${clinics.length} facilities`}
       />
 
       <View style={styles.container}>
-        <FlatList
-          data={MOCK_CLINICS}
-          keyExtractor={(c) => c.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-          renderItem={({ item }) => {
-            const devices = MOCK_DEVICES.filter((d) => d.clinic_id === item.id);
-            return (
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color={Colors.primary[400]} />
+          </View>
+        ) : (
+          <FlatList
+            data={clinics}
+            keyExtractor={(c) => c.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
+            renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.clinicCard}
                 activeOpacity={0.75}
@@ -51,16 +104,13 @@ export default function AdminClinicsScreen() {
               >
                 <View style={styles.clinicTop}>
                   <View style={styles.clinicIcon}>
-                    <Text style={styles.clinicIconText}>🏥</Text>
+                    <Text style={styles.clinicIconText}>H</Text>
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.clinicName}>{item.name}</Text>
                     <View style={styles.clinicMeta}>
                       <Badge
-                        label={
-                          FACILITY_LABELS[item.facility_type] ??
-                          item.facility_type
-                        }
+                        label={FACILITY_LABELS[item.facility_type] ?? item.facility_type}
                         variant="info"
                         size="sm"
                       />
@@ -75,19 +125,21 @@ export default function AdminClinicsScreen() {
                 </View>
                 <View style={styles.clinicStats}>
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{item.sessions}</Text>
-                    <Text style={styles.statLabel}>Sessions</Text>
+                    <Text style={styles.statValue}>{item.devices.length}</Text>
+                    <Text style={styles.statLabel}>Devices</Text>
                   </View>
                   <View style={styles.statDivider} />
                   <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{devices.length}</Text>
-                    <Text style={styles.statLabel}>Devices</Text>
+                    <Text style={styles.statValue}>
+                      {item.devices.filter((d) => d.is_active).length}
+                    </Text>
+                    <Text style={styles.statLabel}>Active</Text>
                   </View>
                 </View>
               </TouchableOpacity>
-            );
-          }}
-        />
+            )}
+          />
+        )}
       </View>
 
       {/* Clinic detail modal */}
@@ -103,7 +155,7 @@ export default function AdminClinicsScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <Text style={styles.modalTitle}>{selected.name}</Text>
                 <Badge
-                  label={FACILITY_LABELS[selected.facility_type]}
+                  label={FACILITY_LABELS[selected.facility_type] ?? selected.facility_type}
                   variant="info"
                   style={{ marginBottom: Spacing.lg }}
                 />
@@ -112,7 +164,7 @@ export default function AdminClinicsScreen() {
                   {[
                     ["ID", selected.id],
                     ["Type", selected.facility_type],
-                    ["Sessions", String(selected.sessions)],
+                    ["Devices", String(selected.devices.length)],
                     ["Status", selected.is_active ? "Active" : "Inactive"],
                   ].map(([label, value]) => (
                     <View key={label} style={styles.modalRow}>
@@ -122,31 +174,28 @@ export default function AdminClinicsScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.devicesHeader}>Registered Devices</Text>
-                {MOCK_DEVICES.filter((d) => d.clinic_id === selected.id).map(
-                  (dev) => (
-                    <View key={dev.id} style={styles.deviceRow}>
-                      <Text style={styles.deviceCode}>◈ {dev.device_code}</Text>
-                      <Text style={styles.deviceFw}>
-                        {dev.firmware_version}
-                      </Text>
-                      <Badge
-                        label={dev.is_active ? "Active" : "Inactive"}
-                        variant={dev.is_active ? "negative" : "muted"}
-                        size="sm"
-                      />
-                    </View>
-                  ),
+                {selected.devices.length > 0 && (
+                  <>
+                    <Text style={styles.devicesHeader}>Registered Devices</Text>
+                    {selected.devices.map((dev) => (
+                      <View key={dev.id} style={styles.deviceRow}>
+                        <Text style={styles.deviceCode}>◈ {dev.device_code}</Text>
+                        <Text style={styles.deviceFw}>{dev.firmware_version ?? "—"}</Text>
+                        <Badge
+                          label={dev.is_active ? "Active" : "Inactive"}
+                          variant={dev.is_active ? "negative" : "muted"}
+                          size="sm"
+                        />
+                      </View>
+                    ))}
+                  </>
                 )}
 
                 <View style={styles.modalActions}>
                   <Button
-                    label={
-                      selected.is_active
-                        ? "Deactivate Clinic"
-                        : "Activate Clinic"
-                    }
-                    onPress={() => setSelected(null)}
+                    label={selected.is_active ? "Deactivate Clinic" : "Activate Clinic"}
+                    onPress={handleToggleActive}
+                    loading={toggling}
                     variant={selected.is_active ? "danger" : "teal"}
                     size="md"
                   />
@@ -167,6 +216,7 @@ export default function AdminClinicsScreen() {
 }
 
 const styles = StyleSheet.create({
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   clinicCard: {
     backgroundColor: Colors.bg.card,
@@ -192,7 +242,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: Spacing.md,
   },
-  clinicIconText: { fontSize: 20 },
+  clinicIconText: {
+    fontSize: Typography.sizes.md,
+    fontFamily: Typography.fonts.heading,
+    color: Colors.text.muted,
+  },
   clinicName: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
@@ -224,7 +278,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border.subtle,
     marginHorizontal: Spacing.md,
   },
-  // Modal
+  //Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(5,13,26,0.85)",
