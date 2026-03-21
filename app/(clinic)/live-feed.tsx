@@ -101,6 +101,8 @@ export default function LiveFeedScreen() {
               styles.guideToggle,
               showGuide ? styles.guideToggleActive : undefined,
             ]}
+            accessibilityLabel={showGuide ? "Hide foot position guides" : "Show foot position guides"}
+            accessibilityRole="button"
           >
             <Text style={styles.guideToggleText}>Guides</Text>
           </TouchableOpacity>
