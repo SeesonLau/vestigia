@@ -59,9 +59,10 @@
 ## Not Started ❌
 
 ### AI Pipeline (planned — next priority)
-- **FR-506** — Image preprocessing: contrast normalization + foot region segmentation (`lib/thermal/preprocessing.ts`)
-- **FR-507** — AI model prototype: bilateral temperature asymmetry detection + TCI computation (`lib/classification/classifier.ts`). Replaces `MOCK_RESULT` and `MOCK_ANGIOSOMES`.
-- **FR-508** — Preliminary risk scoring: Low / Medium / High rule-based thresholding (`lib/classification/riskScoring.ts`). Stored in `classification_results.feature_vector`.
+> **Architecture note:** The AI model itself lives in a **separate repository**. This app only prepares data and calls the AI model's HTTP API — no ML inference runs inside this codebase.
+- **FR-506** — Image preprocessing: contrast normalization + foot region segmentation + API payload builder (`lib/thermal/preprocessing.ts`). App-side, runs before sending data to external API.
+- **FR-507** — AI model API integration: HTTP client (`lib/api/aiClient.ts`) that sends thermal payload to the external AI model API and maps the response to `ClassificationResult`. Replaces `MOCK_RESULT`. **Blocked until the AI model API endpoint is confirmed and accessible.**
+- **FR-508** — Preliminary risk scoring: Low / Medium / High rule-based thresholding (`lib/classification/riskScoring.ts`), applied app-side using asymmetry values from the API response. Stored in `classification_results.feature_vector`.
 
 ### Other Planned
 - **GAP-08** — No abnormal region overlay on thermal map (angiosome highlighting) — depends on FR-507

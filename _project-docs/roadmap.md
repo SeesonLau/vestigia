@@ -11,11 +11,11 @@
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
 | 1 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. Normalizes raw 80×62 matrix; segments foot pixels from background using ambient temp baseline. Prerequisite for FR-507. |
-| 2 | FR-507 | AI model prototype — bilateral temperature asymmetry detection | 4–5 hrs | New module `lib/classification/classifier.ts`. Maps angiosome regions to matrix coordinates, extracts per-angiosome mean temps for each foot, computes bilateral asymmetry, computes TCI, outputs `ClassificationResult`. Replaces `MOCK_RESULT` in assessment.tsx (GAP-04). |
+| 2 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — this app only calls its HTTP API. Sends preprocessed payload, polls or awaits response, maps result to `ClassificationResult`. Replaces `MOCK_RESULT` in assessment.tsx (GAP-04). |
 | 3 | FR-508 | Preliminary risk scoring — Low / Medium / High rule-based thresholding | 2 hrs | Extends FR-507 output with a risk level based on max asymmetry delta and angiosome count. Stored in `classification_results.feature_vector` JSONB. See implementation plan below. |
 | 4 | — | Deploy Edge Function | 15 min | `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`; add URL to Supabase Auth Redirect URLs in dashboard |
 | 5 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Visual highlight of flagged angiosomes for clinicians; needs new component layer on top of `ThermalMap`. Depends on FR-507 output. |
-| 6 | — | Angiosome temperature computation from thermal matrix | 4–5 hrs | Replaces `MOCK_ANGIOSOMES` in clinical-data.tsx (CODE-09). Merged into FR-507 scope — same angiosome extraction logic. |
+| 6 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506) to compute real angiosome temps before sending to AI API. Merged into FR-506/507 scope. |
 | 7 | — | Patient-select Supabase search | 1 hr | Replace client-side `.filter()` with Supabase `.ilike()` on `patient_code`; current approach breaks at ~200+ patients |
 | 8 | — | `useEffect` cleanup in assessment.tsx | 15 min | Call `clearSession()` on unmount to guard stale state if user leaves without pressing Save or Discard |
 
@@ -23,69 +23,98 @@
 
 ## Implementation Plan — AI Pipeline (FR-506 → FR-507 → FR-508)
 
-### Overview
-The AI pipeline runs entirely **client-side** on the captured bilateral thermal matrices. No cloud API is required for this prototype stage. The output is a `ClassificationResult` that replaces `MOCK_RESULT` in `assessment.tsx`.
+### Architecture — IMPORTANT
+> **The AI model lives in a separate repository and is NOT part of this codebase.**
+> This app's responsibility is to prepare and send thermal data to the AI model's HTTP API, then receive and store the classification result. No ML inference runs inside this app.
 
 ```
-Left matrix + Right matrix (80×62 each)
-        ↓
+This app (vestigia)                    External AI Model Repo
+─────────────────────────              ─────────────────────────────────
+Left + Right thermal matrices
+         ↓
 [FR-506] lib/thermal/preprocessing.ts
-  - normalizeMatrix()        → scales raw temp values to [0,1]
-  - segmentFootRegion()      → masks background pixels using ambient baseline
-        ↓
-[FR-507] lib/classification/classifier.ts
-  - extractAngiosomeTemps()  → maps 4 angiosome zones to matrix coords, computes mean temp per zone
-  - computeAsymmetry()       → |left.mpa − right.mpa|, |left.lpa − right.lpa|, etc.
-  - computeTCI()             → Thermal Circulation Index from angiosome temps
-  - classify()               → POSITIVE if any asymmetry ≥ 2.2°C, else NEGATIVE
-        ↓
-[FR-508] risk scoring (inline or lib/classification/riskScoring.ts)
-  - scoreRisk()              → LOW / MEDIUM / HIGH based on rules below
-        ↓
-  ClassificationResult       → saved to classification_results table
+  - normalizeMatrix()                  (may also be done server-side
+  - segmentFootRegion()                 by the AI API — confirm with
+  - buildApiPayload()                   AI team before implementing)
+         ↓
+[FR-507] lib/api/aiClient.ts ─────────→  POST /analyze
+  - sendForAnalysis(payload)           ←─  { classification, confidence,
+  - pollForResult(jobId)                    asymmetries, risk_level, ... }
+  - handleApiResponse()
+         ↓
+[FR-508] Rule-based risk scoring
+  - Applied app-side using asymmetry
+    values returned by the API,
+    OR returned directly by the API
+    (confirm with AI team)
+         ↓
+  ClassificationResult → saved to classification_results (Supabase)
 ```
 
-### FR-506 — Preprocessing Detail
+### Responsibility Boundary
+| Concern | This App (vestigia) | AI Model Repo |
+|---|---|---|
+| Capture thermal matrix (80×62) | ✅ | — |
+| Store raw captures in Supabase | ✅ | — |
+| Preprocess / normalize matrix | ✅ FR-506 | May also be done API-side |
+| Bilateral asymmetry detection | ❌ — calls API | ✅ Lives here |
+| DPN classification (POSITIVE/NEGATIVE) | ❌ — from API response | ✅ Lives here |
+| Confidence score | ❌ — from API response | ✅ Lives here |
+| Risk scoring (LOW/MEDIUM/HIGH) | ✅ FR-508 (rule-based, app-side) OR from API | TBD |
+| Store `ClassificationResult` to Supabase | ✅ | — |
+| Display result to clinician | ✅ | — |
+
+### FR-506 — App-Side Preprocessing (before API call)
 | Function | Input | Output | Notes |
 |---|---|---|---|
-| `normalizeMatrix(matrix, min, max)` | raw number[][] | normalized number[][] [0–1] | Use captured `min_temp_c` / `max_temp_c` from `ThermalCapture` |
-| `segmentFootRegion(matrix, ambientTemp)` | normalized matrix + ambient °C | boolean[][] mask | Pixels > (ambient + threshold) = foot; threshold ~2°C above ambient |
+| `normalizeMatrix(matrix, min, max)` | raw number[][] | normalized [0–1] | Use `ThermalCapture.min_temp_c` / `max_temp_c` |
+| `segmentFootRegion(matrix, ambientTemp)` | normalized matrix + ambient °C | boolean[][] mask | Pixels > ambient + ~2°C = foot region |
+| `buildApiPayload(left, right, vitals, session)` | captures + session data | JSON payload | Packages everything the AI API needs in one object |
 
-### FR-507 — Angiosome Zone Mapping
-Four angiosomes mapped to approximate pixel regions on the 80×62 matrix:
-| Zone | Abbreviation | Approx. Region (col%, row%) |
-|---|---|---|
-| Medial Plantar Artery | MPA | center-medial, mid-distal rows |
-| Lateral Plantar Artery | LPA | center-lateral, mid-distal rows |
-| Medial Calcaneal Artery | MCA | medial heel, proximal rows |
-| Lateral Calcaneal Artery | LCA | lateral heel, proximal rows |
+### FR-507 — API Integration (this app's side only)
+This app will:
+1. Call the AI model's HTTP API with the preprocessed thermal payload
+2. Handle async response — either synchronous response or job polling (confirm with AI team)
+3. Map the API JSON response to the app's `ClassificationResult` type
+4. Save the result to `classification_results` table in Supabase
 
-Classification rule: `POSITIVE` if `max(|leftZone − rightZone|) ≥ 2.2°C` (existing `ClinicalThresholds.asymmetry`).
-Confidence score: `min(1.0, maxAsymmetry / 4.0)` — higher asymmetry = higher confidence in POSITIVE result.
+**Files in this repo for FR-507:**
+- `lib/api/aiClient.ts` — HTTP client for the external AI model API (base URL from `EXPO_PUBLIC_AI_API_URL` env var)
+- `app/(clinic)/assessment.tsx` — replace mock progress animation with real API call + polling
 
-### FR-508 — Risk Scoring Rules
+**The AI model API contract (to be confirmed with AI team):**
+- Endpoint: `POST /analyze` (or similar — TBD)
+- Request body: bilateral thermal matrices + optional vitals metadata
+- Response: classification (`POSITIVE`/`NEGATIVE`), confidence score, per-angiosome asymmetry values, flagged zones
+- Auth: API key via `EXPO_PUBLIC_AI_API_KEY` env var
+
+### FR-508 — Risk Scoring (app-side, rule-based)
+Applied to the asymmetry values returned by the AI API:
+
 | Risk Level | Condition |
 |---|---|
 | `LOW` | All zone asymmetries < 1.0°C |
-| `MEDIUM` | Any zone asymmetry ≥ 1.0°C AND < 2.2°C (or 1–2 zones flagged) |
-| `HIGH` | Any zone asymmetry ≥ 2.2°C (= DPN POSITIVE threshold; 3+ zones flagged) |
+| `MEDIUM` | Any zone asymmetry ≥ 1.0°C AND < 2.2°C |
+| `HIGH` | Any zone asymmetry ≥ 2.2°C (= DPN POSITIVE threshold) |
 
 Stored in `classification_results.feature_vector` JSONB as `{ risk_level: "HIGH", flagged_zones: 3, ... }` — no schema change required.
+If the AI API already returns a `risk_level`, use that directly instead.
 
 ### Schema Impact
-- No new tables or columns needed for FR-506/FR-507
-- FR-508 risk level stored in existing `feature_vector JSONB` field on `classification_results`
-- `types/index.ts` — add `risk_level?: "LOW" | "MEDIUM" | "HIGH"` to `ClassificationResult.feature_vector` (or as a top-level optional field)
+- No new tables or columns needed
+- `EXPO_PUBLIC_AI_API_URL` and `EXPO_PUBLIC_AI_API_KEY` env vars to be added when API is ready
+- `types/index.ts` — add `risk_level?: "LOW" | "MEDIUM" | "HIGH"` to `ClassificationResult`
 
-### Files to Create / Modify
+### Files to Create / Modify (in this repo)
 | File | Action | Purpose |
 |---|---|---|
-| `lib/thermal/preprocessing.ts` | Create | FR-506 — normalize + segment |
-| `lib/classification/classifier.ts` | Create | FR-507 — angiosome extraction, asymmetry, TCI, classify |
-| `lib/classification/riskScoring.ts` | Create | FR-508 — LOW/MEDIUM/HIGH rules |
-| `app/(clinic)/assessment.tsx` | Modify | Replace `MOCK_RESULT` with `classify()` call using real captured matrices |
-| `app/(clinic)/clinical-data.tsx` | Modify | Replace `MOCK_ANGIOSOMES` with `extractAngiosomeTemps()` (CODE-09) |
+| `lib/thermal/preprocessing.ts` | Create | FR-506 — normalize matrix + build API payload |
+| `lib/api/aiClient.ts` | Create | FR-507 — HTTP client for external AI model API |
+| `lib/classification/riskScoring.ts` | Create | FR-508 — app-side LOW/MEDIUM/HIGH rules |
+| `app/(clinic)/assessment.tsx` | Modify | Replace mock animation with real API call via `aiClient.ts` |
+| `app/(clinic)/clinical-data.tsx` | Modify | Replace `MOCK_ANGIOSOMES` with preprocessing output (CODE-09) |
 | `types/index.ts` | Modify | Add `risk_level` to `ClassificationResult` |
+| `.env` | Modify | Add `EXPO_PUBLIC_AI_API_URL` and `EXPO_PUBLIC_AI_API_KEY` when API is ready |
 
 ---
 
@@ -109,8 +138,8 @@ Stored in `classification_results.feature_vector` JSONB as `{ risk_level: "HIGH"
 | BLE device scanning (GAP-01) | Hardware not finalized | Device spec confirmed |
 | Wi-Fi WebSocket to scanner (GAP-02) | Hardware not finalized | Device spec confirmed |
 | Real thermal frame streaming (GAP-03) | Hardware not finalized | Device spec confirmed |
-| AI cloud classification + polling (GAP-04) | Cloud API not built | AI model / API ready |
-| Angiosome computation from matrix (CODE-09) | Blocked on GAP-04 (needs AI model output for validation) | GAP-04 underway |
+| AI model API integration (GAP-04 / FR-507) | External AI model API not yet deployed — lives in a **separate repo**. This app will call it via HTTP. | AI model API endpoint confirmed + accessible |
+| Angiosome computation from matrix (CODE-09) | Blocked on FR-506/507 — preprocessing defines the payload; API response validates the output | FR-506 done |
 | WatermelonDB offline-first (GAP-06, DB-03, DB-04) | Not required for thesis demo; adds significant complexity | Post-defense or future sprint |
 | Push notifications | Not in core thesis scope | Post-defense |
 

@@ -81,15 +81,17 @@
 ---
 
 ## Next Steps (priority order)
-1. **FR-506 — Image preprocessing** — Create `lib/thermal/preprocessing.ts`: `normalizeMatrix()` (min-max using captured min/max temps) + `segmentFootRegion()` (ambient baseline mask). Prerequisite for FR-507.
-2. **FR-507 — AI model prototype** — Create `lib/classification/classifier.ts`: `extractAngiosomeTemps()` mapping 4 zones (MPA/LPA/MCA/LCA) to 80×62 matrix coords, `computeAsymmetry()`, `computeTCI()`, `classify()` outputting `ClassificationResult`. Replaces `MOCK_RESULT` in assessment.tsx (GAP-04) and `MOCK_ANGIOSOMES` in clinical-data.tsx (CODE-09).
-3. **FR-508 — Risk scoring** — Create `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH rules based on max asymmetry delta. Stored in `classification_results.feature_vector` JSONB — no schema change needed.
+1. **FR-506 — Image preprocessing** — Create `lib/thermal/preprocessing.ts`: `normalizeMatrix()` + `segmentFootRegion()` + `buildApiPayload()`. Prepares bilateral thermal data for the external AI API. Can be built and tested independently before FR-507.
+2. **FR-507 — AI model API integration** — Create `lib/api/aiClient.ts`: HTTP client that sends the FR-506 payload to the external AI model API (separate repo) and maps the JSON response to `ClassificationResult`. **Blocked until AI API endpoint URL and contract are confirmed.** When ready: replace mock animation in `assessment.tsx` with real API call.
+3. **FR-508 — Risk scoring** — Create `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH rules applied app-side to asymmetry values from the API response. Can be built as soon as FR-507 API contract is defined (even before API is live).
 4. **Deploy Edge Function** — run `npx supabase functions deploy auth-redirect ...` + add URL to Supabase Auth Redirect URLs
-5. **GAP-08** — Abnormal region overlay on thermal map (FR-603) — depends on FR-507 flagged angiosome output
+5. **GAP-08** — Abnormal region overlay on thermal map (FR-603) — depends on FR-507 response (flagged angiosome list)
 6. Hardware integration (GAP-01–04) — deferred until device spec confirmed
 
 ---
 
 ## Open Questions
-- Angiosome zone pixel coordinates — exact mapping of MPA/LPA/MCA/LCA to the 80×62 matrix needs to be defined (consult thermal sensor documentation or thesis appendix)
+- **AI model API contract** — What is the endpoint URL, request format, response schema, and auth method for the external AI model API? This must be confirmed with the AI model team before FR-507 can be coded.
+- **Preprocessing scope** — Does the external AI API expect raw matrices or preprocessed/normalized data? Determines how much of FR-506 is app-side vs. handled by the API.
+- **Risk scoring ownership** — Does the AI API return a `risk_level` field directly, or does the app compute it from the returned asymmetry values?
 - Is BLE device hardware finalized? (deferred)
