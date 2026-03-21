@@ -70,7 +70,7 @@
 | ID | File | Issue | Impact |
 |---|---|---|---|
 | ~~CODE-01~~ | `store/authStore.ts` | ✅ Fixed 2026-03-20 — mock accounts removed | |
-| CODE-02 | Various | `console.log` usage not audited — may log sensitive auth data | Violates security rules in CLAUDE.md |
+| ~~CODE-02~~ | Various | ✅ Audited 2026-03-21 — only `console.error` in `lib/database/index.ts` (WatermelonDB setup error, no sensitive data). No sensitive auth/patient data logged. | |
 | ~~CODE-03~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `AuthUser.phone`, `created_at`, `updated_at` added | |
 | ~~CODE-04~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `ScreeningSession.app_version` added | |
 | ~~CODE-05~~ | `types/index.ts` | ✅ Fixed 2026-03-20 — `PatientVitals.recorded_at`, `id`, `session_id` added | |
@@ -101,9 +101,9 @@
 | High (Gaps) | 8 | 7 | 1 |
 | Medium (UX) | 7 | 2 | 5 |
 | Auth | 15 | 0 | 15 |
-| Low (Code) | 10 | 3 | 7 |
+| Low (Code) | 10 | 2 | 8 |
 | Schema/DB | 4 | 2 | 2 |
-| **Total** | **48** | **15** | **33** |
+| **Total** | **48** | **14** | **34** |
 
 ---
 
