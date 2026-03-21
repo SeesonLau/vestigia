@@ -1,49 +1,93 @@
 // app/(patient)/session/[id].tsx
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import {
-    AngiosomeTable,
-    ClassificationCard,
-    TCIDisplay,
+  AngiosomeTable,
+  ClassificationCard,
+  TCIDisplay,
 } from "../../../components/assessment/index";
 import Header from "../../../components/layout/Header";
 import ScreenWrapper from "../../../components/layout/ScreenWrapper";
 import ThermalMap, {
-    generateMockThermalMatrix,
+  generateMockThermalMatrix,
 } from "../../../components/thermal/ThermalMap";
 import { Badge, Card, Disclaimer } from "../../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../../constants/clinical";
 import { Colors, Spacing, Typography } from "../../../constants/theme";
-import { MOCK_CLINIC_SESSIONS, MOCK_VITALS } from "../../../data/mockData";
+import { supabase } from "../../../lib/supabase";
+import { ClassificationResult, PatientVitals, ScreeningSession } from "../../../types";
 
 const { width: W } = Dimensions.get("window");
 const THUMB_W = (W - Spacing.lg * 2 - Spacing.md) / 2;
 const THUMB_H = Math.round(THUMB_W * (62 / 80));
 
+const leftMat = generateMockThermalMatrix();
+const rightMat = generateMockThermalMatrix();
+
+type SessionDetail = ScreeningSession & {
+  classification: ClassificationResult | null;
+  vitals: PatientVitals | null;
+};
+
 export default function SessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const session = MOCK_CLINIC_SESSIONS.find((s) => s.id === id);
-  const vitals = id ? MOCK_VITALS[id] : undefined;
-  const result = session?.classification;
-  const leftMat = generateMockThermalMatrix();
-  const rightMat = generateMockThermalMatrix();
+  const [session, setSession] = useState<SessionDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!session) {
+  useEffect(() => {
+    if (!id) return;
+    supabase
+      .from("screening_sessions")
+      .select(`
+        *,
+        classification:classification_results(*),
+        vitals:patient_vitals(*)
+      `)
+      .eq("id", id)
+      .single()
+      .then(({ data, error: err }) => {
+        if (err || !data) setError("Session not found.");
+        else {
+          const raw = data as any;
+          setSession({
+            ...raw,
+            classification: Array.isArray(raw.classification)
+              ? raw.classification[0] ?? null
+              : raw.classification ?? null,
+            vitals: Array.isArray(raw.vitals)
+              ? raw.vitals[0] ?? null
+              : raw.vitals ?? null,
+          });
+        }
+        setLoading(false);
+      });
+  }, [id]);
+
+  if (loading) {
     return (
       <ScreenWrapper>
-        <Header
-          title="Session Detail"
-          leftIcon={<Text style={styles.back}>←</Text>}
-          onLeftPress={() => router.back()}
-        />
-        <View style={styles.notFound}>
-          <Text style={styles.notFoundText}>Session not found.</Text>
+        <Header title="Session Detail" leftIcon={<Text style={styles.back}>←</Text>} onLeftPress={() => router.back()} />
+        <View style={styles.centered}><ActivityIndicator color={Colors.primary[400]} /></View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <ScreenWrapper>
+        <Header title="Session Detail" leftIcon={<Text style={styles.back}>←</Text>} onLeftPress={() => router.back()} />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error ?? "Session not found."}</Text>
         </View>
       </ScreenWrapper>
     );
   }
+
+  const result = session.classification;
+  const vitals = session.vitals;
 
   return (
     <ScreenWrapper>
@@ -97,23 +141,11 @@ export default function SessionDetailScreen() {
               <Text style={styles.sectionTitle}>Thermal Captures</Text>
               <View style={styles.thumbRow}>
                 <View style={styles.thumb}>
-                  <ThermalMap
-                    matrix={leftMat}
-                    minTemp={29}
-                    maxTemp={37}
-                    width={THUMB_W}
-                    height={THUMB_H}
-                  />
+                  <ThermalMap matrix={leftMat} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
                   <Text style={styles.thumbLabel}>LEFT FOOT</Text>
                 </View>
                 <View style={styles.thumb}>
-                  <ThermalMap
-                    matrix={rightMat}
-                    minTemp={29}
-                    maxTemp={37}
-                    width={THUMB_W}
-                    height={THUMB_H}
-                  />
+                  <ThermalMap matrix={rightMat} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
                   <Text style={styles.thumbLabel}>RIGHT FOOT</Text>
                 </View>
               </View>
@@ -148,21 +180,21 @@ export default function SessionDetailScreen() {
           </Card>
         )}
 
-        {vitals ? (
+        {vitals && (
           <Card style={styles.section}>
             <Text style={styles.sectionTitle}>Recorded Vitals</Text>
             {(
               [
                 ["Blood Glucose", `${vitals.blood_glucose_mgdl} mg/dL`],
-                [
-                  "Blood Pressure",
-                  `${vitals.systolic_bp_mmhg}/${vitals.diastolic_bp_mmhg} mmHg`,
-                ],
-                ["Heart Rate", `${vitals.heart_rate_bpm} bpm`],
-                vitals.hba1c_pct ? ["HbA1c", `${vitals.hba1c_pct}%`] : null,
+                vitals.systolic_bp_mmhg != null
+                  ? ["Blood Pressure", `${vitals.systolic_bp_mmhg}/${vitals.diastolic_bp_mmhg} mmHg`]
+                  : null,
+                vitals.heart_rate_bpm != null
+                  ? ["Heart Rate", `${vitals.heart_rate_bpm} bpm`]
+                  : null,
+                vitals.hba1c_pct != null ? ["HbA1c", `${vitals.hba1c_pct}%`] : null,
               ] as ([string, string] | null)[]
             )
-
               .filter((item): item is [string, string] => item !== null)
               .map(([label, value]) => (
                 <View key={label} style={styles.vitalRow}>
@@ -171,7 +203,7 @@ export default function SessionDetailScreen() {
                 </View>
               ))}
           </Card>
-        ) : null}
+        )}
 
         <Disclaimer text={DISCLAIMER_TEXT} style={styles.section} />
       </ScrollView>
@@ -181,16 +213,16 @@ export default function SessionDetailScreen() {
 
 const styles = StyleSheet.create({
   back: { fontSize: 20, color: Colors.text.primary },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: {
+    fontSize: Typography.sizes.base,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+  },
   content: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
     paddingBottom: Spacing["2xl"],
-  },
-  notFound: { flex: 1, alignItems: "center", justifyContent: "center" },
-  notFoundText: {
-    fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   metaRow: {
     flexDirection: "row",
