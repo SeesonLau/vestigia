@@ -1,7 +1,8 @@
 // app/(patient)/index.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { SessionCard } from "../../components/session/index";
@@ -11,6 +12,7 @@ import ThermalMap, {
 import { Badge, Card, Disclaimer } from "../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { dbg } from "../../lib/debug";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { Patient, ScreeningSession } from "../../types";
@@ -22,6 +24,12 @@ const THUMB_H = Math.round(THUMB_W * (62 / 80));
 export default function PatientDashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login");
+  };
   const [patient, setPatient] = useState<Patient | null>(null);
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +48,12 @@ export default function PatientDashboardScreen() {
           .select("*")
           .eq("user_id", user.id)
           .single();
+        dbg("patient/index", `patient fetch — error=${patientErr?.code ?? "none"} message=${patientErr?.message ?? "none"}`);
+        if (patientErr?.code === "PGRST116") {
+          // No patient record linked to this auth user yet
+          setLoading(false);
+          return;
+        }
         if (patientErr) throw new Error("Failed to load patient data.");
 
         if (patientData) {
@@ -82,7 +96,15 @@ export default function PatientDashboardScreen() {
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header title="My Health" subtitle="Patient Dashboard" />
+        <Header
+          title="My Health"
+          subtitle="Patient Dashboard"
+          rightIcon={
+            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
+              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+            </TouchableOpacity>
+          }
+        />
         <View style={styles.centered}>
           <ActivityIndicator color={Colors.primary[400]} />
         </View>
@@ -93,7 +115,15 @@ export default function PatientDashboardScreen() {
   if (fetchError) {
     return (
       <ScreenWrapper>
-        <Header title="My Health" subtitle="Patient Dashboard" />
+        <Header
+          title="My Health"
+          subtitle="Patient Dashboard"
+          rightIcon={
+            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
+              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+            </TouchableOpacity>
+          }
+        />
         <View style={styles.centered}>
           <Text style={styles.errorText}>{fetchError}</Text>
         </View>
@@ -103,7 +133,15 @@ export default function PatientDashboardScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="My Health" subtitle="Patient Dashboard" />
+      <Header
+          title="My Health"
+          subtitle="Patient Dashboard"
+          rightIcon={
+            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
+              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+            </TouchableOpacity>
+          }
+        />
 
       <View style={styles.container}>
         {/* Greeting */}

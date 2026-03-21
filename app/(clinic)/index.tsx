@@ -52,6 +52,12 @@ function QuickAction({
 export default function ClinicHomeScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login");
+  };
   const [clinicName, setClinicName] = useState("My Clinic");
   const [todayStats, setTodayStats] = useState({ total: 0, positive: 0, negative: 0 });
 
@@ -98,6 +104,14 @@ export default function ClinicHomeScreen() {
         </View>
         <View style={styles.headerRight}>
           <StatusIndicator status="connected" label="Scanner Online" />
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutBtn}
+            accessibilityLabel="Sign out"
+            accessibilityRole="button"
+          >
+            <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -207,7 +221,8 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fonts.heading,
     color: Colors.text.primary,
   },
-  headerRight: { paddingTop: Spacing.xs },
+  headerRight: { paddingTop: Spacing.xs, flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  logoutBtn: { padding: 4 },
 
   container: {
     paddingHorizontal: Spacing.lg,
