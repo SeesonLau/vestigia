@@ -84,13 +84,18 @@ export default function AdminSettingsScreen() {
   const { user, logout } = useAuthStore();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase
       .from("system_config")
       .select("key, value")
       .in("key", ["maintenance_mode", "audit_log_enabled"])
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          setConfigError("Failed to load system configuration.");
+          return;
+        }
         data?.forEach((row) => {
           if (row.key === "maintenance_mode") setMaintenanceMode(row.value === true);
           if (row.key === "audit_log_enabled") setAuditLog(row.value === true);
@@ -153,6 +158,9 @@ export default function AdminSettingsScreen() {
           </View>
         </View>
 
+        {configError && (
+          <Text style={styles.configError}>{configError}</Text>
+        )}
         <Text style={styles.sectionHeader}>System</Text>
         <Card style={styles.card}>
           <SettingRow
@@ -246,6 +254,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245,158,11,0.1)",
   },
   container: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  configError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    marginBottom: Spacing.md,
+  },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
