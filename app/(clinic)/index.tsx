@@ -51,6 +51,7 @@ export default function ClinicHomeScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const [clinicName, setClinicName] = useState("My Clinic");
+  const [todayStats, setTodayStats] = useState({ total: 0, positive: 0, negative: 0 });
 
   useEffect(() => {
     if (!user?.clinic_id) return;
@@ -61,6 +62,26 @@ export default function ClinicHomeScreen() {
       .single()
       .then(({ data }) => {
         if (data?.name) setClinicName(data.name);
+      });
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    supabase
+      .from("screening_sessions")
+      .select("id, classification:classification_results(classification)")
+      .eq("clinic_id", user.clinic_id)
+      .gte("started_at", todayStart.toISOString())
+      .then(({ data }) => {
+        if (!data) return;
+        const sessions = data as any[];
+        const positive = sessions.filter(
+          (s) => (Array.isArray(s.classification) ? s.classification[0] : s.classification)?.classification === "POSITIVE"
+        ).length;
+        const negative = sessions.filter(
+          (s) => (Array.isArray(s.classification) ? s.classification[0] : s.classification)?.classification === "NEGATIVE"
+        ).length;
+        setTodayStats({ total: sessions.length, positive, negative });
       });
   }, [user?.clinic_id]);
 
@@ -83,17 +104,17 @@ export default function ClinicHomeScreen() {
           <Text style={styles.todayLabel}>Today's Sessions</Text>
           <View style={styles.todayRow}>
             <View style={styles.todayStat}>
-              <Text style={styles.todayValue}>6</Text>
+              <Text style={styles.todayValue}>{todayStats.total}</Text>
               <Text style={styles.todayKey}>Total</Text>
             </View>
             <View style={styles.todayDivider} />
             <View style={styles.todayStat}>
-              <Text style={[styles.todayValue, styles.positiveVal]}>2</Text>
+              <Text style={[styles.todayValue, styles.positiveVal]}>{todayStats.positive}</Text>
               <Text style={styles.todayKey}>Positive</Text>
             </View>
             <View style={styles.todayDivider} />
             <View style={styles.todayStat}>
-              <Text style={[styles.todayValue, styles.negativeVal]}>4</Text>
+              <Text style={[styles.todayValue, styles.negativeVal]}>{todayStats.negative}</Text>
               <Text style={styles.todayKey}>Negative</Text>
             </View>
           </View>
