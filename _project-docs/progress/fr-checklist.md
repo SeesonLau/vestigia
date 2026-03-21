@@ -1,5 +1,5 @@
 # Functional Requirements Checklist
-**Last verified:** 2026-03-21 (full codebase scan v2)
+**Last verified:** 2026-03-21 (full codebase scan v3)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 

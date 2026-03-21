@@ -3,6 +3,14 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.5.1] — 2026-03-21
+
+### Changed
+- `app/(clinic)/_layout.tsx` — Removed text labels from tab bar icons (icon-only navigation)
+- `app/(clinic)/_layout.tsx` — `patient-select` hidden from tab bar; accessible only via Home quick actions
+
+---
+
 ## [0.5.0] — 2026-03-21
 
 ### Added

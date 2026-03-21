@@ -1,5 +1,5 @@
 # Data Layer Checklist
-**Last verified:** 2026-03-21 (full codebase scan v2 + live Supabase db-sync)
+**Last verified:** 2026-03-21 (full codebase scan v3)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 
@@ -61,15 +61,15 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 
 | Type | Status | Notes |
 |---|---|---|
-| `AuthUser` | ✅ | Includes `phone`, `created_at`, `updated_at` |
-| `ScreeningSession` | ✅ | Includes `app_version` |
-| `PatientVitals` | ✅ | Includes `id`, `session_id`, `recorded_at` |
-| `ThermalCapture` | ✅ | Includes `resolution_x`, `resolution_y` |
-| `ClassificationResult` | ✅ | Includes `feature_vector` |
-| `Patient` | ✅ | Verified present in `types/index.ts` |
-| `Clinic` | ✅ | Verified present in `types/index.ts` |
-| `Device` | ✅ | Verified present in `types/index.ts` |
-| `BLEDevice` | ✅ | `{ id, name, rssi }` — used by deviceStore |
+| `AuthUser` | ✅ | Includes `phone`, `created_at`, `updated_at` — in `types/index.ts` |
+| `ScreeningSession` | ✅ | Includes `app_version` — in `types/index.ts` |
+| `PatientVitals` | ✅ | Includes `id`, `session_id`, `recorded_at` — in `types/index.ts` |
+| `ThermalCapture` | ✅ | Includes `resolution_x`, `resolution_y` — in `types/index.ts` |
+| `ClassificationResult` | ✅ | Includes `feature_vector` — in `types/index.ts` |
+| `Patient` | ✅ | In `types/index.ts` |
+| `Clinic` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |
+| `Device` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |
+| `BLEDevice` | ✅ | `{ id, name, rssi }` — in `types/index.ts`, used by deviceStore |
 | `SystemConfig` | ❌ | No TypeScript type defined for `system_config` table rows |
 
 ---
@@ -104,8 +104,9 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 | Auth session via Supabase | ✅ | signInWithPassword, getSession, onAuthStateChange |
 | RLS enabled on all tables | ✅ | Verified via db-sync — all 9 tables |
 | INSERT WITH CHECK clauses | ✅ | All applicable INSERT policies verified |
-| Input sanitization before Supabase | 🔄 | Blood glucose and BP ranges validated. Heart rate and HbA1c have no range check (SEC-03) |
+| Input sanitization before Supabase | ✅ | Blood glucose, BP, heart rate, and HbA1c all have range validation (SEC-03 fixed 2026-03-21) |
 | No console.log with sensitive data | ✅ | Audited — no sensitive data in console calls |
+| `dbg()` guarded by `__DEV__` | ❌ | `lib/debug.ts` calls `console.log` unconditionally — no `__DEV__` guard (CODE-16) |
 
 ---
 
@@ -115,5 +116,5 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 - Foreign keys: ✅ all 11 relationships verified
 - RLS enabled: ✅ all tables
 - RLS INSERT policies: ✅ all WITH CHECK clauses verified 2026-03-20
-- TypeScript types: ✅ all core types match DB schema — `SystemConfig` type missing (low priority)
+- TypeScript types: ✅ core session/vitals/capture types match DB — `Clinic`, `Device`, `SystemConfig` types missing (open issues)
 - WatermelonDB: ✅ installed + schema + models + database instance — sync logic not started (deferred)

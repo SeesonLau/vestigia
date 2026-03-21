@@ -2,12 +2,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { Colors, Spacing, Typography } from "../../constants/theme";
+import { StyleSheet, View } from "react-native";
+import { Colors, Spacing } from "../../constants/theme";
 
 function TabIcon({
   icon,
-  label,
   focused,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -17,9 +16,6 @@ function TabIcon({
   return (
     <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapFocused]}>
       <Ionicons name={icon} size={22} color={focused ? Colors.primary[300] : Colors.text.muted} />
-      <Text style={[tabStyles.label, focused && tabStyles.labelFocused]}>
-        {label}
-      </Text>
     </View>
   );
 }
@@ -74,6 +70,7 @@ export default function ClinicLayout() {
         }}
       />
       {/* Hidden screens (navigated to programmatically) */}
+      <Tabs.Screen name="patient-select" options={{ href: null as any }} />
       <Tabs.Screen name="clinical-data" options={{ href: null as any }} />
       <Tabs.Screen name="assessment" options={{ href: null as any }} />
       <Tabs.Screen name="session" options={{ href: null as any }} />
@@ -99,11 +96,4 @@ const tabStyles = StyleSheet.create({
   iconWrapFocused: {
     backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
-  label: {
-    fontSize: 9,
-    fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
-    letterSpacing: 0.5,
-  },
-  labelFocused: { color: Colors.primary[300] },
 });

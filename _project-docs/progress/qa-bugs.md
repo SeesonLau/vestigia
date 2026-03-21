@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-03-21 (v0.5.0 — Supabase wiring, startup perf, icon standardization)
+**Last verified:** 2026-03-21 (v0.5.0 — full codebase audit)
 
 ---
 
@@ -37,6 +37,10 @@
 | ~~CODE-11~~ | `app/(clinic)/index.tsx` | 56 | Clinic name hardcoded as "Cebu City Health Center" | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-12~~ | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` and `(clinicsData as any[])` — typed interfaces `RecentUser`/`RecentClinic` already defined but cast bypassed | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-13~~ | `app/(clinic)/assessment.tsx` | 163 | `.map((step, i) => ...)` — param `i` declared but never read | Low | ✅ Fixed 2026-03-21 |
+| CODE-14 | `app/(auth)/login.tsx` | 153 | Version string hardcoded as `"Vestigia v1.0.0"` — inconsistent with `v0.3.0` in settings screens and `v0.5.0` in CHANGELOG | Low | Open |
+| CODE-15 | `app/(auth)/update-password.tsx` | 17 | `useEffect` in a second separate `import from "react"` statement (lines 3–12 already import other hooks) — should be consolidated | Low | Open |
+| CODE-16 | `lib/debug.ts` | 8 | `dbg()` calls `console.log` unconditionally with no `__DEV__` guard — debug logs appear in production builds | Medium | Open |
+| CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files (`// store/deviceStore.ts`, `// store/thermalStore.ts`) — misleading | Low | Open |
 
 ---
 
@@ -61,7 +65,10 @@
 | UX-11 | `app/(clinic)/index.tsx` | 159–178 | Device status card fully hardcoded: "DPN-Scanner-01", "MI0802M5S", "v2.1.4", "Feb 10" | Low | Deferred (hardware) |
 | ~~UX-12~~ | `app/(admin)/settings.tsx` | 88–101 | `system_config` load failure silently ignored — toggles show default values with no user feedback | Low | ✅ Fixed 2026-03-21 |
 | ~~UX-13~~ | `app/(clinic)/index.tsx` | 93 | "Good morning 👋" hardcoded — displays "morning" at all hours | Low | ✅ Fixed 2026-03-21 |
-| ~~UX-14~~ | Multiple files (20) | — | All emoji / unclear Unicode symbols (`⌂ ◈ 📷 📋 ⚙ 📡 🧠 ⏱ 📊 📄 ⚠ ✓ › ← →`) replaced with `@expo/vector-icons` Ionicons; brand logo `◈` in auth screens → `pulse-outline` | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-14~~ | Multiple files (20) | — | All emoji / unclear Unicode symbols replaced with `@expo/vector-icons` Ionicons | Medium | ✅ Fixed 2026-03-21 |
+| UX-15 | `app/(clinic)/index.tsx` | 67–95 | No `ActivityIndicator` while `fetchData()` runs — today's stats display as `0 Total / 0 Positive / 0 Negative` while loading | Low | Open |
+| UX-16 | `app/(clinic)/index.tsx` | 82–90 | `clinicResult.error` and `sessionsResult.error` checked but silently ignored — no `setError`; clinic name silently falls back to "My Clinic" | Medium | Open |
+| UX-17 | Multiple screens | various | Debug UI ID strings visible as `Header` subtitle in production: `"UI-02"` (pairing), `"UI-02b"` (patient-select), `"UI-03"` (live-feed), `"UI-04"` (assessment result state), `"UI-05"` (clinical-data), `"UI-06"` (history), `"UI-07"` (clinic settings), `"UI-08"` (admin dashboard) | Medium | Open |
 
 ---
 
@@ -79,6 +86,10 @@
 | ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch — clinic name and stats failures silently dropped | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` and two subsequent fetches have zero error handling — all errors swallowed | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Neither `patients` nor `screening_sessions` fetch destructures `error` — failures produce empty screen | Medium | ✅ Fixed 2026-03-21 |
+| GAP-15 | `app/(clinic)/history.tsx` | 52–57 | `positiveCount`/`negativeCount` access `s.classification?.classification` but PostgREST returns `classification_results` as **array** — join not normalized here; both counts always read as 0 even when data exists | High | Open |
+| GAP-16 | `app/(admin)/users.tsx` | 34 | `fetchUsers`: `const { data }` — `error` not destructured; network failure silently produces empty list with no user feedback | Medium | Open |
+| GAP-17 | `app/(admin)/clinics.tsx` | 52 | `fetchClinics`: same as GAP-16 — `error` not destructured or handled | Medium | Open |
+| GAP-18 | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 62 / 72 | `handleToggleActive`: on Supabase error, local state not updated and **no user notification** (no Alert, no error text) | Medium | Open |
 
 ---
 
@@ -94,6 +105,9 @@
 | ~~PERF-06~~ | `lib/supabase.ts` | 8 | Supabase `createClient()` called at module scope — triggers `AsyncStorage` read + token refresh network call before any screen renders, blocking startup by 5+ seconds | High | ✅ Fixed 2026-03-21 — lazy-init Proxy defers client creation to first use |
 | ~~PERF-07~~ | `lib/supabase.ts` | 24 | Proxy `get` trap returned unbound methods — `supabase.from(...)` calls lost `this` context causing silent failures | High | ✅ Fixed 2026-03-21 — bind methods to client in Proxy trap |
 | ~~PERF-08~~ | `store/authStore.ts` | 75 | `onAuthStateChange` fetched full profile row from DB on every app startup — unnecessary round-trip on cold start | Medium | ✅ Fixed 2026-03-21 — build `AuthUser` from JWT `user_metadata`, no DB call on startup |
+| PERF-09 | `app/(clinic)/history.tsx` | 132 | Inline arrow function in `FlatList renderItem` — new function reference on every render | Low | Open |
+| PERF-10 | `app/(admin)/users.tsx` | 107 | Inline arrow function in `FlatList renderItem` | Low | Open |
+| PERF-11 | `app/(admin)/clinics.tsx` | 100 | Inline arrow function in `FlatList renderItem` | Low | Open |
 
 ---
 
@@ -103,7 +117,8 @@
 |---|---|---|---|---|---|
 | ~~A11Y-01~~ | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle `TouchableOpacity` has no `accessibilityLabel` | Low | ✅ Fixed 2026-03-21 |
 | ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron `›` Text inside action card has no accessibility role | Low | ✅ Fixed 2026-03-21 — added `accessibilityLabel` + `accessibilityRole="button"` to QuickAction |
-| ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` bg = **3.64:1** — fails WCAG AA 4.5:1 for body text | Medium | ✅ Fixed 2026-03-21 — changed to `#7088b0` (~5.4:1) |
+| ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` bg = **3.64:1** — fails WCAG AA 4.5:1 for body text | Medium | ✅ Fixed 2026-03-21 — changed to `#7088b0` (~5.4:1 on bg.primary) |
+| A11Y-04 | `components/ui/index.tsx` | 193–201 | Muted badge text (`Colors.text.muted = #7088b0`) on `rgba(77,106,150,0.15)` over `bg.card` achieves ~4.4:1 — borderline below WCAG AA 4.5:1 for small text (10px `xs` size) | Medium | Open |
 
 ---
 
@@ -113,7 +128,7 @@
 |---|---|---|---|---|---|
 | ~~SEC-01~~ | `store/authStore.ts` | — | Mock accounts exposed real service_role-equivalent bypass | Critical | ✅ Fixed 2026-03-20 |
 | ~~SEC-02~~ | All tables | — | RLS INSERT policies missing WITH CHECK clauses | High | ✅ Fixed 2026-03-20 |
-| ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | Input sanitization only covers blood glucose and BP ranges — heart rate and HbA1c have no range validation before Supabase insert | Medium | ✅ Fixed 2026-03-21 |
+| ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | Input sanitization only covered blood glucose and BP — heart rate and HbA1c had no range validation before Supabase insert | Medium | ✅ Fixed 2026-03-21 |
 
 ---
 
@@ -123,10 +138,11 @@
 |---|---|---|---|---|---|
 | NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation — user cannot leave without discarding or saving; intentional but worth flagging for UX review | Low | Open |
 | ~~NAV-02~~ | `app/index.tsx` | 20 | `router.replace()` in `useEffect` fired before Root Layout navigator was mounted — "Attempted to navigate before mounting Root Layout" crash | High | ✅ Fixed 2026-03-21 — replaced with `<Redirect>` component |
+| NAV-03 | `app/(patient)/settings.tsx` | — | Screen exists but is **unreachable** — no `router.push("/(patient)/settings")` anywhere in the patient flow; patient layout has no tab bar linking to it | Medium | Open |
 
 ---
 
-## Auth (History — All Fixed 2026-03-20)
+## Auth (History — All Fixed)
 
 | ID | File | Issue | Status |
 |---|---|---|---|
@@ -157,9 +173,9 @@
 | ~~DB-02~~ | Supabase | — | RLS not verified; INSERT WITH CHECK clauses unconfirmed | High | ✅ Fixed 2026-03-20 |
 | GAP-06 / DB-03 | — | — | WatermelonDB installed but sync logic not started — no offline support | High | Deferred |
 | DB-04 | — | — | No conflict resolution strategy designed for local/remote sync | Medium | Deferred |
-| GAP-01 | `store/deviceStore.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | Deferred (hardware) |
-| GAP-02 | `store/deviceStore.ts` | — | Wi-Fi WebSocket to `192.168.4.1:3333` not implemented | High | Deferred (hardware) |
-| GAP-03 | `store/thermalStore.ts` | — | Thermal frames from mock `setInterval`, not real hardware | High | Deferred (hardware) |
+| GAP-01 | `store/sessionStore.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | Deferred (hardware) |
+| GAP-02 | `store/sessionStore.ts` | — | Wi-Fi WebSocket to `192.168.4.1:3333` not implemented | High | Deferred (hardware) |
+| GAP-03 | `store/sessionStore.ts` | — | Thermal frames from mock `setInterval`, not real hardware | High | Deferred (hardware) |
 
 ---
 
@@ -167,13 +183,13 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 13 | 0 | 12 | 1 |
-| UI / UX | 18 | 1 | 16 | 1 |
-| Supabase / Data | 10 | 1 | 7 | 2 |
-| Performance | 8 | 0 | 8 | 0 |
-| Accessibility | 3 | 0 | 3 | 0 |
+| Code Quality | 17 | 4 | 12 | 1 |
+| UI / UX | 21 | 4 | 16 | 1 |
+| Supabase / Data | 14 | 5 | 7 | 2 |
+| Performance | 11 | 3 | 8 | 0 |
+| Accessibility | 4 | 1 | 3 | 0 |
 | Security | 3 | 0 | 3 | 0 |
-| Navigation | 2 | 1 | 1 | 0 |
+| Navigation | 3 | 2 | 1 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **80** | **3** | **68** | **9** |
+| **Total** | **96** | **19** | **68** | **9** |
