@@ -29,6 +29,8 @@ function QuickAction({
       onPress={onPress}
       activeOpacity={0.75}
       style={styles.actionCard}
+      accessibilityLabel={title}
+      accessibilityRole="button"
     >
       <View
         style={[
@@ -53,36 +55,39 @@ export default function ClinicHomeScreen() {
   const [clinicName, setClinicName] = useState("My Clinic");
   const [todayStats, setTodayStats] = useState({ total: 0, positive: 0, negative: 0 });
 
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
   useEffect(() => {
     if (!user?.clinic_id) return;
-    supabase
-      .from("clinics")
-      .select("name")
-      .eq("id", user.clinic_id)
-      .single()
-      .then(({ data }) => {
-        if (data?.name) setClinicName(data.name);
-      });
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const fetchData = async () => {
+      const { data: clinicData, error: clinicErr } = await supabase
+        .from("clinics")
+        .select("name")
+        .eq("id", user.clinic_id)
+        .single();
+      if (!clinicErr && clinicData?.name) setClinicName(clinicData.name);
 
-    supabase
-      .from("screening_sessions")
-      .select("id, classification:classification_results(classification)")
-      .eq("clinic_id", user.clinic_id)
-      .gte("started_at", todayStart.toISOString())
-      .then(({ data }) => {
-        if (!data) return;
-        const sessions = data as any[];
-        const positive = sessions.filter(
-          (s) => (Array.isArray(s.classification) ? s.classification[0] : s.classification)?.classification === "POSITIVE"
-        ).length;
-        const negative = sessions.filter(
-          (s) => (Array.isArray(s.classification) ? s.classification[0] : s.classification)?.classification === "NEGATIVE"
-        ).length;
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+
+      const { data: sessionsData, error: sessionsErr } = await supabase
+        .from("screening_sessions")
+        .select("id, classification:classification_results(classification)")
+        .eq("clinic_id", user.clinic_id)
+        .gte("started_at", todayStart.toISOString());
+      if (!sessionsErr && sessionsData) {
+        const sessions = sessionsData as Array<{ id: string; classification: { classification: string }[] | { classification: string } | null }>;
+        const getClass = (s: typeof sessions[number]) =>
+          Array.isArray(s.classification) ? s.classification[0]?.classification : s.classification?.classification;
+        const positive = sessions.filter((s) => getClass(s) === "POSITIVE").length;
+        const negative = sessions.filter((s) => getClass(s) === "NEGATIVE").length;
         setTodayStats({ total: sessions.length, positive, negative });
-      });
+      }
+    };
+
+    fetchData();
   }, [user?.clinic_id]);
 
   return (
@@ -90,7 +95,7 @@ export default function ClinicHomeScreen() {
       {/* Custom header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Good morning 👋</Text>
+          <Text style={styles.greeting}>{timeGreeting} 👋</Text>
           <Text style={styles.clinicName}>{clinicName}</Text>
         </View>
         <View style={styles.headerRight}>
