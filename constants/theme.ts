@@ -51,7 +51,7 @@ export const Colors = {
   text: {
     primary: "#e8f0fe",
     secondary: "#94afd4",
-    muted: "#4d6a96",
+    muted: "#7088b0", // lightened from #4d6a96 to pass WCAG AA 4.5:1 on #050d1a (~5.4:1)
     inverse: "#050d1a",
   },
 
