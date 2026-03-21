@@ -9,6 +9,7 @@ These are typed directly in the Claude Code chat window.
 | `/start-session` | Reads all memory-bank files, CLAUDE.md, and **roadmap.md** — gives a full project state report including the top 3 planned items. Ends with "What are we working on today?" |
 | `/end-session` | Updates memory-bank files, bumps version, logs Supabase changes, lists every file touched, updates `qa-bugs.md`, creates session log in `_project-docs/sessions/`, and **updates roadmap.md** (moves completed items, adds new tasks/suggestions) |
 | `/audit` | Scans the codebase for TypeScript errors, `any` types, empty stubs, broken imports, missing file path comments, and hardcoded secrets |
+| `/qa` | Full QA audit — covers code quality, UI completeness, functional flows (end-to-end), Supabase integration, navigation, and component correctness. Reports a findings table by severity and a flow status summary. Updates `qa-bugs.md` automatically. |
 | `/db-sync` | Queries Supabase live and reports all tables, columns, RLS status, policies, and flags anything misconfigured |
 | `/memory` | Quick summary of all memory-bank files and **roadmap.md** — version, last worked on, in progress, next 3 planned items, open questions |
 | `/version` | Shows current version, last 3 changelog entries, and what the **next planned version bump** is based on roadmap.md |
