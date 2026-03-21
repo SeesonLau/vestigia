@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-03-21 (v0.5.0 — full codebase audit)
+**Last verified:** 2026-03-21 (v0.5.1 — tab bar + targeted nav audit)
 
 ---
 
@@ -41,6 +41,7 @@
 | CODE-15 | `app/(auth)/update-password.tsx` | 17 | `useEffect` in a second separate `import from "react"` statement (lines 3–12 already import other hooks) — should be consolidated | Low | Open |
 | CODE-16 | `lib/debug.ts` | 8 | `dbg()` calls `console.log` unconditionally with no `__DEV__` guard — debug logs appear in production builds | Medium | Open |
 | CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files (`// store/deviceStore.ts`, `// store/thermalStore.ts`) — misleading | Low | Open |
+| CODE-18 | `app/(clinic)/_layout.tsx` | 11–14 | `label: string` prop declared in `TabIcon` TypeScript type but is never destructured or used in the component body (v0.5.1 — text labels removed) — dead prop declaration | Low | Open |
 
 ---
 
@@ -119,6 +120,7 @@
 | ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron `›` Text inside action card has no accessibility role | Low | ✅ Fixed 2026-03-21 — added `accessibilityLabel` + `accessibilityRole="button"` to QuickAction |
 | ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` bg = **3.64:1** — fails WCAG AA 4.5:1 for body text | Medium | ✅ Fixed 2026-03-21 — changed to `#7088b0` (~5.4:1 on bg.primary) |
 | A11Y-04 | `components/ui/index.tsx` | 193–201 | Muted badge text (`Colors.text.muted = #7088b0`) on `rgba(77,106,150,0.15)` over `bg.card` achieves ~4.4:1 — borderline below WCAG AA 4.5:1 for small text (10px `xs` size) | Medium | Open |
+| A11Y-05 | `app/(clinic)/_layout.tsx` | 32–71 | Tab bar icons have no text labels after v0.5.1 change, and no `tabBarAccessibilityLabel` set on any `Tabs.Screen` — screen readers announce "index tab", "pairing tab", etc. instead of meaningful labels like "Home" or "Device" | Medium | Open |
 
 ---
 
@@ -183,13 +185,13 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 17 | 4 | 12 | 1 |
+| Code Quality | 18 | 5 | 12 | 1 |
 | UI / UX | 21 | 4 | 16 | 1 |
 | Supabase / Data | 14 | 5 | 7 | 2 |
 | Performance | 11 | 3 | 8 | 0 |
-| Accessibility | 4 | 1 | 3 | 0 |
+| Accessibility | 5 | 2 | 3 | 0 |
 | Security | 3 | 0 | 3 | 0 |
 | Navigation | 3 | 2 | 1 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **96** | **19** | **68** | **9** |
+| **Total** | **98** | **21** | **68** | **9** |
