@@ -1,43 +1,22 @@
 // app/index.tsx
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Redirect } from "expo-router";
+import React from "react";
 import LoadingScreen from "../components/layout/LoadingScreen";
+import { dbg } from "../lib/debug";
 import { useAuthStore } from "../store/authStore";
 
+dbg("index", "module loaded");
+
 export default function Index() {
-  const { restoreSession } = useAuthStore();
-  const [loading, setLoading] = useState(true);
-  const [initialRole, setInitialRole] = useState<string | null>(null);
-  const router = useRouter();
+  const initialized = useAuthStore((s) => s.initialized);
+  const user = useAuthStore((s) => s.user);
 
-  useEffect(() => {
-    restoreSession().then((role) => {
-      setInitialRole(role);
-      setLoading(false);
-    });
-  }, []);
+  dbg("index", `render — initialized=${initialized} role=${user?.role ?? "null"}`);
 
-  useEffect(() => {
-    if (!loading) {
-      if (initialRole) {
-        switch (initialRole) {
-          case "clinic":
-            router.replace("/(clinic)");
-            break;
-          case "patient":
-            router.replace("/(patient)");
-            break;
-          case "admin":
-            router.replace("/(admin)");
-            break;
-          default:
-            router.replace("/(auth)/login");
-        }
-      } else {
-        router.replace("/(auth)/login");
-      }
-    }
-  }, [loading, initialRole]);
+  if (!initialized) return <LoadingScreen />;
 
-  return <LoadingScreen />;
+  if (user?.role === "clinic") return <Redirect href="/(clinic)" />;
+  if (user?.role === "patient") return <Redirect href="/(patient)" />;
+  if (user?.role === "admin") return <Redirect href="/(admin)" />;
+  return <Redirect href="/(auth)/login" />;
 }

@@ -15,6 +15,7 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { dbg } from "../../lib/debug";
 import { useAuthStore } from "../../store/authStore";
 
 export default function LoginScreen() {
@@ -39,8 +40,10 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!validate()) return;
+    dbg("login", "handleLogin called");
     setLoading(true);
     const result = await login(email, password);
+    dbg("login", `login() returned — success=${result.success} role=${result.role ?? "null"} error=${result.error ?? "none"}`);
     setLoading(false);
     if (result.success) {
       switch (result.role) {

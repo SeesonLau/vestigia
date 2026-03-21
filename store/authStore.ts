@@ -1,5 +1,6 @@
 // store/authStore.ts
 import { create } from "zustand";
+import { dbg } from "../lib/debug";
 import { supabase } from "../lib/supabase";
 import { AuthUser, UserRole } from "../types";
 
@@ -47,6 +48,7 @@ let _authSubscription: { unsubscribe: () => void } | null = null;
 
 interface AuthState {
   user: AuthUser | null;
+  initialized: boolean;
   isLoading: boolean;
   error: string | null;
   pendingClinicId: string | null;
@@ -70,26 +72,44 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-  // AUTH-13: Clean up any existing listener before registering (guards against HMR double-subscribe)
+    // AUTH-13: Clean up any existing listener before registering (guards against HMR double-subscribe)
   _authSubscription?.unsubscribe();
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === "SIGNED_IN" && session?.user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session.user.id)
-        .single();
-      if (profile) {
-        set({ user: profile as AuthUser });
+  dbg("authStore", "registering onAuthStateChange");
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    dbg("authStore", `onAuthStateChange — event=${event} session=${session ? "found" : "null"}`);
+    if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
+      // Use JWT metadata — no DB round-trip.
+      // For SIGNED_IN (interactive login), the login() action already set the
+      // full profile row; only apply JWT fallback when store has no user yet.
+      const existing = get().user;
+      if (existing?.id === session.user.id) {
+        dbg("authStore", `${event} — profile already set by login(), skipping`);
+        set({ initialized: true });
+        return;
       }
+      const meta = session.user.user_metadata ?? {};
+      const user: AuthUser = {
+        id: session.user.id,
+        email: session.user.email ?? "",
+        full_name: meta.full_name ?? "",
+        role: meta.role as UserRole,
+        clinic_id: meta.clinic_id,
+        is_active: true,
+      };
+      dbg("authStore", `${event} — user from JWT, role=${user.role}`);
+      set({ user, initialized: true });
+    } else if (event === "INITIAL_SESSION" && !session) {
+      dbg("authStore", "INITIAL_SESSION — no session");
+      set({ initialized: true });
     } else if (event === "SIGNED_OUT") {
-      set({ user: null });
+      set({ user: null, initialized: true });
     }
   });
   _authSubscription = subscription;
 
   return {
     user: null,
+    initialized: false,
     isLoading: false,
     error: null,
     pendingClinicId: null,
@@ -106,17 +126,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       set({ isLoading: true, error: null });
       try {
+        dbg("login", "calling signInWithPassword");
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.toLowerCase().trim(),
           password,
         });
+        dbg("login", `signInWithPassword done — error=${error?.message ?? "none"}`);
         if (error) throw error;
 
+        dbg("login", "fetching profile");
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", data.user.id)
           .single();
+        dbg("login", `profile fetch done — error=${profileError?.message ?? "none"}`);
         if (profileError) throw profileError;
 
         let profile = profileData as AuthUser;
@@ -232,21 +256,33 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
     restoreSession: async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        dbg("restoreSession", "calling getSession()");
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => {
+              dbg("restoreSession", "TIMEOUT — getSession() >5s, bailing to login");
+              resolve({ data: { session: null } });
+            }, 5000)
+          ),
+        ]);
+        const { data: { session } } = sessionResult;
+        dbg("restoreSession", `getSession() done — session=${session ? "found" : "null"}`);
         if (!session?.user) return null;
 
+        dbg("restoreSession", "fetching profile");
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", session.user.id)
           .single();
+        dbg("restoreSession", `profile done — error=${error?.message ?? "none"}, role=${(profile as AuthUser)?.role ?? "null"}`);
         if (error || !profile) return null;
 
         set({ user: profile as AuthUser });
         return (profile as AuthUser).role;
-      } catch {
+      } catch (e: unknown) {
+        dbg("restoreSession", "THREW", e);
         return null;
       }
     },
