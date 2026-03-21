@@ -75,7 +75,7 @@ export default function ClinicalDataScreen() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    const { glucose, systolic, diastolic } = ClinicalThresholds;
+    const { glucose, systolic, diastolic, heartRate, hba1c } = ClinicalThresholds;
 
     if (!vitals.blood_glucose) {
       e.blood_glucose = "Blood glucose is required";
@@ -100,6 +100,18 @@ export default function ClinicalDataScreen() {
         e.diastolic_bp = `${diastolic.min}–${diastolic.max} mmHg`;
       if (!isNaN(s) && !isNaN(d) && d >= s)
         e.diastolic_bp = "Diastolic must be less than systolic";
+    }
+
+    if (vitals.heart_rate) {
+      const hr = parseInt(vitals.heart_rate);
+      if (isNaN(hr) || hr < heartRate.min || hr > heartRate.max)
+        e.heart_rate = `Must be between ${heartRate.min}–${heartRate.max} bpm`;
+    }
+
+    if (vitals.hba1c) {
+      const h = parseFloat(vitals.hba1c);
+      if (isNaN(h) || h < hba1c.min || h > hba1c.max)
+        e.hba1c = `Must be between ${hba1c.min}–${hba1c.max}%`;
     }
 
     setErrors(e);
