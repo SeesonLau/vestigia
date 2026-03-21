@@ -15,6 +15,7 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Card } from "../../components/ui/index";
 import { Colors, Spacing, Typography } from "../../constants/theme";
 import { useAuthStore } from "../../store/authStore";
+import { useDeviceStore } from "../../store/sessionStore";
 
 interface SettingRowProps {
   label: string;
@@ -85,6 +86,7 @@ const soon = (feature: string) =>
 export default function SettingsScreen() {
   const router = useRouter();
   const logout = useAuthStore((s) => s.logout);
+  const pairedDevice = useDeviceStore((s) => s.pairedDevice);
   const [haptics, setHaptics] = useState(true);
   const [offlineMode, setOfflineMode] = useState(false);
   const [autoUpload, setAutoUpload] = useState(true);
@@ -160,7 +162,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="hardware-chip-outline"
             label="Paired Device"
-            subtitle="DPN-Scanner-01"
+            subtitle={pairedDevice?.name ?? "No device paired"}
             value="Connected"
             onPress={() => router.push("/(clinic)/pairing")}
           />

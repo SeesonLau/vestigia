@@ -1,7 +1,7 @@
 // app/(admin)/settings.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -14,6 +14,7 @@ import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Card } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 
 interface SettingRowProps {
@@ -84,6 +85,39 @@ export default function AdminSettingsScreen() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
 
+  useEffect(() => {
+    supabase
+      .from("system_config")
+      .select("key, value")
+      .in("key", ["maintenance_mode", "audit_log_enabled"])
+      .then(({ data }) => {
+        data?.forEach((row) => {
+          if (row.key === "maintenance_mode") setMaintenanceMode(row.value === true);
+          if (row.key === "audit_log_enabled") setAuditLog(row.value === true);
+        });
+      });
+  }, []);
+
+  const updateConfig = (key: string, value: boolean) => {
+    supabase
+      .from("system_config")
+      .update({ value, updated_at: new Date().toISOString() })
+      .eq("key", key)
+      .then(({ error }) => {
+        if (error) Alert.alert("Error", "Failed to save setting.");
+      });
+  };
+
+  const handleMaintenanceToggle = (v: boolean) => {
+    setMaintenanceMode(v);
+    updateConfig("maintenance_mode", v);
+  };
+
+  const handleAuditLogToggle = (v: boolean) => {
+    setAuditLog(v);
+    updateConfig("audit_log_enabled", v);
+  };
+
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -127,7 +161,7 @@ export default function AdminSettingsScreen() {
             subtitle="Disable access for non-admin users"
             toggle
             toggleValue={maintenanceMode}
-            onToggle={setMaintenanceMode}
+            onToggle={handleMaintenanceToggle}
           />
           <View style={styles.divider} />
           <SettingRow
@@ -136,7 +170,7 @@ export default function AdminSettingsScreen() {
             subtitle="Track all user actions"
             toggle
             toggleValue={auditLog}
-            onToggle={setAuditLog}
+            onToggle={handleAuditLogToggle}
           />
           <View style={styles.divider} />
           <SettingRow

@@ -2,7 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
@@ -28,7 +28,7 @@ export default function PatientSettingsScreen() {
     {
       icon: "person-outline",
       label: "Edit Profile",
-      onPress: () => {},
+      onPress: () => Alert.alert("Coming Soon", "Profile editing is not yet available."),
     },
     {
       icon: "lock-closed-outline",
@@ -38,7 +38,7 @@ export default function PatientSettingsScreen() {
     {
       icon: "notifications-outline",
       label: "Notifications",
-      onPress: () => {},
+      onPress: () => Alert.alert("Coming Soon", "Notification settings are not yet available."),
     },
     {
       icon: "log-out-outline",
