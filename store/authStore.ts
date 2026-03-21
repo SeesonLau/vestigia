@@ -22,7 +22,7 @@ function mapAuthError(error: { message?: string; code?: string; status?: number 
   if (code === "invalid_credentials" || msg.includes("invalid login"))
     return "Incorrect email or password";
   if (code === "user_already_exists" || msg.includes("already registered"))
-    return "An account with this email already exists";
+    return "An account with this email already exists. Please sign in instead.";
   if (code === "weak_password" || msg.includes("weak password"))
     return "Password is too weak";
   if (code === "email_not_confirmed" || msg.includes("email not confirmed"))
@@ -198,6 +198,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
         // Email confirmation required — session is null until user clicks link
         if (!data.session) {
+          // AUTH-16: When email confirmation is enabled, Supabase silently returns
+          // identities: [] instead of a user_already_exists error for duplicate emails.
+          // This would otherwise send the user to "Check your inbox" with no feedback.
+          if ((data.user?.identities?.length ?? 1) === 0) {
+            const err = "An account with this email already exists. Please sign in instead.";
+            set({ isLoading: false, error: err });
+            return { success: false, error: err };
+          }
           // AUTH-14: Only store clinicId when the registering role is actually clinic
           if (role === "clinic" && clinicId) set({ pendingClinicId: clinicId });
           set({ isLoading: false });
