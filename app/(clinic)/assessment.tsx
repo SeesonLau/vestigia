@@ -106,11 +106,12 @@ export default function AssessmentScreen() {
 
   // Simulate cloud processing
   useEffect(() => {
-    Animated.timing(progressAnim, {
+    const anim = Animated.timing(progressAnim, {
       toValue: 1,
       duration: 3500,
       useNativeDriver: false,
-    }).start(() => {
+    });
+    anim.start(() => {
       setState("result");
       Animated.timing(fadeIn, {
         toValue: 1,
@@ -118,6 +119,7 @@ export default function AssessmentScreen() {
         useNativeDriver: true,
       }).start();
     });
+    return () => anim.stop();
   }, []);
 
   const progressWidth = progressAnim.interpolate({

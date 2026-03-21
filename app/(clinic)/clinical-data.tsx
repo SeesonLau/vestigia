@@ -164,6 +164,7 @@ export default function ClinicalDataScreen() {
           min_temp_c: minTemp,
           max_temp_c: maxTemp,
           mean_temp_c: meanTemp,
+          captured_at: new Date().toISOString(),
         });
         if (captureErr) throw new Error("Failed to save thermal capture.");
       }
