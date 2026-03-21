@@ -11,7 +11,11 @@
       "Bash(npx -y @modelcontextprotocol/server-postgres --help)",
       "Bash(npm install:*)",
       "Bash(where mcp-server-postgres:*)",
-      "Bash(node -e \"require\\(''@nozbe/watermelondb/adapters/expo-sqlite''\\); console.log\\(''expo-sqlite adapter available''\\)\")"
+      "Bash(node -e \"require\\(''@nozbe/watermelondb/adapters/expo-sqlite''\\); console.log\\(''expo-sqlite adapter available''\\)\")",
+      "Bash(ls \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/\")",
+      "Bash(cat \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/assessment.tsx\")",
+      "mcp__postgres__query",
+      "Bash(cat \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/pairing.tsx\")"
     ]
   },
   "enabledMcpjsonServers": [
