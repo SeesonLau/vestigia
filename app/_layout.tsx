@@ -2,11 +2,14 @@
 import { Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";
+import { View } from "react-native";
+import { useInactivityTimeout } from "../hooks/useInactivityTimeout";
 import { supabase } from "../lib/supabase";
 import { Colors } from "../constants/theme";
 
 export default function RootLayout() {
   const router = useRouter();
+  const { resetTimer } = useInactivityTimeout();
 
   //DeepLinkHandler
   useEffect(() => {
@@ -61,18 +64,20 @@ export default function RootLayout() {
   };
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: Colors.bg.primary },
-        animation: "fade",
-      }}
-    >
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(clinic)" />
-      <Stack.Screen name="(patient)" />
-      <Stack.Screen name="(admin)" />
-      <Stack.Screen name="index" />
-    </Stack>
+    <View style={{ flex: 1 }} onTouchStart={resetTimer}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: Colors.bg.primary },
+          animation: "fade",
+        }}
+      >
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(clinic)" />
+        <Stack.Screen name="(patient)" />
+        <Stack.Screen name="(admin)" />
+        <Stack.Screen name="index" />
+      </Stack>
+    </View>
   );
 }

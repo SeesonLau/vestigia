@@ -10,7 +10,7 @@
 | ~~BUG-01~~ | `app/(clinic)/pairing.tsx` | ✅ Fixed 2026-03-20 — navigates to `/(clinic)/live-feed` | |
 | ~~BUG-02~~ | `app/(clinic)/live-feed.tsx` | ✅ Fixed 2026-03-20 — navigates to `/(clinic)/clinical-data` | |
 | ~~BUG-03~~ | `app/(clinic)/clinical-data.tsx` | ✅ Fixed 2026-03-20 — navigates to `/(clinic)/assessment` after submit; Cancel returns to home | |
-| BUG-04 | All roles | No 30-minute inactivity session timeout (FR-104) | Security requirement unmet |
+| ~~BUG-04~~ | All roles | ✅ Fixed 2026-03-21 — `hooks/useInactivityTimeout.ts` created. 30-min timer resets on any touch via root `View.onTouchStart`. AppState listener logs out if app was backgrounded ≥30 min. Wired in `app/_layout.tsx`. | |
 
 ---
 
@@ -97,13 +97,13 @@
 
 | Severity | Total | Open | Fixed |
 |---|---|---|---|
-| Critical | 4 | 1 | 3 |
+| Critical | 4 | 0 | 4 |
 | High (Gaps) | 8 | 7 | 1 |
 | Medium (UX) | 7 | 2 | 5 |
 | Auth | 15 | 0 | 15 |
 | Low (Code) | 10 | 2 | 8 |
 | Schema/DB | 4 | 2 | 2 |
-| **Total** | **48** | **14** | **34** |
+| **Total** | **48** | **13** | **35** |
 
 ---
 
