@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-03-21 (v0.5.1 — tab bar + targeted nav audit)
+**Last verified:** 2026-03-24 (v0.5.1 — full codebase QA audit)
 
 ---
 
