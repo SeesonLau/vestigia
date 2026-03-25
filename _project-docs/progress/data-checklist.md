@@ -1,5 +1,5 @@
 # Data Layer Checklist
-**Last verified:** 2026-03-21 (full codebase scan v3)
+**Last verified:** 2026-03-24 (full codebase QA audit)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 
@@ -65,7 +65,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 | `ScreeningSession` | ✅ | Includes `app_version` — in `types/index.ts` |
 | `PatientVitals` | ✅ | Includes `id`, `session_id`, `recorded_at` — in `types/index.ts` |
 | `ThermalCapture` | ✅ | Includes `resolution_x`, `resolution_y` — in `types/index.ts` |
-| `ClassificationResult` | ✅ | Includes `feature_vector` — in `types/index.ts` |
+| `ClassificationResult` | ✅ | Includes `feature_vector`, `risk_level` — in `types/index.ts` |
 | `Patient` | ✅ | In `types/index.ts` |
 | `Clinic` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |
 | `Device` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |

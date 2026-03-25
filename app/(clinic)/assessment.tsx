@@ -105,6 +105,16 @@ export default function AssessmentScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const fadeIn = useRef(new Animated.Value(0)).current;
 
+  // Clear session on unmount (guards stale state if user leaves without saving)
+  useEffect(() => {
+    return () => {
+      if (!saved) {
+        clearSession();
+        discardCapture();
+      }
+    };
+  }, [saved]);
+
   // Simulate cloud processing
   useEffect(() => {
     const anim = Animated.timing(progressAnim, {

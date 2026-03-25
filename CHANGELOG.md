@@ -3,6 +3,21 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.5.2] — 2026-03-24
+
+### Fixed
+- **assessment.tsx** — Added unmount cleanup `useEffect` that calls `clearSession()` + `discardCapture()` if user navigates away before saving; guards stale session state
+- **patient-select.tsx** — Replaced two-state client-side `.filter()` + second `useEffect` with single Supabase `.ilike()` query on `patient_code`; scales to any number of patients
+
+### Added
+- **types/index.ts** — `risk_level?: "LOW" | "MEDIUM" | "HIGH"` added to `ClassificationResult`; ready for FR-508
+
+### Documentation
+- Full codebase QA audit run; 0 regressions found; 21 open issues confirmed (no change from v0.5.1)
+- All progress docs (`qa-bugs.md`, `ui-checklist.md`, `fr-checklist.md`, `data-checklist.md`) updated to 2026-03-24
+
+---
+
 ## [0.5.1] — 2026-03-21
 
 ### Changed

@@ -72,6 +72,7 @@ export interface ClassificationResult {
   max_asymmetry_c?: number;
   angiosomes_flagged?: string[];
   bilateral_tci?: number;
+  risk_level?: "LOW" | "MEDIUM" | "HIGH";
   feature_vector?: Record<string, number>;
   model_version: string;
   classified_at: string;
