@@ -1,52 +1,24 @@
 # Active Context — Vestigia
-**Last updated:** 2026-03-21
+**Last updated:** 2026-03-24
 
 ---
 
-## What Was Done This Session (2026-03-21 — v0.5.0)
+## What Was Done This Session (2026-03-24 — v0.5.2)
 
-### Startup Performance Overhaul
-- **PERF-05** `app.json` — changed `"output": "static"` → `"output": "single"`; eliminates Expo Router SSR Node.js pre-render that caused `window is not defined` crash
-- **PERF-06/07** `lib/supabase.ts` — Rewrote to lazy-init Supabase client via `Proxy`; defers `createClient()` until first property access; Proxy `get` trap binds methods to client instance to fix `this` context loss
-- **PERF-08** `store/authStore.ts` — Removed blocking `getSession()` call; auth now resolved via `INITIAL_SESSION` event using JWT `user_metadata`; no DB round-trip on cold start; startup time reduced from 5+ seconds to <1 second
-- **NAV-02** `app/index.tsx` — Replaced `useEffect + router.replace()` with `<Redirect>` component from expo-router; fixes "Attempted to navigate before mounting Root Layout" crash
+### Quick Code Fixes
+- **assessment.tsx** — Added unmount cleanup `useEffect`: calls `clearSession()` + `discardCapture()` if user navigates away before saving result. Guards stale Zustand state.
+- **patient-select.tsx** — Replaced two-`useEffect` client-side `.filter()` pattern with a single Supabase `.ilike()` query on `patient_code`, triggered by `search` state change. Removed dead `filtered` state. Scales to any dataset size.
+- **types/index.ts** — Added `risk_level?: "LOW" | "MEDIUM" | "HIGH"` to `ClassificationResult`. Ready for FR-508 without any schema change needed.
 
-### Debug Logging
-- Created `lib/debug.ts` — timestamped logger using `APP_START = Date.now()` baseline; `dbg(tag, msg, data?)` logs relative elapsed time; used in auth, screens, and stores
+### QA Audit (Full Codebase)
+- Ran full /qa across all 9 areas (code quality, UI, flows, Supabase, network errors, performance, accessibility, navigation, regression)
+- **0 regressions** — all 68 previously fixed items confirmed still fixed
+- **21 open issues** confirmed — same as end of v0.5.1 (no new bugs introduced)
+- All 4 progress docs verified and date-bumped to 2026-03-24
 
-### Patient Dashboard Hardening
-- Added `PGRST116` guard in `app/(patient)/index.tsx` — if no patient record is linked to auth user, shows empty state (not error); handles newly registered users gracefully
-
-### Logout Buttons
-- Added logout button to clinic home (`app/(clinic)/index.tsx`) header via `rightIcon` prop
-- Added logout button to patient dashboard (`app/(patient)/index.tsx`) header via `rightIcon` prop (all 3 render states: loading, error, main view)
-
-### Supabase Backend Wiring (committed in same session, pre-compaction)
-- **GAP-07** assessment "Save to Cloud" → `classification_results` insert + session status update
-- **GAP-09** history screen → real `screening_sessions` by `clinic_id`
-- **GAP-10** admin users → real `profiles` table + Activate/Deactivate wired
-- **GAP-11** admin clinics → real `clinics` + `devices` + Activate/Deactivate wired
-- **UX-07** both session detail screens → real Supabase joins
-- **UX-08** admin modal buttons → Supabase `.update()`
-- **CODE-11** clinic dashboard → real clinic name + today's stats
-- **BUG-05** live-feed foot selector → `onPress` wired, active style mirrors state
-- Admin overview stats wired (S-01); admin clinic cards navigate to clinics tab (N-02)
-
-### Icon Standardization (UX-14)
-- `app/(clinic)/_layout.tsx` — `TabIcon` component rewritten to use `<Ionicons>` with typed `keyof typeof Ionicons.glyphMap`; tabs: `home-outline`, `bluetooth-outline`, `camera-outline`, `time-outline`, `settings-outline`
-- `app/(auth)/login.tsx` + `app/(auth)/register.tsx` — `◈` brand logo → `pulse-outline`
-- `app/(clinic)/pairing.tsx` — `◈` device icon → `hardware-chip-outline`; `📡` empty state → `radio-outline`; `✓` paired banner → `checkmark-circle-outline`
-- `app/(clinic)/assessment.tsx` — `🧠` → `analytics-outline`; `⏱` → `timer-outline`; `✓` saved banner → `checkmark-circle-outline`; `↑` button label removed
-- `app/(clinic)/history.tsx` — `📋` empty state → `time-outline`
-- `app/(clinic)/session/[id].tsx` — `←` back button → `arrow-back-outline`
-- `app/(clinic)/settings.tsx` — `›` chevrons → `chevron-forward`
-- `app/(clinic)/live-feed.tsx` + `app/(clinic)/clinical-data.tsx` + `app/(clinic)/pairing.tsx` — `→` button labels removed
-- `app/(clinic)/index.tsx` — `›` action chevron → `chevron-forward`
-- `app/(admin)/index.tsx` — `📊 Export CSV` → `bar-chart-outline`; `📄 Export PDF` → `document-text-outline`; `→` config link → `chevron-forward`
-- `app/(admin)/clinics.tsx` — `›` chevron → `chevron-forward`; `◈` device code → `hardware-chip-outline`
-- `app/(admin)/settings.tsx` — `›` chevrons → `chevron-forward`
-- `app/(patient)/index.tsx` — `⚠` / `✓` → `warning-outline` / `checkmark-circle-outline`
-- `app/(patient)/session/[id].tsx` — `←` back button → `arrow-back-outline`
+### Session Protocol
+- Answered questions about /start-session, /end-session, git workflow, and branch creation
+- Clarified: /end-session does NOT commit or push — git is manual
 
 ---
 
@@ -70,28 +42,42 @@
 - ✅ All settings screens fully wired
 - ✅ All icons are Ionicons — no emoji or unclear Unicode symbols anywhere
 - ✅ Logout buttons on clinic home + patient dashboard
+- ✅ Assessment unmount cleanup (clearSession + discardCapture on nav-away)
+- ✅ Patient-select uses Supabase .ilike() search (scalable)
 - ❌ No abnormal region overlay on thermal map (GAP-08 — deferred)
 - ❌ BLE/Wi-Fi device comms deferred (hardware not finalized)
 - ❌ AI classification is mock (GAP-04 — hardware/API dependency)
+
+### Open Issues (21 total)
+**High:** GAP-15 (history positive/negative count = 0 due to PostgREST join not normalized)
+**Medium:** UX-17 (7 screens show debug subtitle strings), UX-16 (clinic home errors swallowed), GAP-16/17 (admin fetch no error), GAP-18 (toggle active no feedback), CODE-16 (debug logs in prod), A11Y-04/05, NAV-03
+**Low:** CODE-14/15/17/18, UX-11/15, PERF-09/10/11, NAV-01
 
 ### Pending Supabase Dashboard Steps
 - Add Edge Function URL to Redirect URLs
 - Deploy Edge Function: `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
 
+### Git
+- Branch not yet created — user to create before committing today's changes
+- No commits made this session
+
 ---
 
 ## Next Steps (priority order)
-1. **FR-506 — Image preprocessing** — Create `lib/thermal/preprocessing.ts`: `normalizeMatrix()` + `segmentFootRegion()` + `buildApiPayload()`. Prepares bilateral thermal data for the external AI API. Can be built and tested independently before FR-507.
-2. **FR-507 — AI model API integration** — Create `lib/api/aiClient.ts`: HTTP client that sends the FR-506 payload to the external AI model API (separate repo) and maps the JSON response to `ClassificationResult`. **Blocked until AI API endpoint URL and contract are confirmed.** When ready: replace mock animation in `assessment.tsx` with real API call.
-3. **FR-508 — Risk scoring** — Create `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH rules applied app-side to asymmetry values from the API response. Can be built as soon as FR-507 API contract is defined (even before API is live).
-4. **Deploy Edge Function** — run `npx supabase functions deploy auth-redirect ...` + add URL to Supabase Auth Redirect URLs
-5. **GAP-08** — Abnormal region overlay on thermal map (FR-603) — depends on FR-507 response (flagged angiosome list)
-6. Hardware integration (GAP-01–04) — deferred until device spec confirmed
+1. **UX-17** — Remove debug subtitle strings from 7 screens (delete `subtitle="UI-xx"` props)
+2. **GAP-15** — Fix PostgREST join normalization in `history.tsx` (copy pattern from `session/[id].tsx`)
+3. **GAP-16 / GAP-17** — Add error destructuring + user feedback in admin users/clinics fetch
+4. **GAP-18** — Add user notification on Activate/Deactivate failure
+5. **UX-15 / UX-16** — Add loading indicator + error state to clinic home
+6. **FR-506** — Build `lib/thermal/preprocessing.ts` (independent of AI API — can build now)
+7. **FR-507** — AI model API client (blocked until AI API endpoint confirmed)
+8. **FR-508** — Risk scoring stub (can be built once FR-507 contract known)
+9. **Deploy Edge Function** — 15 min manual step
 
 ---
 
 ## Open Questions
-- **AI model API contract** — What is the endpoint URL, request format, response schema, and auth method for the external AI model API? This must be confirmed with the AI model team before FR-507 can be coded.
-- **Preprocessing scope** — Does the external AI API expect raw matrices or preprocessed/normalized data? Determines how much of FR-506 is app-side vs. handled by the API.
-- **Risk scoring ownership** — Does the AI API return a `risk_level` field directly, or does the app compute it from the returned asymmetry values?
+- **AI model API contract** — What is the endpoint URL, request format, response schema, and auth method for the external AI model API? Must be confirmed before FR-507.
+- **Preprocessing scope** — Does the external AI API expect raw matrices or preprocessed/normalized data?
+- **Risk scoring ownership** — Does the AI API return `risk_level` directly, or does the app compute it?
 - Is BLE device hardware finalized? (deferred)

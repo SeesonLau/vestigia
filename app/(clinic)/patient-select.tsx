@@ -41,7 +41,6 @@ export default function PatientSelectScreen() {
   const setSelectedPatient = useSessionStore((s) => s.setSelectedPatient);
 
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [filtered, setFiltered] = useState<Patient[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,36 +51,24 @@ export default function PatientSelectScreen() {
       setLoading(false);
       return;
     }
-    supabase
+    const q = search.trim();
+    const query = supabase
       .from("patients")
       .select("*")
       .eq("clinic_id", user.clinic_id)
-      .order("patient_code")
-      .then(({ data, error: err }) => {
-        if (err) {
-          setError("Could not load patients. Check your connection.");
-        } else {
-          setPatients(data ?? []);
-          setFiltered(data ?? []);
-        }
-        setLoading(false);
-      });
-  }, [user?.clinic_id]);
+      .order("patient_code");
 
-  useEffect(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) {
-      setFiltered(patients);
-    } else {
-      setFiltered(
-        patients.filter(
-          (p) =>
-            p.patient_code.toLowerCase().includes(q) ||
-            (p.diabetes_type ?? "").toLowerCase().includes(q)
-        )
-      );
-    }
-  }, [search, patients]);
+    if (q) query.ilike("patient_code", `%${q}%`);
+
+    query.then(({ data, error: err }) => {
+      if (err) {
+        setError("Could not load patients. Check your connection.");
+      } else {
+        setPatients(data ?? []);
+      }
+      setLoading(false);
+    });
+  }, [user?.clinic_id, search]);
 
   const handleSelect = (patient: Patient) => {
     setSelectedPatient(patient);
@@ -121,7 +108,7 @@ export default function PatientSelectScreen() {
           </View>
         )}
 
-        {!loading && !error && filtered.length === 0 && (
+        {!loading && !error && patients.length === 0 && (
           <View style={styles.center}>
             <Ionicons name="people-outline" size={40} color={Colors.text.muted} />
             <Text style={styles.emptyTitle}>No patients found</Text>
@@ -132,7 +119,7 @@ export default function PatientSelectScreen() {
         )}
 
         {/* Patient list */}
-        {!loading && !error && filtered.map((patient) => (
+        {!loading && !error && patients.map((patient) => (
           <TouchableOpacity
             key={patient.id}
             style={styles.card}

@@ -1,6 +1,6 @@
 # Progress — Vestigia
-**Current version:** 0.5.1
-**Last verified:** 2026-03-21
+**Current version:** 0.5.2
+**Last verified:** 2026-03-24
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,8 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.5.2 | 2026-03-24 | Quick fixes: assessment unmount cleanup, patient-select Supabase search, risk_level type added. Full QA audit — 0 regressions |
+| 0.5.1 | 2026-03-21 | Tab bar icon-only, patient-select hidden from tab bar |
 | 0.5.0 | 2026-03-21 | All Supabase screens wired (8 features), startup perf overhaul, icon standardization (20 files) |
 | 0.4.0 | 2026-03-21 | Inactivity timeout, clinic + admin settings wired, full QA audit (79 issues tracked) |
 | 0.3.0 | 2026-03-20 | Email confirmation deep link flow, account-activated screen, Edge Function redirect page |
@@ -51,7 +53,10 @@
 - 30-minute inactivity timeout on all roles (BUG-04)
 - All settings screens handlers wired (clinic, patient, admin)
 - console.log audited — no sensitive data (CODE-02)
-- Full codebase QA audit — 79 issues tracked, 70 fixed, 9 open
+- Full codebase QA audit — 98 issues tracked, 68 fixed, 9 deferred, 21 open
+- **assessment.tsx unmount cleanup** — `clearSession()` + `discardCapture()` called on unmount if not saved
+- **patient-select Supabase search** — client-side filter replaced with `.ilike()` query (scales to any dataset size)
+- **`risk_level` type** added to `ClassificationResult` in `types/index.ts`
 
 ## In Progress 🔄
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
