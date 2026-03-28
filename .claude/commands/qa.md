@@ -1,4 +1,5 @@
 Run a full QA audit on the entire codebase. Work through every area below, read the relevant files, and report all findings.
+Use this for pre-release checks or after large changes. For targeted checks on specific files, use /qa-file instead.
 
 ---
 
