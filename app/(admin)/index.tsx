@@ -118,7 +118,6 @@ export default function AdminDashboardScreen() {
     <ScreenWrapper scrollable>
       <Header
         title="Admin Dashboard"
-        subtitle="UI-08"
         rightIcon={<Text style={styles.adminBadge}>ADMIN</Text>}
       />
 

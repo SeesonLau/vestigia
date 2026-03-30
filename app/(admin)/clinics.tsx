@@ -48,14 +48,21 @@ export default function AdminClinicsScreen() {
   const [selected, setSelected] = useState<ClinicRow | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchClinics = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setFetchError(null);
+    const { data, error } = await supabase
       .from("clinics")
       .select("*, devices:devices(*)")
       .order("created_at", { ascending: false });
 
-    if (data) setClinics(data as ClinicRow[]);
+    if (error) {
+      setFetchError("Failed to load clinics.");
+    } else if (data) {
+      setClinics(data as ClinicRow[]);
+    }
     setLoading(false);
   };
 
@@ -90,6 +97,10 @@ export default function AdminClinicsScreen() {
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={Colors.primary[400]} />
+          </View>
+        ) : fetchError ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{fetchError}</Text>
           </View>
         ) : (
           <FlatList
@@ -221,6 +232,7 @@ export default function AdminClinicsScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: "#f87171", textAlign: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   clinicCard: {
     backgroundColor: Colors.bg.card,

@@ -202,7 +202,7 @@ export default function ClinicalDataScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="Clinical Data" subtitle="UI-05" />
+      <Header title="Clinical Data" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
