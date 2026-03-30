@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-03-24
+**Last updated:** 2026-03-30
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,19 +10,12 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | UX-17 | Remove debug subtitle strings from 7 screens | 15 min | Delete `subtitle="UI-xx"` props from: pairing, patient-select, live-feed, assessment, clinical-data, history, admin dashboard |
-| 2 | GAP-15 | Fix PostgREST join normalization in history.tsx | 30 min | `positiveCount`/`negativeCount` always 0 — `classification_results` join returned as array; normalize same as `session/[id].tsx` lines 58–60 |
-| 3 | GAP-16 | Add error handling to admin users fetch | 15 min | `fetchUsers()` line 34 — destructure `error`, show error message to user on failure |
-| 4 | GAP-17 | Add error handling to admin clinics fetch | 15 min | `fetchClinics()` line 52 — same as GAP-16 |
-| 5 | GAP-18 | Add user notification on Activate/Deactivate failure | 15 min | `handleToggleActive` in users.tsx + clinics.tsx — show Alert or error text when Supabase update fails |
-| 6 | UX-15 | Add loading indicator to clinic home | 15 min | Show `ActivityIndicator` while `fetchData()` runs; currently stats show as 0 while loading |
-| 7 | UX-16 | Show error state in clinic home | 15 min | `clinicResult.error` + `sessionsResult.error` silently ignored — add `setError` + user-facing message |
-| 8 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. Normalizes raw 80×62 matrix; segments foot pixels from background using ambient temp baseline. Prerequisite for FR-507. |
-| 9 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — this app only calls its HTTP API. Sends preprocessed payload, polls or awaits response, maps result to `ClassificationResult`. Replaces `MOCK_RESULT` in assessment.tsx (GAP-04). |
-| 10 | FR-508 | Preliminary risk scoring — Low / Medium / High rule-based thresholding | 2 hrs | Extends FR-507 output with a risk level based on max asymmetry delta and angiosome count. Stored in `classification_results.feature_vector` JSONB. See implementation plan below. |
-| 11 | — | Deploy Edge Function | 15 min | `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`; add URL to Supabase Auth Redirect URLs in dashboard |
-| 12 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Visual highlight of flagged angiosomes for clinicians; needs new component layer on top of `ThermalMap`. Depends on FR-507 output. |
-| 13 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506) to compute real angiosome temps before sending to AI API. Merged into FR-506/507 scope. |
+| 1 | GAP-18 | Add Alert on Activate/Deactivate failure in admin users + clinics | 15 min | `handleToggleActive` in users.tsx + clinics.tsx — show Alert when Supabase update fails; currently silent |
+| 2 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. `normalizeMatrix()`, `segmentFootRegion()`, `buildApiPayload()`. No hardware needed — can build now. |
+| 3 | FR-508 | Preliminary risk scoring — Low / Medium / High rule-based thresholding | 2 hrs | New module `lib/classification/riskScoring.ts`. Rules: LOW < 1°C, MEDIUM 1–2.2°C, HIGH ≥ 2.2°C. `risk_level` field already added to type. |
+| 4 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint confirmed. |
+| 5 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Depends on FR-507 output. Visual highlight of flagged angiosomes on ThermalMap. |
+| 6 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506) to compute real angiosome temps. Merged into FR-506/507 scope. |
 
 ---
 
@@ -128,15 +121,11 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Idea | Rationale | Effort |
 |---|---|---|
 | Replace hardcoded `leftTci={0.038}` + `rightTci={0.046}` in assessment + session detail | TCI values should come from real computation, not magic numbers | Medium |
-| Extract FlatList renderItem functions in history.tsx, admin users.tsx, admin clinics.tsx | Inline arrows create new function refs every render (PERF-09–11) | 15 min |
-| Guard `dbg()` with `__DEV__` in lib/debug.ts | Unconditional console.log appears in production builds (CODE-16) | 5 min |
-| Add `tabBarAccessibilityLabel` to clinic tab screens | Screen readers announce "index tab" instead of "Home" etc. (A11Y-05) | 10 min |
-| Standardize version string — use single constant or package.json | login.tsx shows "v1.0.0"; settings shows "v0.3.0" (CODE-14) | 15 min |
 | Add Supabase real-time subscription to session detail screen | Live updates when classification result arrives from cloud | 2 hrs |
 | Add patient registration form in clinic flow | Currently patients must be pre-loaded in DB; clinic staff should be able to register new patients | 3–4 hrs |
 | Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
 | Add search/filter to session history screen | Useful once sessions accumulate; filter by date range, result type | 1–2 hrs |
-| Add `captured_at` explicitly in `thermal_captures.insert` | Already done (2026-03-24) — field confirmed explicit in clinical-data.tsx line 179 | ~~Done~~ |
+| Add `Clinic`, `Device`, `SystemConfig` types to `types/index.ts` | Currently only local interfaces in admin screens | 30 min |
 
 ---
 
@@ -186,3 +175,13 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.5.2 | assessment.tsx unmount cleanup — clearSession + discardCapture on nav-away | 2026-03-24 |
 | v0.5.2 | patient-select search replaced with Supabase .ilike() (scalable) | 2026-03-24 |
 | v0.5.2 | risk_level added to ClassificationResult type | 2026-03-24 |
+| v0.5.3 | UX-17 — Debug subtitle strings removed from 8 screens | 2026-03-30 |
+| v0.5.3 | GAP-15 — History screen positive/negative counts fixed (PostgREST join normalized) | 2026-03-30 |
+| v0.5.3 | GAP-16/17 — Admin users + clinics fetch error handling added | 2026-03-30 |
+| v0.5.3 | UX-15/16 — Clinic home loading indicator + error state added | 2026-03-30 |
+| v0.5.3 | CODE-16 — dbg() guarded with __DEV__ | 2026-03-30 |
+| v0.5.3 | A11Y-05 — tabBarAccessibilityLabel added to all 5 clinic tabs | 2026-03-30 |
+| v0.5.3 | CODE-14 — Version string updated to v0.5.2 in login.tsx | 2026-03-30 |
+| v0.5.3 | NAV-03 — Patient settings now reachable via header icon | 2026-03-30 |
+| v0.5.3 | PERF-09/10/11 — FlatList renderItem extracted to useCallback in 3 screens | 2026-03-30 |
+| v0.5.3 | Full QA audit — 79 fixed, 9 open, 9 deferred; 0 regressions | 2026-03-30 |
