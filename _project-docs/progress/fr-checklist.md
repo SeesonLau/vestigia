@@ -1,5 +1,5 @@
 # Functional Requirements Checklist
-**Last verified:** 2026-03-24 (full codebase QA audit)
+**Last verified:** 2026-03-30 (v0.5.2 full codebase QA audit)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
@@ -20,7 +20,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-201 | BLE Device Discovery | High | ⚠️ | UI shows mock scan list with timeout animation. No real BLE scan |
+| FR-201 | BLE Device Discovery | High | ⚠️ | UI shows mock scan list with timeout animation. No real BLE scan (`react-native-ble-plx` not wired) |
 | FR-202 | Device Pairing | High | ⚠️ | Mock pairing with hardcoded setTimeout. No real BLE connect |
 | FR-203 | Wi-Fi Data Channel (192.168.4.1:3333) | High | ❌ | deviceStore tracks wifiStatus but no WebSocket/TCP connection implemented |
 | FR-204 | Connection Status Monitoring | High | ⚠️ | StatusIndicator UI exists. States managed in deviceStore but not from real hardware |
@@ -53,14 +53,14 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-501 | Data Package Preparation (JSON payload) | High | 🔄 | Sessions, vitals, thermal captures all inserted to Supabase. No AI payload builder yet |
+| FR-501 | Data Package Preparation (JSON payload) | High | 🔄 | Sessions, vitals, thermal captures all inserted to Supabase. No AI payload builder yet (FR-506 pending) |
 | FR-502 | Secure Cloud Upload (HTTPS + TLS) | High | ✅ | clinical-data.tsx inserts session + vitals + captures via HTTPS Supabase client |
 | FR-503 | Processing Status Polling | High | ❌ | Assessment screen has a mock progress animation — not real cloud polling |
 | FR-504 | Result Retrieval | High | ❌ | Assessment result is hardcoded `MOCK_RESULT` — no real AI response |
 | FR-505 | Offline Graceful Degradation | Medium | ❌ | WatermelonDB schema and models exist but sync logic not started. No offline queue |
-| FR-506 | Image Preprocessing (contrast normalization + foot region segmentation) | High | ❌ | New `lib/thermal/preprocessing.ts`. `normalizeMatrix()` using captured min/max; `segmentFootRegion()` using ambient baseline. Prerequisite for FR-507. |
-| FR-507 | AI Model API Integration — send thermal data, receive classification result | High | ❌ | **AI model lives in a separate repo.** This app calls its HTTP API via `lib/api/aiClient.ts`. Sends preprocessed bilateral matrices + vitals; receives `ClassificationResult` (classification, confidence, asymmetries). Replaces `MOCK_RESULT` (GAP-04). Blocked until AI API endpoint is available. |
-| FR-508 | Preliminary Risk Scoring — Low / Medium / High rule-based thresholding | High | ❌ | Extends FR-507. Rules: LOW = all asymmetries < 1°C; MEDIUM = any ≥ 1°C but < 2.2°C; HIGH = any ≥ 2.2°C (DPN POSITIVE). Stored in `classification_results.feature_vector` JSONB. |
+| FR-506 | Image Preprocessing (contrast normalization + foot region segmentation) | High | ❌ | New `lib/thermal/preprocessing.ts`. `normalizeMatrix()`, `segmentFootRegion()`, `buildApiPayload()`. Prerequisite for FR-507. App-side, no hardware needed |
+| FR-507 | AI Model API Integration | High | ❌ | **AI model lives in a separate repo.** This app calls its HTTP API via `lib/api/aiClient.ts`. Blocked until AI API endpoint confirmed |
+| FR-508 | Preliminary Risk Scoring (Low/Medium/High) | High | ❌ | `lib/classification/riskScoring.ts`. Rules: LOW = all asymmetries < 1°C; MEDIUM = any ≥ 1°C but < 2.2°C; HIGH = any ≥ 2.2°C. `risk_level` field added to `ClassificationResult` type ✅ |
 
 ---
 
@@ -68,9 +68,9 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-601 | DPN Classification Display | High | ✅ | ClassificationCard shows POSITIVE/NEGATIVE with color + icon. Large text |
+| FR-601 | DPN Classification Display | High | ✅ | ClassificationCard shows POSITIVE/NEGATIVE with color + icon |
 | FR-602 | Temperature Asymmetry Report (2.2°C threshold) | High | ✅ | AngiosomeTable shows bilateral diff, flags >2.2°C in warning color |
-| FR-603 | Annotated Thermal Map Overlay | High | 🔄 | ThermalMap renders. Abnormal region overlay not yet implemented (GAP-08) |
+| FR-603 | Annotated Thermal Map Overlay | High | 🔄 | ThermalMap renders. Abnormal region overlay not yet implemented (GAP-08, depends on FR-507) |
 | FR-604 | Save/Discard Option | High | ✅ | Save writes to `classification_results` + updates session status to `completed`. Discard clears store |
 | FR-605 | Clinical Disclaimer | High | ✅ | Disclaimer.tsx used on clinical-data, assessment, and patient dashboard |
 
