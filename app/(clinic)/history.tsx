@@ -1,7 +1,7 @@
 // app/(clinic)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -48,6 +48,13 @@ export default function HistoryScreen() {
     if (filter === "failed") return s.status === "failed" || s.status === "discarded";
     return true;
   });
+
+  const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
+    <SessionCard
+      session={item}
+      onPress={() => router.push(`/(clinic)/session/${item.id}` as any)}
+    />
+  ), [router]);
 
   const getClassification = (s: ScreeningSession) => {
     const c = s.classification;
@@ -129,12 +136,7 @@ export default function HistoryScreen() {
           <FlatList
             data={filtered}
             keyExtractor={(s) => s.id}
-            renderItem={({ item }) => (
-              <SessionCard
-                session={item}
-                onPress={() => router.push(`/(clinic)/session/${item.id}` as any)}
-              />
-            )}
+            renderItem={renderSession}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.list}
             ListEmptyComponent={
