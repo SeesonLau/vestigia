@@ -1,5 +1,5 @@
 # Data Layer Checklist
-**Last verified:** 2026-03-24 (full codebase QA audit)
+**Last verified:** 2026-03-30 (v0.5.2 full codebase QA audit)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 
@@ -65,7 +65,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 | `ScreeningSession` | ✅ | Includes `app_version` — in `types/index.ts` |
 | `PatientVitals` | ✅ | Includes `id`, `session_id`, `recorded_at` — in `types/index.ts` |
 | `ThermalCapture` | ✅ | Includes `resolution_x`, `resolution_y` — in `types/index.ts` |
-| `ClassificationResult` | ✅ | Includes `feature_vector`, `risk_level` — in `types/index.ts` |
+| `ClassificationResult` | ✅ | Includes `feature_vector`, `risk_level?: "LOW" \| "MEDIUM" \| "HIGH"` — added v0.5.2 |
 | `Patient` | ✅ | In `types/index.ts` |
 | `Clinic` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |
 | `Device` | ❌ | Not in `types/index.ts` — only a local `interface` in admin screens |
@@ -106,7 +106,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 | INSERT WITH CHECK clauses | ✅ | All applicable INSERT policies verified |
 | Input sanitization before Supabase | ✅ | Blood glucose, BP, heart rate, and HbA1c all have range validation (SEC-03 fixed 2026-03-21) |
 | No console.log with sensitive data | ✅ | Audited — no sensitive data in console calls |
-| `dbg()` guarded by `__DEV__` | ❌ | `lib/debug.ts` calls `console.log` unconditionally — no `__DEV__` guard (CODE-16) |
+| `dbg()` guarded by `__DEV__` | ✅ | Fixed 2026-03-30 — `if (!__DEV__) return` added |
 
 ---
 
@@ -116,5 +116,5 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 - Foreign keys: ✅ all 11 relationships verified
 - RLS enabled: ✅ all tables
 - RLS INSERT policies: ✅ all WITH CHECK clauses verified 2026-03-20
-- TypeScript types: ✅ core session/vitals/capture types match DB — `Clinic`, `Device`, `SystemConfig` types missing (open issues)
+- TypeScript types: ✅ core session/vitals/capture/classification types match DB — `Clinic`, `Device`, `SystemConfig` types missing (open, low priority)
 - WatermelonDB: ✅ installed + schema + models + database instance — sync logic not started (deferred)
