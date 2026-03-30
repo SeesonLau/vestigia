@@ -29,14 +29,19 @@ export default function AdminUsersScreen() {
   const [selected, setSelected] = useState<UserWithClinic | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchUsers = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setFetchError(null);
+    const { data, error } = await supabase
       .from("profiles")
       .select("*, clinic:clinics(name)")
       .order("created_at", { ascending: false });
 
-    if (data) {
+    if (error) {
+      setFetchError("Failed to load users.");
+    } else if (data) {
       setUsers(
         (data as any[]).map((u) => ({
           ...u,
@@ -97,6 +102,10 @@ export default function AdminUsersScreen() {
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={Colors.primary[400]} />
+          </View>
+        ) : fetchError ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{fetchError}</Text>
           </View>
         ) : (
           <FlatList
@@ -203,6 +212,7 @@ export default function AdminUsersScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: "#f87171", textAlign: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   filterRow: {
     flexDirection: "row",

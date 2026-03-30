@@ -90,7 +90,7 @@ export default function PairingScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="Device Pairing" subtitle="UI-02" />
+      <Header title="Device Pairing" />
 
       <View style={styles.container}>
         {/* Connection status */}

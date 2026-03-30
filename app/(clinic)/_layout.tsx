@@ -32,6 +32,7 @@ export default function ClinicLayout() {
       <Tabs.Screen
         name="index"
         options={{
+          tabBarAccessibilityLabel: "Home",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="home-outline" label="Home" focused={focused} />
           ),
@@ -40,6 +41,7 @@ export default function ClinicLayout() {
       <Tabs.Screen
         name="pairing"
         options={{
+          tabBarAccessibilityLabel: "Device Pairing",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="bluetooth-outline" label="Device" focused={focused} />
           ),
@@ -48,6 +50,7 @@ export default function ClinicLayout() {
       <Tabs.Screen
         name="live-feed"
         options={{
+          tabBarAccessibilityLabel: "Thermal Scan",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="camera-outline" label="Scan" focused={focused} />
           ),
@@ -56,6 +59,7 @@ export default function ClinicLayout() {
       <Tabs.Screen
         name="history"
         options={{
+          tabBarAccessibilityLabel: "Session History",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="time-outline" label="History" focused={focused} />
           ),
@@ -64,6 +68,7 @@ export default function ClinicLayout() {
       <Tabs.Screen
         name="settings"
         options={{
+          tabBarAccessibilityLabel: "Settings",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="settings-outline" label="Settings" focused={focused} />
           ),

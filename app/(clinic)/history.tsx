@@ -49,16 +49,16 @@ export default function HistoryScreen() {
     return true;
   });
 
-  const positiveCount = sessions.filter(
-    (s) => s.classification?.classification === "POSITIVE",
-  ).length;
-  const negativeCount = sessions.filter(
-    (s) => s.classification?.classification === "NEGATIVE",
-  ).length;
+  const getClassification = (s: ScreeningSession) => {
+    const c = s.classification;
+    return Array.isArray(c) ? c[0]?.classification : c?.classification;
+  };
+  const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
+  const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
 
   return (
     <ScreenWrapper>
-      <Header title="Session History" subtitle="UI-06" />
+      <Header title="Session History" />
 
       <View style={styles.container}>
         {/* Stats strip */}
