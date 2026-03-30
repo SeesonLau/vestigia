@@ -93,18 +93,21 @@ export default function PatientDashboardScreen() {
 
   const firstName = user?.full_name?.split(" ")[0] ?? "there";
 
+  const headerRight = (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <TouchableOpacity onPress={() => router.push("/(patient)/settings")} accessibilityLabel="Settings" accessibilityRole="button">
+        <Ionicons name="settings-outline" size={20} color={Colors.text.muted} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
+        <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+      </TouchableOpacity>
+    </View>
+  );
+
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header
-          title="My Health"
-          subtitle="Patient Dashboard"
-          rightIcon={
-            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
-              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
-            </TouchableOpacity>
-          }
-        />
+        <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
         <View style={styles.centered}>
           <ActivityIndicator color={Colors.primary[400]} />
         </View>
@@ -115,15 +118,7 @@ export default function PatientDashboardScreen() {
   if (fetchError) {
     return (
       <ScreenWrapper>
-        <Header
-          title="My Health"
-          subtitle="Patient Dashboard"
-          rightIcon={
-            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
-              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
-            </TouchableOpacity>
-          }
-        />
+        <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
         <View style={styles.centered}>
           <Text style={styles.errorText}>{fetchError}</Text>
         </View>
@@ -133,15 +128,7 @@ export default function PatientDashboardScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header
-          title="My Health"
-          subtitle="Patient Dashboard"
-          rightIcon={
-            <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
-              <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
-            </TouchableOpacity>
-          }
-        />
+      <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
 
       <View style={styles.container}>
         {/* Greeting */}

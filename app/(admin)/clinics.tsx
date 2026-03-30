@@ -1,6 +1,6 @@
 // app/(admin)/clinics.tsx
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -68,6 +68,39 @@ export default function AdminClinicsScreen() {
 
   useEffect(() => { fetchClinics(); }, []);
 
+  const renderClinic = useCallback(({ item }: { item: ClinicRow }) => (
+    <TouchableOpacity
+      style={styles.clinicCard}
+      activeOpacity={0.75}
+      onPress={() => setSelected(item)}
+    >
+      <View style={styles.clinicTop}>
+        <View style={styles.clinicIcon}>
+          <Text style={styles.clinicIconText}>H</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.clinicName}>{item.name}</Text>
+          <View style={styles.clinicMeta}>
+            <Badge label={FACILITY_LABELS[item.facility_type] ?? item.facility_type} variant="info" size="sm" />
+            <Badge label={item.is_active ? "Active" : "Inactive"} variant={item.is_active ? "negative" : "muted"} size="sm" />
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+      </View>
+      <View style={styles.clinicStats}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{item.devices.length}</Text>
+          <Text style={styles.statLabel}>Devices</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{item.devices.filter((d) => d.is_active).length}</Text>
+          <Text style={styles.statLabel}>Active</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  ), []);
+
   const handleToggleActive = async () => {
     if (!selected) return;
     setToggling(true);
@@ -108,48 +141,7 @@ export default function AdminClinicsScreen() {
             keyExtractor={(c) => c.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.clinicCard}
-                activeOpacity={0.75}
-                onPress={() => setSelected(item)}
-              >
-                <View style={styles.clinicTop}>
-                  <View style={styles.clinicIcon}>
-                    <Text style={styles.clinicIconText}>H</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.clinicName}>{item.name}</Text>
-                    <View style={styles.clinicMeta}>
-                      <Badge
-                        label={FACILITY_LABELS[item.facility_type] ?? item.facility_type}
-                        variant="info"
-                        size="sm"
-                      />
-                      <Badge
-                        label={item.is_active ? "Active" : "Inactive"}
-                        variant={item.is_active ? "negative" : "muted"}
-                        size="sm"
-                      />
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
-                </View>
-                <View style={styles.clinicStats}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{item.devices.length}</Text>
-                    <Text style={styles.statLabel}>Devices</Text>
-                  </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={styles.statValue}>
-                      {item.devices.filter((d) => d.is_active).length}
-                    </Text>
-                    <Text style={styles.statLabel}>Active</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderClinic}
           />
         )}
       </View>

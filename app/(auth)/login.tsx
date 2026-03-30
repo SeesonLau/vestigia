@@ -150,7 +150,7 @@ export default function LoginScreen() {
           </View>
 
           {/* Version tag */}
-          <Text style={styles.version}>Vestigia v1.0.0</Text>
+          <Text style={styles.version}>Vestigia v0.5.2</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenWrapper>

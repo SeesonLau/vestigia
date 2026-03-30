@@ -1,5 +1,5 @@
 // app/(admin)/users.tsx
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -55,6 +55,37 @@ export default function AdminUsersScreen() {
   useEffect(() => { fetchUsers(); }, []);
 
   const filtered = filter === "all" ? users : users.filter((u) => u.role === filter);
+
+  const renderUser = useCallback(({ item }: { item: UserWithClinic }) => (
+    <TouchableOpacity
+      style={styles.userCard}
+      activeOpacity={0.75}
+      onPress={() => setSelected(item)}
+    >
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
+      </View>
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{item.full_name}</Text>
+        <Text style={styles.userEmail}>{item.email}</Text>
+        <Text style={styles.userMeta}>{item.clinic_name ?? "No clinic"}</Text>
+      </View>
+      <View style={styles.userBadges}>
+        <Badge
+          label={item.role}
+          variant={item.role === "clinic" ? "info" : item.role === "admin" ? "warning" : "muted"}
+          size="sm"
+        />
+        <View style={{ marginTop: 4 }}>
+          <Badge
+            label={item.is_active ? "active" : "inactive"}
+            variant={item.is_active ? "negative" : "warning"}
+            size="sm"
+          />
+        </View>
+      </View>
+    </TouchableOpacity>
+  ), []);
 
   const handleToggleActive = async () => {
     if (!selected) return;
@@ -113,38 +144,7 @@ export default function AdminUsersScreen() {
             keyExtractor={(u) => u.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.userCard}
-                activeOpacity={0.75}
-                onPress={() => setSelected(item)}
-              >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.full_name}</Text>
-                  <Text style={styles.userEmail}>{item.email}</Text>
-                  <Text style={styles.userMeta}>
-                    {item.clinic_name ?? "No clinic"}
-                  </Text>
-                </View>
-                <View style={styles.userBadges}>
-                  <Badge
-                    label={item.role}
-                    variant={item.role === "clinic" ? "info" : item.role === "admin" ? "warning" : "muted"}
-                    size="sm"
-                  />
-                  <View style={{ marginTop: 4 }}>
-                    <Badge
-                      label={item.is_active ? "active" : "inactive"}
-                      variant={item.is_active ? "negative" : "warning"}
-                      size="sm"
-                    />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderUser}
           />
         )}
       </View>
