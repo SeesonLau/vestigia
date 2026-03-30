@@ -1,24 +1,34 @@
 # Active Context — Vestigia
-**Last updated:** 2026-03-24
+**Last updated:** 2026-03-30
 
 ---
 
-## What Was Done This Session (2026-03-24 — v0.5.2)
+## What Was Done This Session (2026-03-30 — v0.5.3)
 
-### Quick Code Fixes
-- **assessment.tsx** — Added unmount cleanup `useEffect`: calls `clearSession()` + `discardCapture()` if user navigates away before saving result. Guards stale Zustand state.
-- **patient-select.tsx** — Replaced two-`useEffect` client-side `.filter()` pattern with a single Supabase `.ilike()` query on `patient_code`, triggered by `search` state change. Removed dead `filtered` state. Scales to any dataset size.
-- **types/index.ts** — Added `risk_level?: "LOW" | "MEDIUM" | "HIGH"` to `ClassificationResult`. Ready for FR-508 without any schema change needed.
+### Bug Fixes & UX Polish (items 1–8 from quick list)
+- **UX-17** — Removed debug subtitle strings (`"UI-02"` through `"UI-08"`) from 8 screens (pairing, patient-select, live-feed, assessment, clinical-data, history, clinic settings, admin dashboard)
+- **GAP-15** — Fixed PostgREST join normalization in `history.tsx` — `getClassification()` helper now handles both array and object forms; positive/negative counts now accurate
+- **GAP-16** — Added `error` destructuring + `setFetchError` + visible error UI to admin users fetch
+- **GAP-17** — Same fix for admin clinics fetch
+- **UX-15** — Added `statsLoading` state + `ActivityIndicator` to clinic home stats card while fetching
+- **UX-16** — Added `statsError` state + visible error message when clinic/sessions fetch fails
+- **CODE-16** — Added `if (!__DEV__) return` guard to `dbg()` in `lib/debug.ts`
+- **A11Y-05** — Added `tabBarAccessibilityLabel` to all 5 clinic tab screens in `_layout.tsx`
 
-### QA Audit (Full Codebase)
-- Ran full /qa across all 9 areas (code quality, UI, flows, Supabase, network errors, performance, accessibility, navigation, regression)
-- **0 regressions** — all 68 previously fixed items confirmed still fixed
-- **21 open issues** confirmed — same as end of v0.5.1 (no new bugs introduced)
-- All 4 progress docs verified and date-bumped to 2026-03-24
+### Additional Fixes (items 3–5)
+- **CODE-14** — Version string updated to `v0.5.2` in `login.tsx`
+- **NAV-03** — Patient settings now reachable: settings icon added to patient dashboard header (all 3 render states)
+- **PERF-09/10/11** — Extracted inline `FlatList renderItem` into `useCallback` in history.tsx, admin users.tsx, admin clinics.tsx
 
-### Session Protocol
-- Answered questions about /start-session, /end-session, git workflow, and branch creation
-- Clarified: /end-session does NOT commit or push — git is manual
+### QA Audit (Full Codebase — v0.5.2 → post-fix)
+- Ran full /qa across all 9 areas
+- **0 regressions** — all 79 fixed items confirmed present
+- **9 open issues** remaining (down from 21) — no new bugs introduced
+- All 4 progress docs updated to 2026-03-30
+
+### Git
+- All changes committed and pushed to `hadjirasul-branch`
+- 3 commits this session: v0.5.2 quick fixes, UX/perf fixes, QA docs
 
 ---
 
@@ -48,31 +58,26 @@
 - ❌ BLE/Wi-Fi device comms deferred (hardware not finalized)
 - ❌ AI classification is mock (GAP-04 — hardware/API dependency)
 
-### Open Issues (21 total)
-**High:** GAP-15 (history positive/negative count = 0 due to PostgREST join not normalized)
-**Medium:** UX-17 (7 screens show debug subtitle strings), UX-16 (clinic home errors swallowed), GAP-16/17 (admin fetch no error), GAP-18 (toggle active no feedback), CODE-16 (debug logs in prod), A11Y-04/05, NAV-03
-**Low:** CODE-14/15/17/18, UX-11/15, PERF-09/10/11, NAV-01
+### Open Issues (9 total)
+**High:** GAP-15 fixed ✅ — now 0 High issues
+**Medium:** GAP-18 (toggle active no user feedback), GAP-08 (no thermal overlay — deferred)
+**Low:** CODE-15, CODE-17, CODE-18, A11Y-04, NAV-01, UX-11 (deferred hardware)
 
 ### Pending Supabase Dashboard Steps
-- Add Edge Function URL to Redirect URLs
-- Deploy Edge Function: `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
+- Deploy Edge Function (optional — skip if no dashboard URL access): `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
 
 ### Git
-- Branch not yet created — user to create before committing today's changes
-- No commits made this session
+- Branch: `hadjirasul-branch` — active and up to date
+- 3 commits pushed this session
 
 ---
 
 ## Next Steps (priority order)
-1. **UX-17** — Remove debug subtitle strings from 7 screens (delete `subtitle="UI-xx"` props)
-2. **GAP-15** — Fix PostgREST join normalization in `history.tsx` (copy pattern from `session/[id].tsx`)
-3. **GAP-16 / GAP-17** — Add error destructuring + user feedback in admin users/clinics fetch
-4. **GAP-18** — Add user notification on Activate/Deactivate failure
-5. **UX-15 / UX-16** — Add loading indicator + error state to clinic home
-6. **FR-506** — Build `lib/thermal/preprocessing.ts` (independent of AI API — can build now)
-7. **FR-507** — AI model API client (blocked until AI API endpoint confirmed)
-8. **FR-508** — Risk scoring stub (can be built once FR-507 contract known)
-9. **Deploy Edge Function** — 15 min manual step
+1. **GAP-18** — Add Alert on Activate/Deactivate Supabase failure in admin users + clinics (~15 min)
+2. **FR-506** — Build `lib/thermal/preprocessing.ts` — normalizeMatrix(), segmentFootRegion(), buildApiPayload() (3–4 hrs, no hardware needed)
+3. **FR-508** — Stub `lib/classification/riskScoring.ts` — LOW/MEDIUM/HIGH rule-based thresholding (2 hrs)
+4. **FR-507** — AI model API client — blocked until AI API endpoint confirmed
+5. **GAP-08** — Thermal map abnormal region overlay — depends on FR-507
 
 ---
 
