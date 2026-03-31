@@ -143,7 +143,7 @@ export default function SettingsScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="Settings" subtitle="UI-07" />
+      <Header title="Settings" />
 
       <View style={styles.container}>
         {/* Account */}

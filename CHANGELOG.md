@@ -3,6 +3,25 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.5.3] — 2026-03-30
+
+### Fixed — QA Sweep
+- **UX-17** `app/(clinic)/pairing.tsx`, `patient-select.tsx`, `live-feed.tsx`, `assessment.tsx`, `clinical-data.tsx`, `history.tsx`, `settings.tsx`, `app/(admin)/index.tsx` — Removed all debug subtitle strings (`"UI-02"` through `"UI-08"`) from Header components; no longer visible in production
+- **GAP-15** `app/(clinic)/history.tsx` — Fixed PostgREST join normalization; `getClassification()` helper now handles both array and object join results; positive/negative session counts now accurate
+- **GAP-16** `app/(admin)/users.tsx` — `fetchUsers()` now destructures `error`; shows `fetchError` state to user on failure
+- **GAP-17** `app/(admin)/clinics.tsx` — `fetchClinics()` same fix as GAP-16
+- **UX-15** `app/(clinic)/index.tsx` — Added `statsLoading` state + `ActivityIndicator` while today's stats load
+- **UX-16** `app/(clinic)/index.tsx` — Added `statsError` state + visible error text when clinic/sessions fetch fails
+- **CODE-16** `lib/debug.ts` — `dbg()` now guards with `if (!__DEV__) return`; no debug logs in production builds
+- **A11Y-05** `app/(clinic)/_layout.tsx` — Added `tabBarAccessibilityLabel` to all 5 `Tabs.Screen` entries
+- **CODE-14** `app/(auth)/login.tsx` — Version string updated to `v0.5.2`
+- **NAV-03** `app/(patient)/index.tsx` — Settings icon added to patient dashboard header; `/(patient)/settings` now reachable
+- **PERF-09** `app/(clinic)/history.tsx` — `renderItem` extracted into `useCallback`
+- **PERF-10** `app/(admin)/users.tsx` — `renderItem` extracted into `useCallback`
+- **PERF-11** `app/(admin)/clinics.tsx` — `renderItem` extracted into `useCallback`
+
+---
+
 ## [0.5.2] — 2026-03-24
 
 ### Fixed

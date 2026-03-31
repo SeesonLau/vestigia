@@ -1,6 +1,6 @@
 # Progress — Vestigia
-**Current version:** 0.5.2
-**Last verified:** 2026-03-24
+**Current version:** 0.5.3
+**Last verified:** 2026-03-30
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.5.3 | 2026-03-30 | QA sweep: 12 bugs fixed (UX-17, GAP-15/16/17, UX-15/16, CODE-16/14, A11Y-05, NAV-03, PERF-09/10/11). 9 open issues remain |
 | 0.5.2 | 2026-03-24 | Quick fixes: assessment unmount cleanup, patient-select Supabase search, risk_level type added. Full QA audit — 0 regressions |
 | 0.5.1 | 2026-03-21 | Tab bar icon-only, patient-select hidden from tab bar |
 | 0.5.0 | 2026-03-21 | All Supabase screens wired (8 features), startup perf overhaul, icon standardization (20 files) |
@@ -53,10 +54,19 @@
 - 30-minute inactivity timeout on all roles (BUG-04)
 - All settings screens handlers wired (clinic, patient, admin)
 - console.log audited — no sensitive data (CODE-02)
-- Full codebase QA audit — 98 issues tracked, 68 fixed, 9 deferred, 21 open
+- Full codebase QA audit — 98 issues tracked, 79 fixed, 9 deferred, 9 open (as of 2026-03-30)
 - **assessment.tsx unmount cleanup** — `clearSession()` + `discardCapture()` called on unmount if not saved
 - **patient-select Supabase search** — client-side filter replaced with `.ilike()` query (scales to any dataset size)
 - **`risk_level` type** added to `ClassificationResult` in `types/index.ts`
+- **Debug subtitles removed** — `"UI-02"` through `"UI-08"` strings cleared from 8 production screens (UX-17)
+- **History counts fixed** — PostgREST join normalization in `history.tsx`; positive/negative counts now accurate (GAP-15)
+- **Admin error states** — error destructuring + visible UI added to users.tsx + clinics.tsx fetch (GAP-16/17)
+- **Clinic home** — loading indicator + error state added for stats fetch (UX-15/16)
+- **`dbg()` prod guard** — `__DEV__` check added to prevent debug logs in production (CODE-16)
+- **Tab accessibility** — `tabBarAccessibilityLabel` added to all 5 clinic tabs (A11Y-05)
+- **Patient settings reachable** — settings icon added to patient dashboard header (NAV-03)
+- **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
+- **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
 
 ## In Progress 🔄
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
