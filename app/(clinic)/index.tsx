@@ -2,7 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { StatusIndicator } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
@@ -60,6 +60,8 @@ export default function ClinicHomeScreen() {
   };
   const [clinicName, setClinicName] = useState("My Clinic");
   const [todayStats, setTodayStats] = useState({ total: 0, positive: 0, negative: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const hour = new Date().getHours();
   const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -68,6 +70,8 @@ export default function ClinicHomeScreen() {
     if (!user?.clinic_id) return;
 
     const fetchData = async () => {
+      setStatsLoading(true);
+      setStatsError(null);
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
@@ -79,7 +83,11 @@ export default function ClinicHomeScreen() {
           .gte("started_at", todayStart.toISOString()),
       ]);
 
-      if (!clinicResult.error && clinicResult.data?.name) setClinicName(clinicResult.data.name);
+      if (clinicResult.error) {
+        setStatsError("Could not load clinic data.");
+      } else if (clinicResult.data?.name) {
+        setClinicName(clinicResult.data.name);
+      }
 
       if (!sessionsResult.error && sessionsResult.data) {
         const sessions = sessionsResult.data as Array<{ id: string; classification: { classification: string }[] | { classification: string } | null }>;
@@ -89,6 +97,7 @@ export default function ClinicHomeScreen() {
         const negative = sessions.filter((s) => getClass(s) === "NEGATIVE").length;
         setTodayStats({ total: sessions.length, positive, negative });
       }
+      setStatsLoading(false);
     };
 
     fetchData();
@@ -119,22 +128,28 @@ export default function ClinicHomeScreen() {
         {/* Today's stats */}
         <View style={styles.todayCard}>
           <Text style={styles.todayLabel}>Today's Sessions</Text>
-          <View style={styles.todayRow}>
-            <View style={styles.todayStat}>
-              <Text style={styles.todayValue}>{todayStats.total}</Text>
-              <Text style={styles.todayKey}>Total</Text>
+          {statsLoading ? (
+            <ActivityIndicator color={Colors.primary[400]} style={{ paddingVertical: Spacing.md }} />
+          ) : statsError ? (
+            <Text style={styles.statsError}>{statsError}</Text>
+          ) : (
+            <View style={styles.todayRow}>
+              <View style={styles.todayStat}>
+                <Text style={styles.todayValue}>{todayStats.total}</Text>
+                <Text style={styles.todayKey}>Total</Text>
+              </View>
+              <View style={styles.todayDivider} />
+              <View style={styles.todayStat}>
+                <Text style={[styles.todayValue, styles.positiveVal]}>{todayStats.positive}</Text>
+                <Text style={styles.todayKey}>Positive</Text>
+              </View>
+              <View style={styles.todayDivider} />
+              <View style={styles.todayStat}>
+                <Text style={[styles.todayValue, styles.negativeVal]}>{todayStats.negative}</Text>
+                <Text style={styles.todayKey}>Negative</Text>
+              </View>
             </View>
-            <View style={styles.todayDivider} />
-            <View style={styles.todayStat}>
-              <Text style={[styles.todayValue, styles.positiveVal]}>{todayStats.positive}</Text>
-              <Text style={styles.todayKey}>Positive</Text>
-            </View>
-            <View style={styles.todayDivider} />
-            <View style={styles.todayStat}>
-              <Text style={[styles.todayValue, styles.negativeVal]}>{todayStats.negative}</Text>
-              <Text style={styles.todayKey}>Negative</Text>
-            </View>
-          </View>
+          )}
         </View>
 
         {/* Quick actions */}
@@ -265,6 +280,13 @@ const styles = StyleSheet.create({
     color: Colors.text.muted,
     letterSpacing: 0.5,
     marginTop: 2,
+  },
+  statsError: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: "#f87171",
+    textAlign: "center",
+    paddingVertical: Spacing.md,
   },
   todayDivider: {
     width: 1,

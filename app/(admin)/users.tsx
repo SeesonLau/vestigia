@@ -1,5 +1,5 @@
 // app/(admin)/users.tsx
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -29,14 +29,19 @@ export default function AdminUsersScreen() {
   const [selected, setSelected] = useState<UserWithClinic | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchUsers = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setFetchError(null);
+    const { data, error } = await supabase
       .from("profiles")
       .select("*, clinic:clinics(name)")
       .order("created_at", { ascending: false });
 
-    if (data) {
+    if (error) {
+      setFetchError("Failed to load users.");
+    } else if (data) {
       setUsers(
         (data as any[]).map((u) => ({
           ...u,
@@ -50,6 +55,37 @@ export default function AdminUsersScreen() {
   useEffect(() => { fetchUsers(); }, []);
 
   const filtered = filter === "all" ? users : users.filter((u) => u.role === filter);
+
+  const renderUser = useCallback(({ item }: { item: UserWithClinic }) => (
+    <TouchableOpacity
+      style={styles.userCard}
+      activeOpacity={0.75}
+      onPress={() => setSelected(item)}
+    >
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
+      </View>
+      <View style={styles.userInfo}>
+        <Text style={styles.userName}>{item.full_name}</Text>
+        <Text style={styles.userEmail}>{item.email}</Text>
+        <Text style={styles.userMeta}>{item.clinic_name ?? "No clinic"}</Text>
+      </View>
+      <View style={styles.userBadges}>
+        <Badge
+          label={item.role}
+          variant={item.role === "clinic" ? "info" : item.role === "admin" ? "warning" : "muted"}
+          size="sm"
+        />
+        <View style={{ marginTop: 4 }}>
+          <Badge
+            label={item.is_active ? "active" : "inactive"}
+            variant={item.is_active ? "negative" : "warning"}
+            size="sm"
+          />
+        </View>
+      </View>
+    </TouchableOpacity>
+  ), []);
 
   const handleToggleActive = async () => {
     if (!selected) return;
@@ -98,44 +134,17 @@ export default function AdminUsersScreen() {
           <View style={styles.centered}>
             <ActivityIndicator color={Colors.primary[400]} />
           </View>
+        ) : fetchError ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{fetchError}</Text>
+          </View>
         ) : (
           <FlatList
             data={filtered}
             keyExtractor={(u) => u.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.userCard}
-                activeOpacity={0.75}
-                onPress={() => setSelected(item)}
-              >
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.full_name.charAt(0)}</Text>
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.full_name}</Text>
-                  <Text style={styles.userEmail}>{item.email}</Text>
-                  <Text style={styles.userMeta}>
-                    {item.clinic_name ?? "No clinic"}
-                  </Text>
-                </View>
-                <View style={styles.userBadges}>
-                  <Badge
-                    label={item.role}
-                    variant={item.role === "clinic" ? "info" : item.role === "admin" ? "warning" : "muted"}
-                    size="sm"
-                  />
-                  <View style={{ marginTop: 4 }}>
-                    <Badge
-                      label={item.is_active ? "active" : "inactive"}
-                      variant={item.is_active ? "negative" : "warning"}
-                      size="sm"
-                    />
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderUser}
           />
         )}
       </View>
@@ -203,6 +212,7 @@ export default function AdminUsersScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: "#f87171", textAlign: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   filterRow: {
     flexDirection: "row",

@@ -1,7 +1,7 @@
 // app/(clinic)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -49,16 +49,23 @@ export default function HistoryScreen() {
     return true;
   });
 
-  const positiveCount = sessions.filter(
-    (s) => s.classification?.classification === "POSITIVE",
-  ).length;
-  const negativeCount = sessions.filter(
-    (s) => s.classification?.classification === "NEGATIVE",
-  ).length;
+  const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
+    <SessionCard
+      session={item}
+      onPress={() => router.push(`/(clinic)/session/${item.id}` as any)}
+    />
+  ), [router]);
+
+  const getClassification = (s: ScreeningSession) => {
+    const c = s.classification;
+    return Array.isArray(c) ? c[0]?.classification : c?.classification;
+  };
+  const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
+  const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
 
   return (
     <ScreenWrapper>
-      <Header title="Session History" subtitle="UI-06" />
+      <Header title="Session History" />
 
       <View style={styles.container}>
         {/* Stats strip */}
@@ -129,12 +136,7 @@ export default function HistoryScreen() {
           <FlatList
             data={filtered}
             keyExtractor={(s) => s.id}
-            renderItem={({ item }) => (
-              <SessionCard
-                session={item}
-                onPress={() => router.push(`/(clinic)/session/${item.id}` as any)}
-              />
-            )}
+            renderItem={renderSession}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.list}
             ListEmptyComponent={

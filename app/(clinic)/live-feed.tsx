@@ -82,7 +82,6 @@ export default function LiveFeedScreen() {
     <ScreenWrapper>
       <Header
         title="Live Thermal Feed"
-        subtitle="UI-03"
         rightIcon={
           <View style={styles.fpsTag}>
             <Text style={styles.fpsText}>{fps} fps</Text>

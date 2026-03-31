@@ -145,7 +145,7 @@ export default function AssessmentScreen() {
     <ScreenWrapper>
       <Header
         title="AI Assessment"
-        subtitle={state === "processing" ? "Processing..." : "UI-04"}
+        subtitle={state === "processing" ? "Processing..." : undefined}
       />
 
       {state === "processing" ? (

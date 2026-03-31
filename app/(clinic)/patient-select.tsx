@@ -77,7 +77,7 @@ export default function PatientSelectScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="Select Patient" subtitle="UI-02b" />
+      <Header title="Select Patient" />
 
       <View style={styles.container}>
         {/* Search */}

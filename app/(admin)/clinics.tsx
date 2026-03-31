@@ -1,6 +1,6 @@
 // app/(admin)/clinics.tsx
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -48,18 +48,58 @@ export default function AdminClinicsScreen() {
   const [selected, setSelected] = useState<ClinicRow | null>(null);
   const [toggling, setToggling] = useState(false);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchClinics = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setFetchError(null);
+    const { data, error } = await supabase
       .from("clinics")
       .select("*, devices:devices(*)")
       .order("created_at", { ascending: false });
 
-    if (data) setClinics(data as ClinicRow[]);
+    if (error) {
+      setFetchError("Failed to load clinics.");
+    } else if (data) {
+      setClinics(data as ClinicRow[]);
+    }
     setLoading(false);
   };
 
   useEffect(() => { fetchClinics(); }, []);
+
+  const renderClinic = useCallback(({ item }: { item: ClinicRow }) => (
+    <TouchableOpacity
+      style={styles.clinicCard}
+      activeOpacity={0.75}
+      onPress={() => setSelected(item)}
+    >
+      <View style={styles.clinicTop}>
+        <View style={styles.clinicIcon}>
+          <Text style={styles.clinicIconText}>H</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.clinicName}>{item.name}</Text>
+          <View style={styles.clinicMeta}>
+            <Badge label={FACILITY_LABELS[item.facility_type] ?? item.facility_type} variant="info" size="sm" />
+            <Badge label={item.is_active ? "Active" : "Inactive"} variant={item.is_active ? "negative" : "muted"} size="sm" />
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+      </View>
+      <View style={styles.clinicStats}>
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{item.devices.length}</Text>
+          <Text style={styles.statLabel}>Devices</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={styles.statValue}>{item.devices.filter((d) => d.is_active).length}</Text>
+          <Text style={styles.statLabel}>Active</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  ), []);
 
   const handleToggleActive = async () => {
     if (!selected) return;
@@ -91,54 +131,17 @@ export default function AdminClinicsScreen() {
           <View style={styles.centered}>
             <ActivityIndicator color={Colors.primary[400]} />
           </View>
+        ) : fetchError ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{fetchError}</Text>
+          </View>
         ) : (
           <FlatList
             data={clinics}
             keyExtractor={(c) => c.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: Spacing["2xl"] }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.clinicCard}
-                activeOpacity={0.75}
-                onPress={() => setSelected(item)}
-              >
-                <View style={styles.clinicTop}>
-                  <View style={styles.clinicIcon}>
-                    <Text style={styles.clinicIconText}>H</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.clinicName}>{item.name}</Text>
-                    <View style={styles.clinicMeta}>
-                      <Badge
-                        label={FACILITY_LABELS[item.facility_type] ?? item.facility_type}
-                        variant="info"
-                        size="sm"
-                      />
-                      <Badge
-                        label={item.is_active ? "Active" : "Inactive"}
-                        variant={item.is_active ? "negative" : "muted"}
-                        size="sm"
-                      />
-                    </View>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
-                </View>
-                <View style={styles.clinicStats}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statValue}>{item.devices.length}</Text>
-                    <Text style={styles.statLabel}>Devices</Text>
-                  </View>
-                  <View style={styles.statDivider} />
-                  <View style={styles.statItem}>
-                    <Text style={styles.statValue}>
-                      {item.devices.filter((d) => d.is_active).length}
-                    </Text>
-                    <Text style={styles.statLabel}>Active</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
+            renderItem={renderClinic}
           />
         )}
       </View>
@@ -221,6 +224,7 @@ export default function AdminClinicsScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: "#f87171", textAlign: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   clinicCard: {
     backgroundColor: Colors.bg.card,
