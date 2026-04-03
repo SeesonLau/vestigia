@@ -1,6 +1,6 @@
 // app/(clinic)/live-feed.tsx
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useThermalStore } from "../../store/sessionStore";
 import {
   Animated,
@@ -12,9 +12,7 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import ThermalMap, {
-  generateMockThermalMatrix,
-} from "../../components/thermal/ThermalMap";
+import ThermalMap from "../../components/thermal/ThermalMap";
 import {
   FootGuidanceOverlay,
   ThermalAnnotation,
@@ -23,68 +21,157 @@ import {
 import Button from "../../components/ui/Button";
 import { StatusIndicator } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import {
+  connectCamera,
+  disconnectCamera,
+  onFrame,
+  onCameraConnected,
+  onCameraDisconnected,
+} from "../../lib/thermal/uvcCamera";
+import { parseY16Frame, getMatrixStats } from "../../lib/thermal/preprocessing";
 
 const { width: SCREEN_W } = Dimensions.get("window");
-const MAP_W = SCREEN_W - Spacing.lg * 2 - 40; // leave room for scale
-const MAP_H = Math.round(MAP_W * (62 / 80));
+const MAP_W = SCREEN_W - Spacing.lg * 2 - 40;
+const MAP_H = Math.round(MAP_W * (120 / 160)); // Lepton 3.5 — 160×120
+
+type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export default function LiveFeedScreen() {
   const router = useRouter();
   const thermalStore = useThermalStore();
-  const [matrix, setMatrix] = useState(() => generateMockThermalMatrix());
-  const [minTemp] = useState(29.5);
-  const [maxTemp] = useState(36.8);
-  const [meanTemp] = useState(33.2);
-  const [fps] = useState(12);
+
+  //Camera state
+  const [cameraStatus, setCameraStatus] = useState<CameraStatus>("disconnected");
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  //Frame state
+  const [matrix, setMatrix] = useState<number[][] | null>(null);
+  const [minTemp, setMinTemp] = useState(0);
+  const [maxTemp, setMaxTemp] = useState(0);
+  const [meanTemp, setMeanTemp] = useState(0);
+  const [fps, setFps] = useState(0);
+
+  //UI state
   const [showGuide, setShowGuide] = useState(true);
   const [captured, setCaptured] = useState(false);
   const [capturedMatrix, setCapturedMatrix] = useState<number[][] | null>(null);
   const [selectedFoot, setSelectedFoot] = useState<"left" | "right" | "bilateral">("bilateral");
 
-  // Simulate live frame updates
-  useEffect(() => {
-    if (captured) return;
-    const interval = setInterval(() => {
-      setMatrix(generateMockThermalMatrix());
-    }, 100);
-    return () => clearInterval(interval);
-  }, [captured]);
-
-  // Capture pulse animation
+  //FPS tracking
+  const frameTimestamps = useRef<number[]>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const capturedRef = useRef(false);
 
+  //FPS calculator — rolling average over last 9 frames
+  const computeFps = useCallback(() => {
+    const now = Date.now();
+    frameTimestamps.current.push(now);
+    if (frameTimestamps.current.length > 9) frameTimestamps.current.shift();
+    const oldest = frameTimestamps.current[0];
+    const count = frameTimestamps.current.length;
+    if (count > 1) {
+      setFps(Math.round(((count - 1) / (now - oldest)) * 1000));
+    }
+  }, []);
+
+  //Connect on mount
+  useEffect(() => {
+    let unsubFrame: (() => void) | null = null;
+    let unsubConnect: (() => void) | null = null;
+    let unsubDisconnect: (() => void) | null = null;
+
+    async function setup() {
+      setCameraStatus("connecting");
+      setCameraError(null);
+
+      unsubConnect = onCameraConnected(() => {
+        setCameraStatus("connected");
+      });
+
+      unsubDisconnect = onCameraDisconnected(() => {
+        setCameraStatus("disconnected");
+        setMatrix(null);
+        setFps(0);
+        frameTimestamps.current = [];
+      });
+
+      unsubFrame = onFrame((base64) => {
+        if (capturedRef.current) return;
+        try {
+          const parsed = parseY16Frame(base64);
+          const stats = getMatrixStats(parsed);
+          setMatrix(parsed);
+          setMinTemp(stats.min);
+          setMaxTemp(stats.max);
+          setMeanTemp(stats.mean);
+          computeFps();
+        } catch (_) {
+          // Drop malformed frames silently
+        }
+      });
+
+      try {
+        await connectCamera();
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "Camera connection failed";
+        setCameraStatus("error");
+        setCameraError(msg);
+      }
+    }
+
+    setup();
+
+    return () => {
+      unsubFrame?.();
+      unsubConnect?.();
+      unsubDisconnect?.();
+      disconnectCamera();
+    };
+  }, []);
+
+  //Capture
   const handleCapture = () => {
+    if (!matrix) return;
     Animated.sequence([
-      Animated.timing(pulseAnim, {
-        toValue: 1.08,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulseAnim, {
-        toValue: 1,
-        duration: 80,
-        useNativeDriver: true,
-      }),
+      Animated.timing(pulseAnim, { toValue: 1.08, duration: 80, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start();
     setCapturedMatrix(matrix);
+    capturedRef.current = true;
     setCaptured(true);
     thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
     thermalStore.capture(selectedFoot);
   };
 
   const handleDiscard = () => {
+    capturedRef.current = false;
     setCaptured(false);
     setCapturedMatrix(null);
     thermalStore.discardCapture();
   };
 
+  //Status label
+  const statusLabel =
+    cameraStatus === "connected" ? "Camera Connected"
+    : cameraStatus === "connecting" ? "Connecting..."
+    : cameraStatus === "error" ? (cameraError ?? "Camera Error")
+    : "Camera Disconnected";
+
+  const statusType =
+    cameraStatus === "connected" ? "connected"
+    : cameraStatus === "connecting" ? "connecting"
+    : "error";
+
+  //Render
   return (
     <ScreenWrapper>
       <Header
         title="Live Thermal Feed"
         rightIcon={
           <View style={styles.fpsTag}>
-            <Text style={styles.fpsText}>{fps} fps</Text>
+            <Text style={styles.fpsText}>
+              {cameraStatus === "connected" ? `${fps} fps` : "--"}
+            </Text>
           </View>
         }
       />
@@ -92,14 +179,10 @@ export default function LiveFeedScreen() {
       <View style={styles.container}>
         {/* Status bar */}
         <View style={styles.statusBar}>
-          <StatusIndicator status="connected" label="Wi-Fi Active" />
-          <StatusIndicator status="connected" label="BLE Active" />
+          <StatusIndicator status={statusType} label={statusLabel} />
           <TouchableOpacity
             onPress={() => setShowGuide((v) => !v)}
-            style={[
-              styles.guideToggle,
-              showGuide ? styles.guideToggleActive : undefined,
-            ]}
+            style={[styles.guideToggle, showGuide ? styles.guideToggleActive : undefined]}
             accessibilityLabel={showGuide ? "Hide foot position guides" : "Show foot position guides"}
             accessibilityRole="button"
           >
@@ -107,40 +190,51 @@ export default function LiveFeedScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Thermal viewer */}
-        <Animated.View
-          style={[
-            styles.thermalContainer,
-            captured ? styles.capturedFrame : undefined,
-            { transform: [{ scale: pulseAnim }] },
-          ]}
-        >
-          <View style={styles.thermalRow}>
-            <View style={styles.mapWrapper}>
-              <ThermalMap
-                matrix={captured ? capturedMatrix! : matrix}
-                minTemp={minTemp}
-                maxTemp={maxTemp}
-                width={MAP_W}
-                height={MAP_H}
-              />
-              {showGuide && !captured && (
-                <FootGuidanceOverlay width={MAP_W} height={MAP_H} />
-              )}
-              {captured && (
-                <View style={styles.capturedOverlay}>
-                  <Text style={styles.capturedLabel}>CAPTURED</Text>
-                </View>
-              )}
-            </View>
-            <ThermalScale minTemp={minTemp} maxTemp={maxTemp} height={MAP_H} />
+        {/* No camera state */}
+        {cameraStatus !== "connected" && !captured && (
+          <View style={styles.noCamera}>
+            <Text style={styles.noCameraText}>
+              {cameraStatus === "connecting"
+                ? "Waiting for PureThermal camera…\nPlug in via JST-SH → USB-C"
+                : cameraStatus === "error"
+                ? `${cameraError}\n\nPlug in the PureThermal and reopen this screen.`
+                : "Camera disconnected.\nPlug in the PureThermal to begin."}
+            </Text>
           </View>
-          <ThermalAnnotation
-            minTemp={minTemp}
-            maxTemp={maxTemp}
-            meanTemp={meanTemp}
-          />
-        </Animated.View>
+        )}
+
+        {/* Thermal viewer */}
+        {(matrix || capturedMatrix) && (
+          <Animated.View
+            style={[
+              styles.thermalContainer,
+              captured ? styles.capturedFrame : undefined,
+              { transform: [{ scale: pulseAnim }] },
+            ]}
+          >
+            <View style={styles.thermalRow}>
+              <View style={styles.mapWrapper}>
+                <ThermalMap
+                  matrix={captured ? capturedMatrix! : matrix!}
+                  minTemp={minTemp}
+                  maxTemp={maxTemp}
+                  width={MAP_W}
+                  height={MAP_H}
+                />
+                {showGuide && !captured && (
+                  <FootGuidanceOverlay width={MAP_W} height={MAP_H} />
+                )}
+                {captured && (
+                  <View style={styles.capturedOverlay}>
+                    <Text style={styles.capturedLabel}>CAPTURED</Text>
+                  </View>
+                )}
+              </View>
+              <ThermalScale minTemp={minTemp} maxTemp={maxTemp} height={MAP_H} />
+            </View>
+            <ThermalAnnotation minTemp={minTemp} maxTemp={maxTemp} meanTemp={meanTemp} />
+          </Animated.View>
+        )}
 
         {/* Foot selector */}
         <View style={styles.footSelector}>
@@ -173,21 +267,19 @@ export default function LiveFeedScreen() {
               onPress={handleCapture}
               style={styles.captureBtn}
               activeOpacity={0.8}
+              disabled={cameraStatus !== "connected" || !matrix}
             >
-              <View style={styles.captureBtnOuter}>
+              <View style={[
+                styles.captureBtnOuter,
+                (cameraStatus !== "connected" || !matrix) && styles.captureBtnDisabled,
+              ]}>
                 <View style={styles.captureBtnInner} />
               </View>
               <Text style={styles.captureBtnLabel}>CAPTURE</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.postCaptureRow}>
-              <Button
-                label="Discard"
-                onPress={handleDiscard}
-                variant="ghost"
-                size="md"
-                style={styles.halfBtn}
-              />
+              <Button label="Discard" onPress={handleDiscard} variant="ghost" size="md" style={styles.halfBtn} />
               <Button
                 label="Use This Frame"
                 onPress={() => router.push("/(clinic)/clinical-data")}
@@ -199,8 +291,7 @@ export default function LiveFeedScreen() {
           )}
         </View>
 
-        {/* Hint */}
-        {!captured && (
+        {!captured && cameraStatus === "connected" && (
           <Text style={styles.hint}>
             Position both feet within the dashed guides, then tap Capture.
           </Text>
@@ -254,8 +345,19 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fonts.label,
     color: Colors.text.secondary,
   },
-
-  // Thermal viewer
+  noCamera: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: Spacing.xl,
+  },
+  noCameraText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    color: Colors.text.muted,
+    textAlign: "center",
+    lineHeight: 22,
+  },
   thermalContainer: {
     borderRadius: Radius.lg,
     overflow: "hidden",
@@ -289,8 +391,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 1.5,
   },
-
-  // Foot selector
   footSelector: {
     marginBottom: Spacing.lg,
   },
@@ -324,8 +424,6 @@ const styles = StyleSheet.create({
     color: Colors.text.muted,
   },
   footBtnTextActive: { color: Colors.primary[300] },
-
-  // Capture button
   controls: {
     alignItems: "center",
     marginBottom: Spacing.md,
@@ -347,6 +445,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 12,
     elevation: 8,
+  },
+  captureBtnDisabled: {
+    borderColor: Colors.border.default,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   captureBtnInner: {
     width: 52,
