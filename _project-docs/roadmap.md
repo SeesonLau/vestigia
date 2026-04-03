@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-03-30
+**Last updated:** 2026-04-03
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -11,7 +11,7 @@
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
 | 1 | GAP-18 | Add Alert on Activate/Deactivate failure in admin users + clinics | 15 min | `handleToggleActive` in users.tsx + clinics.tsx — show Alert when Supabase update fails; currently silent |
-| 2 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. `normalizeMatrix()`, `segmentFootRegion()`, `buildApiPayload()`. No hardware needed — can build now. |
+| 2 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. `normalizeMatrix()`, `segmentFootRegion()`, `buildApiPayload()`. Matrix is **160×120** (FLIR Lepton 3.5 — not 80×62). No hardware needed — can build now. |
 | 3 | FR-508 | Preliminary risk scoring — Low / Medium / High rule-based thresholding | 2 hrs | New module `lib/classification/riskScoring.ts`. Rules: LOW < 1°C, MEDIUM 1–2.2°C, HIGH ≥ 2.2°C. `risk_level` field already added to type. |
 | 4 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint confirmed. |
 | 5 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Depends on FR-507 output. Visual highlight of flagged angiosomes on ThermalMap. |

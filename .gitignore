@@ -41,6 +41,6 @@ app-example
 
 # generated native folders
 /ios
-/android
+# /android — removed from gitignore: project now uses bare workflow with custom native UVC modules
 .claude/worktrees/sharp-babbage/
 .claude/worktrees/cranky-raman/
