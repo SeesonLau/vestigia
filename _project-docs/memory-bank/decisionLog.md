@@ -36,6 +36,13 @@
 **Why:** User explicitly asked for this UX — they want to see confirmation that activation succeeded before proceeding. Also simpler: no need to set the session or fetch the profile in the deep link handler.
 **Trade-off:** One extra tap vs auto-login. Accepted trade-off for clarity.
 
+## [2026-04-03] Thermal camera confirmed — FLIR Lepton 3.5 + PureThermal Mini Pro JST-SR via USB UVC
+**Decision:** Use USB UVC (USB Video Class) as the communication protocol. The PureThermal Mini Pro JST-SR carrier board connects to the phone via a JST-SR to USB-C cable carrying real USB 2.0 D+/D− signals.
+**Why:** The PureThermal Mini Pro JST-SR already implements USB UVC out of the box via its STM32F412 MCU — no custom firmware needed for basic streaming. The JST-SR connector exposes +5V, D−, D+, GND (standard USB pinout). Android 5.0+ supports UVC natively. The device enumerates as a standard USB video camera.
+**Correction from earlier entry:** A previous note incorrectly described JST-SH and recommended Wi-Fi. The actual connector is JST-SR which carries USB signals — it is a valid wired USB connection, not a passive pin adapter.
+**Trade-off:** React Native has no built-in UVC support. A native Android module (using `android.hardware.usb` + UVC library) must be written and bridged. This requires Expo bare workflow or a custom dev client — Expo managed workflow cannot load custom native modules. iOS is not supported (no UVC).
+**Impact on codebase:** Matrix dimensions must be 160×120 (Lepton 3.5), not 80×62 (Lepton 2.x). FR-506 preprocessing and all type definitions must reflect this. GAP-01–04 (hardware integration) are unblocked once the native module is built.
+
 ## [2026-03-20] babel-preset-expo handles decorators — do not add plugins manually
 **Decision:** `babel.config.js` contains only `babel-preset-expo` with no extra plugins.
 **Why:** `babel-preset-expo` already includes `@babel/plugin-proposal-decorators` and class-properties transforms. Adding them again in `plugins[]` causes duplicate execution, which corrupts class property assignments and produces "Cannot assign to read-only property 'NONE'" at runtime.
