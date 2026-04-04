@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   ScrollView,
@@ -110,7 +111,9 @@ export default function AdminClinicsScreen() {
       .update({ is_active: newStatus })
       .eq("id", selected.id);
 
-    if (!error) {
+    if (error) {
+      Alert.alert("Update Failed", "Could not update clinic status. Please try again.");
+    } else {
       setClinics((prev) =>
         prev.map((c) => c.id === selected.id ? { ...c, is_active: newStatus } : c)
       );

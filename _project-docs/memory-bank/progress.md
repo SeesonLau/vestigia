@@ -1,6 +1,6 @@
 # Progress — Vestigia
-**Current version:** 0.5.3
-**Last verified:** 2026-03-30
+**Current version:** 0.6.0
+**Last verified:** 2026-04-04
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.6.0 | 2026-04-04 | UVC camera, offline-first feature, FR-506 preprocessing, FR-508 risk scoring, GAP-18 admin alerts |
 | 0.5.3 | 2026-03-30 | QA sweep: 12 bugs fixed (UX-17, GAP-15/16/17, UX-15/16, CODE-16/14, A11Y-05, NAV-03, PERF-09/10/11). 9 open issues remain |
 | 0.5.2 | 2026-03-24 | Quick fixes: assessment unmount cleanup, patient-select Supabase search, risk_level type added. Full QA audit — 0 regressions |
 | 0.5.1 | 2026-03-21 | Tab bar icon-only, patient-select hidden from tab bar |
@@ -67,33 +68,33 @@
 - **Patient settings reachable** — settings icon added to patient dashboard header (NAV-03)
 - **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
 - **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
+- **UVC camera** — Android native module (saki4510t/UVCCamera), JS bridge, live-feed wired to real frames
+- **FR-506** — `lib/thermal/preprocessing.ts`: `parseY16Frame`, `normalizeMatrix`, `segmentFootRegion`, `buildApiPayload`
+- **Offline-first** — mode-select, offline live-feed + save, SQLite storage, History Local tab, clinic sync, patient accept/reject
+- **FR-508** — `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH at 1.5°C / 2.2°C thresholds
+- **GAP-18** — Alert on Activate/Deactivate Supabase failure (admin users + clinics)
+- WatermelonDB removed from project
 
 ## In Progress 🔄
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
 
 ## Not Started ❌
 
-### AI Pipeline (planned — next priority)
-> **Architecture note:** The AI model itself lives in a **separate repository**. This app only prepares data and calls the AI model's HTTP API — no ML inference runs inside this codebase.
-- **FR-506** — Image preprocessing: contrast normalization + foot region segmentation + API payload builder (`lib/thermal/preprocessing.ts`). App-side, runs before sending data to external API.
-- **FR-507** — AI model API integration: HTTP client (`lib/api/aiClient.ts`) that sends thermal payload to the external AI model API and maps the response to `ClassificationResult`. Replaces `MOCK_RESULT`. **Blocked until the AI model API endpoint is confirmed and accessible.**
-- **FR-508** — Preliminary risk scoring: Low / Medium / High rule-based thresholding (`lib/classification/riskScoring.ts`), applied app-side using asymmetry values from the API response. Stored in `classification_results.feature_vector`.
+### AI Pipeline
+> **Architecture note:** The AI model lives in a **separate repository**. This app only prepares data and calls the AI model's HTTP API.
+- **FR-507** — AI model API integration: `lib/api/aiClient.ts` — **Blocked until AI team confirms endpoint URL, request format, and response schema.**
+- **GAP-08** — Angiosome overlay on thermal map — depends on FR-507 response shape
 
 ### Other Planned
-- **GAP-08** — No abnormal region overlay on thermal map (angiosome highlighting) — depends on FR-507
 - Deploy Edge Function (`auth-redirect`)
+- `npm install` to clear WatermelonDB from node_modules
 
 ### Deferred
-- WatermelonDB (offline-first local DB) — deferred
-- BLE device scanning and pairing (deferred — hardware not finalized)
-- Wi-Fi WebSocket to thermal device (deferred — hardware not finalized)
-- Real thermal frame reception (deferred — hardware not finalized)
-- AI cloud upload + polling (deferred — FR-506–508 cover client-side prototype first)
-- Offline queue and sync (deferred)
-- Push notifications (deferred)
+- BLE device scanning and pairing (hardware not finalized)
+- Wi-Fi WebSocket to thermal device (hardware not finalized)
+- Push notifications
 
 ## Known Issues
-- 1 Open nav: NAV-01 (no back button in assessment — intentional design, low priority)
-- 1 Open data gap: GAP-08 (thermal map overlay — deferred)
-- Multiple deferred hardware items (BLE, Wi-Fi, real thermal, AI)
+- NAV-01: No back button on assessment (intentional design, low priority)
+- GAP-08: Thermal map overlay (deferred — needs FR-507)
 - Edge Function not yet deployed

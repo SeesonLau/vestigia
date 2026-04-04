@@ -15,10 +15,24 @@
   - `deviceStore` — BLE/WiFi device connection state
   - `thermalStore` — live thermal frames and captures
 
-## Mock-First Development
-- `data/mockData.ts` has mock accounts, patients, clinics, sessions
-- `authStore.login()` checks mock accounts first, then falls through to Supabase
-- Allows full UI dev and demos without live backend
+## Offline-First Pattern
+- `/(offline)` route group: `live-feed` → `save` — capture without an account
+- Local SQLite via `expo-sqlite` v16 (`lib/db/localDb.ts`, `lib/db/offlineCaptures.ts`)
+- `LocalCapture` stored with `synced=0`; `markSynced()` sets `synced=1` + session ID
+- `/mode-select` screen: entry point for unauthenticated users (Go Online | Work Offline)
+- Clinic sync screen: patient search → upload session → `data_requests` row → `markSynced()`
+- Patient sync screen: lists pending `data_requests`, accept/reject
+
+## UVC Camera Pattern (Android)
+- Native module `UVCModule.kt` (saki4510t/UVCCamera via JitPack)
+- JS bridge: `lib/thermal/uvcCamera.ts` — `connectCamera()`, `onFrame()`, `onCameraConnected/Disconnected()`
+- Frames emitted as Base64 Y16 strings → parsed by `parseY16Frame()` → 160×120 °C matrix
+
+## Thermal Data Pipeline
+- `lib/thermal/preprocessing.ts`: `parseY16Frame` → `normalizeMatrix` → `segmentFootRegion` → `buildApiPayload`
+- `lib/classification/riskScoring.ts`: `computeRiskLevel(asymmetry)` → LOW / MEDIUM / HIGH
+  - HIGH: any asymmetry ≥ 2.2°C, MEDIUM: ≥ 1.5°C, LOW: all below
+- AI model API (FR-507) — blocked, replaces mock result when endpoint is confirmed
 
 ## Component Patterns
 - `ScreenWrapper` wraps all screens (handles safe area, optional scroll)
