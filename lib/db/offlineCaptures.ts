@@ -30,6 +30,16 @@ export async function saveCapture(
   )
 }
 
+//Read by id
+export async function getCaptureById(id: string): Promise<LocalCapture | null> {
+  const db = await getDb()
+  const row = await db.getFirstAsync<RawRow>(
+    'SELECT * FROM local_captures WHERE id = ?',
+    [id]
+  )
+  return row ? toCapture(row) : null
+}
+
 //Read all
 export async function getAllCaptures(): Promise<LocalCapture[]> {
   const db = await getDb()
