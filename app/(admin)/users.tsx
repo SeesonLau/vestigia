@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   ScrollView,
@@ -96,7 +97,9 @@ export default function AdminUsersScreen() {
       .update({ is_active: newStatus })
       .eq("id", selected.id);
 
-    if (!error) {
+    if (error) {
+      Alert.alert("Update Failed", "Could not update user status. Please try again.");
+    } else {
       setUsers((prev) =>
         prev.map((u) => u.id === selected.id ? { ...u, is_active: newStatus } : u)
       );
