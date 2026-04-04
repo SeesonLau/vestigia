@@ -34,6 +34,7 @@ export default function PatientDashboardScreen() {
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [pendingRequests, setPendingRequests] = useState(0);
   const leftMatrix = useRef(generateMockThermalMatrix()).current;
   const rightMatrix = useRef(generateMockThermalMatrix()).current;
 
@@ -77,6 +78,14 @@ export default function PatientDashboardScreen() {
             );
           }
         }
+
+        // Pending data requests count
+        const { count } = await supabase
+          .from("data_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("to_id", user.id)
+          .eq("status", "pending");
+        setPendingRequests(count ?? 0);
       } catch (err: unknown) {
         setFetchError(err instanceof Error ? err.message : "Failed to load data.");
       } finally {
@@ -95,6 +104,19 @@ export default function PatientDashboardScreen() {
 
   const headerRight = (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <TouchableOpacity
+        onPress={() => router.push("/(patient)/sync" as any)}
+        accessibilityLabel="Data requests"
+        accessibilityRole="button"
+        style={{ position: "relative" }}
+      >
+        <Ionicons name="notifications-outline" size={20} color={pendingRequests > 0 ? Colors.primary[300] : Colors.text.muted} />
+        {pendingRequests > 0 && (
+          <View style={styles.notifBadge}>
+            <Text style={styles.notifBadgeText}>{pendingRequests}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
       <TouchableOpacity onPress={() => router.push("/(patient)/settings")} accessibilityLabel="Settings" accessibilityRole="button">
         <Ionicons name="settings-outline" size={20} color={Colors.text.muted} />
       </TouchableOpacity>
@@ -447,4 +469,17 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   disclaimer: { marginTop: Spacing.md },
+  notifBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: Colors.primary[500],
+    borderRadius: Radius.full,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  notifBadgeText: { fontSize: 9, fontFamily: Typography.fonts.heading, color: "#fff" },
 });
