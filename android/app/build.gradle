@@ -156,12 +156,10 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // UVC camera support — PureThermal Mini Pro JST-SR + FLIR Lepton 3.5
-    // JitPack cannot build this library (NDK toolchain mismatch). Include the pre-built AAR locally:
-    //   1. Clone https://github.com/saki4510t/UVCCamera  (Android Studio or git)
-    //   2. Run: ./gradlew :libuvccamera:assembleRelease
-    //   3. Copy libuvccamera/build/outputs/aar/libuvccamera-release.aar → android/app/libs/
-    implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
+    // UVC camera: saki4510t/UVCCamera cannot be built with modern Gradle/NDK.
+    // UVCModule.kt is stubbed (no-op) until the AAR is available.
+    // To restore real camera support: place libuvccamera-release.aar in android/app/libs/
+    // and uncomment: implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
 
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
