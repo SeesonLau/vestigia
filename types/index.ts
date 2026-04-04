@@ -113,6 +113,37 @@ export interface Patient {
   updated_at?: string;
 }
 
+// offline.ts
+export interface LocalCapture {
+  id: string                    // Format: OFF-YYYYMMDD-XXXX
+  patient_label: string         // Free-text label entered at capture time
+  foot_side: FootSide
+  thermal_matrix_b64: string    // Base64-encoded raw Y16 bytes (~38KB)
+  min_temp: number
+  max_temp: number
+  mean_temp: number
+  blood_glucose_mgdl?: number
+  systolic_bp_mmhg?: number
+  diastolic_bp_mmhg?: number
+  captured_at: string           // ISO timestamp
+  synced: boolean
+  synced_at?: string
+  supabase_session_id?: string  // Set after successful sync
+}
+
+export interface DataRequest {
+  id: string
+  from_role: 'clinic' | 'patient'
+  from_id: string
+  to_role: 'clinic' | 'patient'
+  to_id: string
+  session_id: string
+  status: 'pending' | 'accepted' | 'rejected'
+  created_at: string
+  from_profile?: { full_name: string; email: string }
+  session?: ScreeningSession
+}
+
 // device.ts
 export type ConnectionStatus =
   | "disconnected"
