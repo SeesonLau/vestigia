@@ -1,6 +1,60 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-04-05 — v0.6.0] — Offline Sync: data_requests + screening_sessions writes from clinic sync screen
+
+**Type:** Application Query Wiring (new table: `data_requests`; new writes to `screening_sessions`, `thermal_captures`, `patient_vitals`)
+**Table(s) affected:** `data_requests`, `screening_sessions`, `thermal_captures`, `patient_vitals`
+
+### What was done
+Verified `data_requests` table existence and schema via MCP. New client-side writes added for the offline sync flow:
+
+1. **Clinic sync screen** (`app/(clinic)/sync.tsx`):
+   - INSERT into `screening_sessions` (status=completed, started_at from local capture timestamp)
+   - INSERT into `thermal_captures` (parsed 160×120 matrix from B64, foot, temp stats, resolution 160×120)
+   - INSERT into `patient_vitals` (if blood_glucose/BP recorded offline — optional)
+   - INSERT into `data_requests` (from_role=clinic, from_id=operator id, to_id=patient user_id, status=pending)
+
+2. **Patient sync screen** (`app/(patient)/sync.tsx`):
+   - SELECT `data_requests` WHERE to_id=user.id AND status=pending (with session + clinic join)
+   - UPDATE `data_requests` SET status=accepted / status=rejected
+
+### SQL patterns used
+```sql
+-- Verify data_requests table
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_schema = 'public' AND table_name = 'data_requests';
+
+-- Clinic: create session from offline capture
+INSERT INTO screening_sessions (patient_id, operator_id, device_id, clinic_id, status, started_at, completed_at)
+VALUES (...);
+
+-- Clinic: save thermal capture (offline matrix)
+INSERT INTO thermal_captures (session_id, foot, thermal_matrix, min_temp_c, max_temp_c, mean_temp_c, resolution_x, resolution_y, captured_at)
+VALUES (...);
+
+-- Clinic: send data request to patient
+INSERT INTO data_requests (from_role, from_id, to_role, to_id, session_id, status)
+VALUES ('clinic', $operator_id, 'patient', $patient_user_id, $session_id, 'pending');
+
+-- Patient: fetch pending requests
+SELECT id, from_id, session_id, created_at,
+  screening_sessions(id, started_at, status, clinics(name), thermal_captures(foot, min_temp_c, max_temp_c))
+FROM data_requests
+WHERE to_id = $user_id AND status = 'pending';
+
+-- Patient: accept or reject
+UPDATE data_requests SET status = 'accepted' WHERE id = $request_id;
+UPDATE data_requests SET status = 'rejected' WHERE id = $request_id;
+```
+
+### Why
+Offline-first feature: clinic captures without internet → saves locally → syncs to Supabase → notifies patient → patient accepts or rejects the session record.
+
+### Result
+All queries working. `data_requests` table confirmed present with correct schema (8 columns). Clinic sync and patient accept/reject fully wired.
+
+---
 ## [2026-03-21 — v0.5.0] — Backend Wiring: 8 Screens Wired to Supabase
 
 **Type:** Application Query Wiring (no schema changes — reads/writes to existing tables)
