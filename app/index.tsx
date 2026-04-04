@@ -18,5 +18,5 @@ export default function Index() {
   if (user?.role === "clinic") return <Redirect href="/(clinic)" />;
   if (user?.role === "patient") return <Redirect href="/(patient)" />;
   if (user?.role === "admin") return <Redirect href="/(admin)" />;
-  return <Redirect href="/(auth)/login" />;
+  return <Redirect href={"/mode-select" as any} />;
 }
