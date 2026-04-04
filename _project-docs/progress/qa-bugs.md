@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-03-30 (v0.5.2 — full codebase QA audit)
+**Last verified:** 2026-04-05 (v0.6.0)
 
 ---
 
@@ -70,6 +70,7 @@
 | ~~UX-15~~ | `app/(clinic)/index.tsx` | 67–95 | No `ActivityIndicator` while `fetchData()` runs — stats display as 0 while loading | Low | ✅ Fixed 2026-03-30 |
 | ~~UX-16~~ | `app/(clinic)/index.tsx` | 82–90 | `clinicResult.error` and `sessionsResult.error` checked but silently ignored | Medium | ✅ Fixed 2026-03-30 |
 | ~~UX-17~~ | Multiple screens | various | Debug UI ID strings visible in production: `"UI-02"` through `"UI-08"` | Medium | ✅ Fixed 2026-03-30 |
+| BUG-06 | `app/(patient)/index.tsx` | 22 | `THUMB_H` ratio uses `(62 / 80)` — wrong for Lepton 3.5 (160×120); should be `(120 / 160)` | Low | Open |
 
 ---
 
@@ -87,10 +88,10 @@
 | ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` has zero error handling | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Neither fetch destructures `error` | Medium | ✅ Fixed 2026-03-21 |
-| GAP-15 | `app/(clinic)/history.tsx` | 36 | PostgREST join alias mismatch — `classification` may be undefined; `positiveCount`/`negativeCount` always 0 | High | Open |
+| ~~GAP-15~~ | `app/(clinic)/history.tsx` | 36 | PostgREST join alias mismatch — `classification` may be undefined; `positiveCount`/`negativeCount` always 0 | High | ✅ Fixed 2026-03-30 |
 | ~~GAP-16~~ | `app/(admin)/users.tsx` | 34 | `fetchUsers`: `error` not destructured; silent failure | Medium | ✅ Fixed 2026-03-30 |
 | ~~GAP-17~~ | `app/(admin)/clinics.tsx` | 52 | `fetchClinics`: same as GAP-16 | Medium | ✅ Fixed 2026-03-30 |
-| GAP-18 | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 98 / 111 | `handleToggleActive`: on Supabase error, no user notification (no Alert, no error text) | Medium | Open |
+| ~~GAP-18~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 98 / 111 | `handleToggleActive`: on Supabase error, no user notification (no Alert, no error text) | Medium | ✅ Fixed 2026-04-05 |
 
 ---
 
@@ -186,12 +187,12 @@
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
 | Code Quality | 18 | 3 | 14 | 1 |
-| UI / UX | 21 | 1 | 18 | 1 (UX-11) |
-| Supabase / Data | 14 | 3 | 9 | 2 |
+| UI / UX | 22 | 1 | 20 | 1 (UX-11) |
+| Supabase / Data | 14 | 1 | 12 | 1 |
 | Performance | 11 | 0 | 11 | 0 |
 | Accessibility | 5 | 1 | 4 | 0 |
 | Security | 3 | 0 | 3 | 0 |
 | Navigation | 3 | 1 | 2 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **98** | **9** | **79** | **9** |
+| **Total** | **99** | **7** | **84** | **8** |

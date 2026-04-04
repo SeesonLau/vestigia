@@ -3,6 +3,45 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.6.0] — 2026-04-05
+
+### Added — UVC Camera Integration
+- `android/app/src/main/java/.../UVCModule.kt` — Native Kotlin module for saki4510t/UVCCamera (JitPack); emits Y16 Base64 frames at 160×120 to JS
+- `android/app/src/main/java/.../UVCPackage.kt` — ReactPackage registration
+- `android/app/src/main/res/xml/usb_device_filter.xml` — VID=0x1e4e, PID=0x0100 (PureThermal Mini Pro)
+- `android/app/build.gradle` — JitPack UVCCamera dependency
+- `android/app/src/main/AndroidManifest.xml` — USB host feature declaration + device-attached intent filter
+- `lib/thermal/uvcCamera.ts` — JS bridge: `connectCamera()`, `disconnectCamera()`, `onFrame()`, `onCameraConnected/Disconnected()`
+- `app/(clinic)/live-feed.tsx` — Rewritten to consume real UVC frames; capturedRef stale-closure fix; rolling FPS counter; camera status states; disabled capture when no camera
+
+### Added — Thermal Preprocessing (FR-506)
+- `lib/thermal/preprocessing.ts` — `parseY16Frame()` (Base64 Y16 → 160×120 °C matrix), `normalizeMatrix()`, `segmentFootRegion()` (ambient+2°C threshold), `getMatrixStats()`, `buildApiPayload()`
+
+### Added — Offline-First Feature
+- `app/mode-select.tsx` — Unauthenticated entry point: Go Online (→ login) | Work Offline (→ offline capture)
+- `app/(offline)/_layout.tsx` — Stack navigator for offline screens
+- `app/(offline)/live-feed.tsx` — Offline thermal capture using UVC; captures B64 frame to params
+- `app/(offline)/save.tsx` — Patient label (required) + optional vitals; saves to local SQLite via `saveCapture()`
+- `lib/db/localDb.ts` — `getDb()`, `migrate()` (schema v1), `generateLocalId()` (`OFF-YYYYMMDD-XXXX`)
+- `lib/db/offlineCaptures.ts` — `saveCapture`, `getCaptureById`, `getAllCaptures`, `getUnsyncedCaptures`, `markSynced` (WHERE synced=0 guard), `deleteCapture`
+- `app/(clinic)/history.tsx` — Rewritten: Cloud|Local pill toggle; Local view with unsynced badges and Sync button; unsyncedCount badge on tab pill
+- `app/(clinic)/sync.tsx` — Patient search by code (ilike), parse stored B64 matrix, upload session + captures + vitals to Supabase, insert `data_request`, call `markSynced()`
+- `app/(patient)/sync.tsx` — List pending `data_requests`, show clinic/date/foot/temps; Accept → status=accepted; Reject → confirmation → status=rejected
+- `app/(patient)/index.tsx` — Notification bell in header with pending request count badge; navigates to sync screen
+- `types/index.ts` — Added `LocalCapture` and `DataRequest` interfaces
+
+### Added — Risk Scoring (FR-508)
+- `lib/classification/riskScoring.ts` — `computeRiskLevel(asymmetry)`: HIGH ≥ 2.2°C, MEDIUM ≥ 1.5°C, LOW otherwise; `computeRiskLevelFromResult(result)`; `getRiskLevelDescription(level)`
+
+### Fixed
+- **GAP-18** `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` — `handleToggleActive()` now calls `Alert.alert("Update Failed", ...)` when Supabase `.update()` returns an error; previously silent
+
+### Removed
+- `@nozbe/watermelondb` + `@nozbe/with-observables` removed from `package.json`
+- `/android` removed from `.gitignore` (bare workflow with custom native modules)
+
+---
+
 ## [0.5.3] — 2026-03-30
 
 ### Fixed — QA Sweep

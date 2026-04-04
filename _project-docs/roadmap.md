@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-03
+**Last updated:** 2026-04-05
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,12 +10,10 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | GAP-18 | Add Alert on Activate/Deactivate failure in admin users + clinics | 15 min | `handleToggleActive` in users.tsx + clinics.tsx — show Alert when Supabase update fails; currently silent |
-| 2 | FR-506 | Image preprocessing — contrast normalization + foot region segmentation | 3–4 hrs | New module `lib/thermal/preprocessing.ts`. `normalizeMatrix()`, `segmentFootRegion()`, `buildApiPayload()`. Matrix is **160×120** (FLIR Lepton 3.5 — not 80×62). No hardware needed — can build now. |
-| 3 | FR-508 | Preliminary risk scoring — Low / Medium / High rule-based thresholding | 2 hrs | New module `lib/classification/riskScoring.ts`. Rules: LOW < 1°C, MEDIUM 1–2.2°C, HIGH ≥ 2.2°C. `risk_level` field already added to type. |
-| 4 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint confirmed. |
-| 5 | GAP-08 | Add abnormal region overlay on thermal map (FR-603) | 3–4 hrs | Depends on FR-507 output. Visual highlight of flagged angiosomes on ThermalMap. |
-| 6 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506) to compute real angiosome temps. Merged into FR-506/507 scope. |
+| 1 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint URL, request format, and response schema are confirmed by AI team. |
+| 2 | GAP-08 | Add abnormal region overlay on thermal map | 3–4 hrs | Depends on FR-507 response shape (flagged angiosome zones). Visual highlight on ThermalMap. |
+| 3 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506 done) to compute real angiosome temps. Still needs FR-507 to validate output. |
+| 4 | BUG-06 | Fix `THUMB_H` ratio in patient dashboard | 5 min | `app/(patient)/index.tsx` line 22: `(62 / 80)` → `(120 / 160)` for FLIR Lepton 3.5. |
 
 ---
 
@@ -52,7 +50,7 @@ Left + Right thermal matrices
 ### Responsibility Boundary
 | Concern | This App (vestigia) | AI Model Repo |
 |---|---|---|
-| Capture thermal matrix (80×62) | ✅ | — |
+| Capture thermal matrix (160×120) | ✅ | — |
 | Store raw captures in Supabase | ✅ | — |
 | Preprocess / normalize matrix | ✅ FR-506 | May also be done API-side |
 | Bilateral asymmetry detection | ❌ — calls API | ✅ Lives here |
@@ -121,6 +119,8 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Idea | Rationale | Effort |
 |---|---|---|
 | Replace hardcoded `leftTci={0.038}` + `rightTci={0.046}` in assessment + session detail | TCI values should come from real computation, not magic numbers | Medium |
+| Add "delete local capture" option in History Local tab | Allow clinic to remove captures that were synced or no longer needed; `deleteCapture()` already implemented | Low |
+| Show sync history per local capture (synced date + linked session ID) | LocalCapture already stores `synced_at` and `supabase_session_id` — worth surfacing in the Local tab card | Low |
 | Add Supabase real-time subscription to session detail screen | Live updates when classification result arrives from cloud | 2 hrs |
 | Add patient registration form in clinic flow | Currently patients must be pre-loaded in DB; clinic staff should be able to register new patients | 3–4 hrs |
 | Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
@@ -135,10 +135,9 @@ If the AI API already returns a `risk_level`, use that directly instead.
 |---|---|---|
 | BLE device scanning (GAP-01) | Hardware not finalized | Device spec confirmed |
 | Wi-Fi WebSocket to scanner (GAP-02) | Hardware not finalized | Device spec confirmed |
-| Real thermal frame streaming (GAP-03) | Hardware not finalized | Device spec confirmed |
+| Real thermal frame streaming (GAP-03) | Hardware uses UVC — BLE/Wi-Fi deferred | N/A — UVC implemented |
 | AI model API integration (GAP-04 / FR-507) | External AI model API not yet deployed — lives in a **separate repo**. This app will call it via HTTP. | AI model API endpoint confirmed + accessible |
-| Angiosome computation from matrix (CODE-09) | Blocked on FR-506/507 — preprocessing defines the payload; API response validates the output | FR-506 done |
-| WatermelonDB offline-first (GAP-06, DB-03, DB-04) | Not required for thesis demo; adds significant complexity | Post-defense or future sprint |
+| Angiosome computation from matrix (CODE-09) | FR-506 done; still needs FR-507 response format to validate output | FR-507 done |
 | Push notifications | Not in core thesis scope | Post-defense |
 
 ---
@@ -185,3 +184,9 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.5.3 | NAV-03 — Patient settings now reachable via header icon | 2026-03-30 |
 | v0.5.3 | PERF-09/10/11 — FlatList renderItem extracted to useCallback in 3 screens | 2026-03-30 |
 | v0.5.3 | Full QA audit — 79 fixed, 9 open, 9 deferred; 0 regressions | 2026-03-30 |
+| v0.6.0 | UVC camera native module (saki4510t/UVCCamera) — PureThermal Mini Pro wired to live-feed | 2026-04-05 |
+| v0.6.0 | FR-506 — Thermal preprocessing pipeline: parseY16Frame, normalizeMatrix, segmentFootRegion, buildApiPayload | 2026-04-05 |
+| v0.6.0 | Offline-first feature: mode-select, offline capture flow, SQLite storage, History Local tab, clinic sync, patient accept/reject | 2026-04-05 |
+| v0.6.0 | FR-508 — Risk scoring: computeRiskLevel, computeRiskLevelFromResult, getRiskLevelDescription (1.5°C / 2.2°C thresholds) | 2026-04-05 |
+| v0.6.0 | GAP-18 — Admin Activate/Deactivate now shows Alert on Supabase error | 2026-04-05 |
+| v0.6.0 | WatermelonDB removed; offline-first implemented with expo-sqlite v16 (resolves GAP-06, DB-03, DB-04) | 2026-04-05 |
