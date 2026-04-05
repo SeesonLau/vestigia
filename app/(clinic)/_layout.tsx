@@ -3,7 +3,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { Colors, Spacing } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Spacing } from "../../constants/theme";
 
 function TabIcon({
   icon,
@@ -13,19 +14,38 @@ function TabIcon({
   label: string;
   focused: boolean;
 }) {
+  const { colors } = useTheme();
   return (
-    <View style={[tabStyles.iconWrap, focused && tabStyles.iconWrapFocused]}>
-      <Ionicons name={icon} size={22} color={focused ? Colors.primary[300] : Colors.text.muted} />
+    <View
+      style={[
+        tabStyles.iconWrap,
+        focused && { backgroundColor: `${colors.accent}1F` },
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={focused ? colors.navActive : colors.navInactive}
+      />
     </View>
   );
 }
 
 export default function ClinicLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: tabStyles.tabBar,
+        tabBarStyle: {
+          backgroundColor: colors.navBg,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          height: 64,
+          paddingBottom: Spacing.sm,
+          paddingTop: Spacing.sm,
+        },
         tabBarShowLabel: false,
       }}
     >
@@ -35,15 +55,6 @@ export default function ClinicLayout() {
           tabBarAccessibilityLabel: "Home",
           tabBarIcon: ({ focused }) => (
             <TabIcon icon="home-outline" label="Home" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="pairing"
-        options={{
-          tabBarAccessibilityLabel: "Device Pairing",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon="bluetooth-outline" label="Device" focused={focused} />
           ),
         }}
       />
@@ -75,31 +86,21 @@ export default function ClinicLayout() {
         }}
       />
       {/* Hidden screens (navigated to programmatically) */}
+      <Tabs.Screen name="pairing"        options={{ href: null as any }} />
       <Tabs.Screen name="patient-select" options={{ href: null as any }} />
-      <Tabs.Screen name="clinical-data" options={{ href: null as any }} />
-      <Tabs.Screen name="assessment" options={{ href: null as any }} />
-      <Tabs.Screen name="session" options={{ href: null as any }} />
-      <Tabs.Screen name="sync" options={{ href: null as any }} />
+      <Tabs.Screen name="clinical-data"  options={{ href: null as any }} />
+      <Tabs.Screen name="assessment"     options={{ href: null as any }} />
+      <Tabs.Screen name="session"        options={{ href: null as any }} />
+      <Tabs.Screen name="sync"           options={{ href: null as any }} />
     </Tabs>
   );
 }
 
 const tabStyles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: Colors.bg.secondary,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border.subtle,
-    height: 64,
-    paddingBottom: Spacing.sm,
-    paddingTop: Spacing.sm,
-  },
   iconWrap: {
     alignItems: "center",
     paddingHorizontal: Spacing.xs,
     paddingVertical: Spacing.xs,
     borderRadius: 10,
-  },
-  iconWrapFocused: {
-    backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
 });

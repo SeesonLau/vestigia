@@ -12,8 +12,10 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { Card } from "../../components/ui/index";
-import { Colors, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Spacing, Typography } from "../../constants/theme";
+import { S } from "../../constants/strings";
+import { getUnsyncedCaptures } from "../../lib/db/offlineCaptures";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useDeviceStore } from "../../store/sessionStore";
@@ -41,6 +43,7 @@ function SettingRow({
   icon,
   danger,
 }: SettingRowProps) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -52,47 +55,51 @@ function SettingRow({
         <Ionicons
           name={icon}
           size={18}
-          color={danger ? "#f87171" : Colors.text.muted}
+          color={danger ? colors.error : colors.textSec}
         />
       </View>
       <View style={styles.settingTextGroup}>
-        <Text style={[styles.settingLabel, danger ? styles.dangerText : undefined]}>
+        <Text style={[styles.settingLabel, { color: danger ? colors.error : colors.text }]}>
           {label}
         </Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        {subtitle && (
+          <Text style={[styles.settingSubtitle, { color: colors.textSec }]}>{subtitle}</Text>
+        )}
       </View>
       {toggle ? (
         <Switch
           value={toggleValue}
           onValueChange={onToggle}
-          trackColor={{ false: Colors.border.default, true: Colors.primary[500] }}
-          thumbColor={toggleValue ? Colors.primary[200] : Colors.text.muted}
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={toggleValue ? colors.textInverse : colors.textSec}
         />
       ) : value ? (
-        <Text style={styles.settingValue}>{value}</Text>
+        <Text style={[styles.settingValue, { color: colors.textSec }]}>{value}</Text>
       ) : onPress ? (
-        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+        <Ionicons name="chevron-forward" size={18} color={colors.textSec} />
       ) : null}
     </TouchableOpacity>
   );
 }
 
 function SectionHeader({ label }: { label: string }) {
-  return <Text style={styles.sectionHeader}>{label}</Text>;
+  const { colors } = useTheme();
+  return <Text style={[styles.sectionHeader, { color: colors.textSec }]}>{label}</Text>;
 }
 
 const soon = (feature: string) =>
-  Alert.alert("Coming Soon", `${feature} is not yet available.`);
+  Alert.alert(S.settings.comingSoon, S.settings.comingSoonBody(feature));
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const logout = useAuthStore((s) => s.logout);
+  const { colors } = useTheme();
+  const { logout, user } = useAuthStore();
   const pairedDevice = useDeviceStore((s) => s.pairedDevice);
   const [haptics, setHaptics] = useState(true);
-  const [offlineMode, setOfflineMode] = useState(false);
   const [autoUpload, setAutoUpload] = useState(true);
   const [autoReconnect, setAutoReconnect] = useState(true);
   const [aiModel, setAiModel] = useState("dpn-v1.2.0");
+  const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
     supabase
@@ -100,18 +107,31 @@ export default function SettingsScreen() {
       .select("key, value")
       .eq("key", "ai_model_version")
       .single()
-      .then(({ data }) => {
-        if (data?.value) setAiModel(String(data.value));
-      });
+      .then(({ data }) => { if (data?.value) setAiModel(String(data.value)); });
+    getUnsyncedCaptures().then((captures) => setPendingCount(captures.length));
   }, []);
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(S.settings.signOutConfirmTitle, S.auth.signOutConfirm, [
+      { text: S.actions.cancel, style: "cancel" },
       {
-        text: "Sign Out",
+        text: S.auth.signOut,
+        style: "destructive",
+        onPress: async () => { await logout(); router.replace("/(auth)/login"); },
+      },
+    ]);
+  };
+
+  const handleDeactivateAccount = () => {
+    Alert.alert(S.settings.deactivateConfirmTitle, S.settings.deactivateConfirmBody, [
+      { text: S.actions.cancel, style: "cancel" },
+      {
+        text: S.actions.deactivate,
         style: "destructive",
         onPress: async () => {
+          if (user?.id) {
+            await supabase.from("profiles").update({ is_active: false }).eq("id", user.id);
+          }
           await logout();
           router.replace("/(auth)/login");
         },
@@ -119,190 +139,82 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "This will permanently remove your account and all associated data. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => soon("Account deletion") },
-      ]
-    );
-  };
-
   const handleClearCache = () => {
-    Alert.alert(
-      "Clear Local Cache",
-      "This will remove all locally stored session data that hasn't been uploaded yet.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Clear", style: "destructive", onPress: () => soon("Clear local cache") },
-      ]
-    );
+    Alert.alert(S.settings.clearCacheConfirmTitle, S.settings.clearCacheConfirmBody, [
+      { text: S.actions.cancel, style: "cancel" },
+      { text: S.actions.clear, style: "destructive", onPress: () => soon("Clear local cache") },
+    ]);
   };
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="Settings" />
+      <Header title={S.settings.title} />
 
       <View style={styles.container}>
         {/* Account */}
-        <SectionHeader label="Account" />
-        <Card style={styles.card}>
-          <SettingRow
-            icon="person-outline"
-            label="Profile"
-            subtitle="Manage your account info"
-            onPress={() => soon("Profile management")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="lock-closed-outline"
-            label="Change Password"
-            onPress={() => router.push("/(auth)/update-password" as any)}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="notifications-outline"
-            label="Notifications"
-            onPress={() => soon("Notification settings")}
-          />
-        </Card>
+        <SectionHeader label={S.settings.sectionAccount} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="person-outline" label={S.settings.profile} subtitle={S.settings.profileSubtitle} onPress={() => soon("Profile management")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="lock-closed-outline" label={S.auth.changePassword} onPress={() => router.push("/(auth)/update-password" as any)} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="notifications-outline" label={S.settings.notifications} onPress={() => soon("Notification settings")} />
+        </View>
 
         {/* Device */}
-        <SectionHeader label="Device" />
-        <Card style={styles.card}>
-          <SettingRow
-            icon="hardware-chip-outline"
-            label="Paired Device"
-            subtitle={pairedDevice?.name ?? "No device paired"}
-            value="Connected"
-            onPress={() => router.push("/(clinic)/pairing")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="wifi-outline"
-            label="Scan for New Device"
-            onPress={() => router.push("/(clinic)/pairing")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="refresh-outline"
-            label="Auto-Reconnect"
-            toggle
-            toggleValue={autoReconnect}
-            onToggle={setAutoReconnect}
-          />
-        </Card>
+        <SectionHeader label={S.settings.sectionDevice} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="hardware-chip-outline" label={S.settings.pairedDevice} subtitle={pairedDevice?.name ?? S.settings.noPairedDevice} value={S.settings.connected} onPress={() => router.push("/(clinic)/pairing")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="laptop-outline" label={S.settings.registerUsbDevice} onPress={() => router.push("/(clinic)/pairing")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="refresh-outline" label={S.settings.autoReconnect} toggle toggleValue={autoReconnect} onToggle={setAutoReconnect} />
+        </View>
 
         {/* Data & Sync */}
-        <SectionHeader label="Data & Sync" />
-        <Card style={styles.card}>
-          <SettingRow
-            icon="cloud-upload-outline"
-            label="Auto-Upload"
-            subtitle="Upload sessions when connected"
-            toggle
-            toggleValue={autoUpload}
-            onToggle={setAutoUpload}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="archive-outline"
-            label="Offline Mode"
-            subtitle="Store sessions locally for later upload"
-            toggle
-            toggleValue={offlineMode}
-            onToggle={setOfflineMode}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="time-outline"
-            label="Pending Uploads"
-            value="0"
-            onPress={() => soon("Pending uploads view")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="trash-outline"
-            label="Clear Local Cache"
-            onPress={handleClearCache}
-          />
-        </Card>
+        <SectionHeader label={S.settings.sectionDataSync} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="cloud-upload-outline" label={S.settings.autoUpload} subtitle={S.settings.autoUploadSubtitle} toggle toggleValue={autoUpload} onToggle={setAutoUpload} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="time-outline" label={S.settings.pendingUploads} value={String(pendingCount)} onPress={() => soon("Pending uploads view")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="trash-outline" label={S.settings.clearCache} onPress={handleClearCache} />
+        </View>
 
-        {/* App */}
-        <SectionHeader label="Application" />
-        <Card style={styles.card}>
-          <SettingRow
-            icon="phone-portrait-outline"
-            label="Haptic Feedback"
-            toggle
-            toggleValue={haptics}
-            onToggle={setHaptics}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="color-palette-outline"
-            label="Theme"
-            value="Dark (Default)"
-            onPress={() => soon("Theme selection")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="language-outline"
-            label="Language"
-            value="English"
-            onPress={() => soon("Language selection")}
-          />
-        </Card>
+        {/* Application */}
+        <SectionHeader label={S.settings.sectionApplication} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="phone-portrait-outline" label={S.settings.hapticFeedback} toggle toggleValue={haptics} onToggle={setHaptics} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="color-palette-outline" label={S.settings.theme} value={S.settings.themeValue} onPress={() => soon("Theme selection")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="language-outline" label={S.settings.language} value={S.settings.languageValue} onPress={() => soon("Language selection")} />
+        </View>
 
         {/* About */}
-        <SectionHeader label="About" />
-        <Card style={styles.card}>
-          <SettingRow icon="information-circle-outline" label="App Version" value="0.3.0" />
-          <View style={styles.rowDivider} />
-          <SettingRow icon="hardware-chip-outline" label="AI Model" value={aiModel} />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="document-text-outline"
-            label="Privacy Policy"
-            onPress={() => soon("Privacy Policy")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="reader-outline"
-            label="Terms of Service"
-            onPress={() => soon("Terms of Service")}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="mail-outline"
-            label="Contact Support"
-            onPress={() => soon("Contact Support")}
-          />
-        </Card>
+        <SectionHeader label={S.settings.sectionAbout} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="information-circle-outline" label={S.settings.appVersion} value={S.app.version} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="hardware-chip-outline" label={S.settings.aiModel} value={aiModel} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="document-text-outline" label={S.settings.privacyPolicy} onPress={() => soon("Privacy Policy")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="reader-outline" label={S.settings.termsOfService} onPress={() => soon("Terms of Service")} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="mail-outline" label={S.settings.contactSupport} onPress={() => soon("Contact Support")} />
+        </View>
 
         {/* Danger zone */}
-        <SectionHeader label="Danger Zone" />
-        <Card style={styles.card}>
-          <SettingRow
-            icon="log-out-outline"
-            label="Sign Out"
-            danger
-            onPress={handleSignOut}
-          />
-          <View style={styles.rowDivider} />
-          <SettingRow
-            icon="close-circle-outline"
-            label="Delete Account"
-            subtitle="Permanently remove your account and data"
-            danger
-            onPress={handleDeleteAccount}
-          />
-        </Card>
+        <SectionHeader label={S.settings.sectionDanger} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow icon="log-out-outline" label={S.settings.signOut} danger onPress={handleSignOut} />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow icon="close-circle-outline" label={S.settings.deactivateAccount} subtitle={S.settings.deactivateAccountSubtitle} danger onPress={handleDeactivateAccount} />
+        </View>
 
-        <Text style={styles.versionFooter}>
-          DPN Thermal · v0.3.0 · Build 300
+        <Text style={[styles.versionFooter, { color: colors.textSec }]}>
+          {S.app.versionFooter}
         </Text>
       </View>
     </ScreenWrapper>
@@ -317,7 +229,6 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     letterSpacing: 1.5,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -325,6 +236,8 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
   },
   card: {
+    borderWidth: 1,
+    borderRadius: 16,
     padding: 0,
     overflow: "hidden",
     marginBottom: Spacing.sm,
@@ -344,36 +257,25 @@ const styles = StyleSheet.create({
   settingLabel: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
   },
-  dangerText: { color: "#f87171" },
   settingSubtitle: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
   settingValue: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
-    marginLeft: Spacing.sm,
-  },
-  chevron: {
-    fontSize: 22,
-    color: Colors.text.muted,
     marginLeft: Spacing.sm,
   },
   rowDivider: {
     height: 1,
-    backgroundColor: Colors.border.subtle,
     marginLeft: Spacing.lg + 32 + Spacing.md,
   },
   versionFooter: {
     textAlign: "center",
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: Spacing.xl,
     marginBottom: Spacing["2xl"],
     letterSpacing: 0.5,

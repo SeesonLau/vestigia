@@ -1,10 +1,11 @@
 // app/(clinic)/live-feed.tsx
-import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useThermalStore } from "../../store/sessionStore";
 import {
   Animated,
   Dimensions,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,60 +22,91 @@ import {
 import Button from "../../components/ui/Button";
 import { StatusIndicator } from "../../components/ui/index";
 import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { getMatrixStats, parseY16Frame } from "../../lib/thermal/preprocessing";
 import {
   connectCamera,
   disconnectCamera,
-  onFrame,
   onCameraConnected,
   onCameraDisconnected,
+  onFrame,
 } from "../../lib/thermal/uvcCamera";
-import { parseY16Frame, getMatrixStats } from "../../lib/thermal/preprocessing";
+import { supabase } from "../../lib/supabase";
+import { useThermalStore } from "../../store/sessionStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const MAP_W = SCREEN_W - Spacing.lg * 2 - 40;
-const MAP_H = Math.round(MAP_W * (120 / 160)); // Lepton 3.5 — 160×120
+const MAP_H = Math.round(MAP_W * (120 / 160));
 
 type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
+
+type LastResult = {
+  classification: "POSITIVE" | "NEGATIVE";
+  confidence_score: number;
+  angiosomes_flagged?: string[];
+  sessionDate: string;
+};
 
 export default function LiveFeedScreen() {
   const router = useRouter();
   const thermalStore = useThermalStore();
+  const { lastSessionId } = useLocalSearchParams<{ lastSessionId?: string }>();
 
-  //Camera state
+  //Camera
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("disconnected");
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  //Frame state
+  //Frame
   const [matrix, setMatrix] = useState<number[][] | null>(null);
   const [minTemp, setMinTemp] = useState(0);
   const [maxTemp, setMaxTemp] = useState(0);
   const [meanTemp, setMeanTemp] = useState(0);
   const [fps, setFps] = useState(0);
 
-  //UI state
+  //UI
   const [showGuide, setShowGuide] = useState(true);
   const [captured, setCaptured] = useState(false);
   const [capturedMatrix, setCapturedMatrix] = useState<number[][] | null>(null);
   const [selectedFoot, setSelectedFoot] = useState<"left" | "right" | "bilateral">("bilateral");
 
-  //FPS tracking
+  //Last result panel
+  const [lastResult, setLastResult] = useState<LastResult | null>(null);
+
   const frameTimestamps = useRef<number[]>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const capturedRef = useRef(false);
 
-  //FPS calculator — rolling average over last 9 frames
+  //Fetch last session result once if navigated back from assessment
+  useEffect(() => {
+    if (!lastSessionId) return;
+    supabase
+      .from("screening_sessions")
+      .select("started_at, classification:classification_results(classification, confidence_score, angiosomes_flagged)")
+      .eq("id", lastSessionId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        const raw = data as any;
+        const cls = Array.isArray(raw.classification) ? raw.classification[0] : raw.classification;
+        if (!cls) return;
+        setLastResult({
+          classification: cls.classification,
+          confidence_score: cls.confidence_score,
+          angiosomes_flagged: cls.angiosomes_flagged,
+          sessionDate: raw.started_at,
+        });
+      });
+  }, [lastSessionId]);
+
   const computeFps = useCallback(() => {
     const now = Date.now();
     frameTimestamps.current.push(now);
     if (frameTimestamps.current.length > 9) frameTimestamps.current.shift();
     const oldest = frameTimestamps.current[0];
     const count = frameTimestamps.current.length;
-    if (count > 1) {
-      setFps(Math.round(((count - 1) / (now - oldest)) * 1000));
-    }
+    if (count > 1) setFps(Math.round(((count - 1) / (now - oldest)) * 1000));
   }, []);
 
-  //Connect on mount
+  //Camera setup
   useEffect(() => {
     let unsubFrame: (() => void) | null = null;
     let unsubConnect: (() => void) | null = null;
@@ -83,18 +115,13 @@ export default function LiveFeedScreen() {
     async function setup() {
       setCameraStatus("connecting");
       setCameraError(null);
-
-      unsubConnect = onCameraConnected(() => {
-        setCameraStatus("connected");
-      });
-
+      unsubConnect = onCameraConnected(() => setCameraStatus("connected"));
       unsubDisconnect = onCameraDisconnected(() => {
         setCameraStatus("disconnected");
         setMatrix(null);
         setFps(0);
         frameTimestamps.current = [];
       });
-
       unsubFrame = onFrame((base64) => {
         if (capturedRef.current) return;
         try {
@@ -105,22 +132,17 @@ export default function LiveFeedScreen() {
           setMaxTemp(stats.max);
           setMeanTemp(stats.mean);
           computeFps();
-        } catch (_) {
-          // Drop malformed frames silently
-        }
+        } catch (_) {}
       });
-
       try {
         await connectCamera();
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "Camera connection failed";
         setCameraStatus("error");
-        setCameraError(msg);
+        setCameraError(e instanceof Error ? e.message : "Camera connection failed");
       }
     }
 
     setup();
-
     return () => {
       unsubFrame?.();
       unsubConnect?.();
@@ -129,7 +151,6 @@ export default function LiveFeedScreen() {
     };
   }, []);
 
-  //Capture
   const handleCapture = () => {
     if (!matrix) return;
     Animated.sequence([
@@ -150,7 +171,6 @@ export default function LiveFeedScreen() {
     thermalStore.discardCapture();
   };
 
-  //Status label
   const statusLabel =
     cameraStatus === "connected" ? "Camera Connected"
     : cameraStatus === "connecting" ? "Connecting..."
@@ -162,7 +182,8 @@ export default function LiveFeedScreen() {
     : cameraStatus === "connecting" ? "connecting"
     : "error";
 
-  //Render
+  const isPositive = lastResult?.classification === "POSITIVE";
+
   return (
     <ScreenWrapper>
       <Header
@@ -176,13 +197,18 @@ export default function LiveFeedScreen() {
         }
       />
 
-      <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Status bar */}
         <View style={styles.statusBar}>
           <StatusIndicator status={statusType} label={statusLabel} />
           <TouchableOpacity
             onPress={() => setShowGuide((v) => !v)}
-            style={[styles.guideToggle, showGuide ? styles.guideToggleActive : undefined]}
+            style={[styles.guideToggle, showGuide && styles.guideToggleActive]}
             accessibilityLabel={showGuide ? "Hide foot position guides" : "Show foot position guides"}
             accessibilityRole="button"
           >
@@ -193,6 +219,7 @@ export default function LiveFeedScreen() {
         {/* No camera state */}
         {cameraStatus !== "connected" && !captured && (
           <View style={styles.noCamera}>
+            <Ionicons name="camera-outline" size={48} color={Colors.text.muted} style={{ marginBottom: Spacing.md }} />
             <Text style={styles.noCameraText}>
               {cameraStatus === "connecting"
                 ? "Waiting for PureThermal camera…\nPlug in via JST-SH → USB-C"
@@ -208,7 +235,7 @@ export default function LiveFeedScreen() {
           <Animated.View
             style={[
               styles.thermalContainer,
-              captured ? styles.capturedFrame : undefined,
+              captured && styles.capturedFrame,
               { transform: [{ scale: pulseAnim }] },
             ]}
           >
@@ -247,20 +274,18 @@ export default function LiveFeedScreen() {
                 <TouchableOpacity
                   key={f}
                   onPress={() => setSelectedFoot(val)}
-                  style={[styles.footBtn, active ? styles.footBtnActive : undefined]}
+                  style={[styles.footBtn, active && styles.footBtnActive]}
                   activeOpacity={0.7}
                   disabled={captured}
                 >
-                  <Text style={[styles.footBtnText, active ? styles.footBtnTextActive : undefined]}>
-                    {f}
-                  </Text>
+                  <Text style={[styles.footBtnText, active && styles.footBtnTextActive]}>{f}</Text>
                 </TouchableOpacity>
               );
             })}
           </View>
         </View>
 
-        {/* Capture controls */}
+        {/* Controls */}
         <View style={styles.controls}>
           {!captured ? (
             <TouchableOpacity
@@ -296,16 +321,58 @@ export default function LiveFeedScreen() {
             Position both feet within the dashed guides, then tap Capture.
           </Text>
         )}
-      </View>
+
+        {/* Last session result panel */}
+        {lastResult && (
+          <View style={[styles.resultPanel, isPositive ? styles.resultPositive : styles.resultNegative]}>
+            <View style={styles.resultHeader}>
+              <View style={styles.resultTitleRow}>
+                <Ionicons
+                  name={isPositive ? "warning-outline" : "checkmark-circle-outline"}
+                  size={16}
+                  color={isPositive ? "#f87171" : Colors.teal[300]}
+                />
+                <Text style={[styles.resultTitle, isPositive ? styles.resultTitlePos : styles.resultTitleNeg]}>
+                  {isPositive ? "DPN Indicators Detected" : "No DPN Indicators"}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setLastResult(null)} accessibilityLabel="Dismiss result">
+                <Ionicons name="close-outline" size={18} color={Colors.text.muted} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.resultMeta}>
+              <Text style={styles.resultMetaText}>
+                {(lastResult.confidence_score * 100).toFixed(1)}% confidence
+              </Text>
+              {lastResult.angiosomes_flagged && lastResult.angiosomes_flagged.length > 0 && (
+                <>
+                  <Text style={styles.resultMetaDot}>·</Text>
+                  <Text style={styles.resultMetaText}>
+                    Flagged: {lastResult.angiosomes_flagged.join(", ")}
+                  </Text>
+                </>
+              )}
+            </View>
+            <Text style={styles.resultDate}>
+              {new Date(lastResult.sessionDate).toLocaleString("en-PH", {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing["2xl"],
   },
   fpsTag: {
     backgroundColor: Colors.bg.glassLight,
@@ -315,18 +382,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border.default,
   },
-  fpsText: {
-    fontSize: 10,
-    fontFamily: Typography.fonts.mono,
-    color: Colors.teal[300],
-    letterSpacing: 0.5,
-  },
-  statusBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
+  fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono, color: Colors.teal[300], letterSpacing: 0.5 },
+  statusBar: { flexDirection: "row", alignItems: "center", gap: Spacing.lg, marginBottom: Spacing.md },
   guideToggle: {
     marginLeft: "auto",
     paddingHorizontal: 10,
@@ -334,30 +391,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border.default,
-    backgroundColor: "transparent",
   },
-  guideToggleActive: {
-    borderColor: Colors.teal[400],
-    backgroundColor: "rgba(20,176,142,0.1)",
-  },
-  guideToggleText: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.label,
-    color: Colors.text.secondary,
-  },
-  noCamera: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: Spacing.xl,
-  },
-  noCameraText: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
-    textAlign: "center",
-    lineHeight: 22,
-  },
+  guideToggleActive: { borderColor: Colors.teal[400], backgroundColor: "rgba(20,176,142,0.1)" },
+  guideToggleText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, color: Colors.text.secondary },
+  noCamera: { alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.xl, paddingVertical: Spacing["3xl"] },
+  noCameraText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: Colors.text.muted, textAlign: "center", lineHeight: 22 },
   thermalContainer: {
     borderRadius: Radius.lg,
     overflow: "hidden",
@@ -365,17 +403,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.border.default,
     marginBottom: Spacing.md,
   },
-  capturedFrame: {
-    borderColor: Colors.teal[400],
-  },
-  thermalRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    backgroundColor: "#000",
-  },
-  mapWrapper: {
-    position: "relative",
-  },
+  capturedFrame: { borderColor: Colors.teal[400] },
+  thermalRow: { flexDirection: "row", alignItems: "stretch", backgroundColor: "#000" },
+  mapWrapper: { position: "relative" },
   capturedOverlay: {
     position: "absolute",
     top: 8,
@@ -385,15 +415,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  capturedLabel: {
-    fontSize: 10,
-    fontFamily: Typography.fonts.heading,
-    color: "#fff",
-    letterSpacing: 1.5,
-  },
-  footSelector: {
-    marginBottom: Spacing.lg,
-  },
+  capturedLabel: { fontSize: 10, fontFamily: Typography.fonts.heading, color: "#fff", letterSpacing: 1.5 },
+  footSelector: { marginBottom: Spacing.lg },
   footLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
@@ -402,35 +425,19 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
   },
-  footBtns: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-  },
+  footBtns: { flexDirection: "row", gap: Spacing.sm },
   footBtn: {
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Colors.border.default,
-    backgroundColor: "transparent",
   },
-  footBtnActive: {
-    borderColor: Colors.primary[400],
-    backgroundColor: "rgba(0,128,200,0.1)",
-  },
-  footBtnText: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
-  },
+  footBtnActive: { borderColor: Colors.primary[400], backgroundColor: "rgba(0,128,200,0.1)" },
+  footBtnText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: Colors.text.muted },
   footBtnTextActive: { color: Colors.primary[300] },
-  controls: {
-    alignItems: "center",
-    marginBottom: Spacing.md,
-  },
-  captureBtn: {
-    alignItems: "center",
-  },
+  controls: { alignItems: "center", marginBottom: Spacing.md },
+  captureBtn: { alignItems: "center" },
   captureBtnOuter: {
     width: 72,
     height: 72,
@@ -440,40 +447,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.xs,
-    shadowColor: Colors.primary[400],
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
     elevation: 8,
   },
-  captureBtnDisabled: {
-    borderColor: Colors.border.default,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  captureBtnInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.primary[500],
-  },
-  captureBtnLabel: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.heading,
-    color: Colors.text.secondary,
-    letterSpacing: 2,
-  },
-  postCaptureRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    width: "100%",
-  },
+  captureBtnDisabled: { borderColor: Colors.border.default, elevation: 0 },
+  captureBtnInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.primary[500] },
+  captureBtnLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading, color: Colors.text.secondary, letterSpacing: 2 },
+  postCaptureRow: { flexDirection: "row", gap: Spacing.md, width: "100%" },
   halfBtn: { flex: 1 },
-  hint: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
-    textAlign: "center",
-    lineHeight: 18,
+  hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted, textAlign: "center", lineHeight: 18, marginBottom: Spacing.md },
+  //Last result panel
+  resultPanel: {
+    marginTop: Spacing.lg,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: Spacing.xs,
   },
+  resultPositive: { backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)" },
+  resultNegative: { backgroundColor: "rgba(20,176,142,0.08)", borderColor: "rgba(20,176,142,0.3)" },
+  resultHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  resultTitleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  resultTitle: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
+  resultTitlePos: { color: "#f87171" },
+  resultTitleNeg: { color: Colors.teal[300] },
+  resultMeta: { flexDirection: "row", alignItems: "center", gap: 4 },
+  resultMetaText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono, color: Colors.text.muted },
+  resultMetaDot: { color: Colors.text.muted },
+  resultDate: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted },
 });
