@@ -5,11 +5,12 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { useInactivityTimeout } from "../hooks/useInactivityTimeout";
 import { supabase } from "../lib/supabase";
-import { Colors } from "../constants/theme";
+import { ThemeProvider, useTheme } from "../constants/ThemeContext";
 
-export default function RootLayout() {
+function AppStack() {
   const router = useRouter();
   const { resetTimer } = useInactivityTimeout();
+  const { colors } = useTheme();
 
   //DeepLinkHandler
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: Colors.bg.primary },
+          contentStyle: { backgroundColor: colors.bg },
           animation: "fade",
         }}
       >
@@ -79,5 +80,13 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
       </Stack>
     </View>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AppStack />
+    </ThemeProvider>
   );
 }

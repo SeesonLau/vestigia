@@ -1,136 +1,253 @@
 // constants/theme.ts
-export const Colors = {
+
+// ── Arctic Mint Theme Tokens ───────────────────────────────────
+export interface ThemeColors {
   // Backgrounds
-  bg: {
-    primary: "#050d1a", // deepest navy
-    secondary: "#0a1628", // dark navy
-    card: "rgba(13, 25, 48, 0.7)",
-    glass: "rgba(15, 30, 60, 0.5)",
-    glassLight: "rgba(30, 60, 100, 0.25)",
-    input: "rgba(10, 22, 44, 0.8)",
-    overlay: "rgba(5, 13, 26, 0.85)",
-  },
-
-  // Borders
-  border: {
-    default: "rgba(56, 100, 160, 0.3)",
-    strong: "rgba(56, 130, 200, 0.5)",
-    focus: "rgba(56, 180, 240, 0.7)",
-    subtle: "rgba(30, 60, 100, 0.2)",
-  },
-
-  // Primary blue-teal palette
-  primary: {
-    50: "#e0f4ff",
-    100: "#b3e4ff",
-    200: "#7dcfff",
-    300: "#40b4f5",
-    400: "#1a9ee0",
-    500: "#0080c8", // main brand blue
-    600: "#0066a8",
-    700: "#004d85",
-    800: "#003562",
-    900: "#001e3d",
-  },
-
-  // Accent teal
-  teal: {
-    300: "#4dd9c0",
-    400: "#2cc4a8",
-    500: "#14b08e", // main teal
-    600: "#0d9478",
-  },
-
-  // Semantic
-  positive: "#ef4444", // red — DPN POSITIVE (danger)
-  negative: "#14b08e", // teal — DPN NEGATIVE (safe)
-  warning: "#f59e0b",
-  info: "#3b82f6",
+  bg: string;        // primary screen background
+  card: string;      // card / modal / bottom sheet
+  cardAlt: string;   // secondary surface, alternating rows
+  surface: string;   // input field, search bar, recessed
+  overlay: string;   // modal scrim
 
   // Text
-  text: {
-    primary: "#e8f0fe",
-    secondary: "#94afd4",
-    muted: "#7088b0", // lightened from #4d6a96 to pass WCAG AA 4.5:1 on #050d1a (~5.4:1)
-    inverse: "#050d1a",
-  },
+  text: string;      // headings, body, all primary readable content
+  textSec: string;   // subtitles, captions, helper text, placeholders
+  textInverse: string; // white/light text used on accent backgrounds
 
-  // Thermal colormap stops (cold → hot)
+  // Accent / Brand
+  accent: string;    // primary CTA, active icons, links, progress bars
+  accentSoft: string; // ghost button fill, chip bg, icon containers
+
+  // Navigation
+  navBg: string;
+  navActive: string;
+  navInactive: string;
+
+  // Badges & Notifications
+  badge: string;     // notification dot / count badge background
+  badgeText: string; // text inside badge
+
+  // Tags & Labels
+  tagBg: string;
+  tagText: string;
+
+  // Borders & Dividers
+  border: string;      // default card borders, list dividers
+  borderFocus: string; // focused input outline
+
+  // Highlights
+  highlight: string; // selected rows, hover states, tooltip bg
+
+  // Semantic
+  error: string;   // destructive / DPN POSITIVE (danger)
+  warning: string; // caution
+  success: string; // = accent (teal = healthy / DPN NEGATIVE)
+  info: string;    // informational blue
+
+  // Shadow
+  shadowColor: string;
+
+  // Thermal colormap (cold → hot, same for both modes)
+  thermal: {
+    cold: string;
+    cool: string;
+    mid: string;
+    warm: string;
+    hot: string;
+    peak: string;
+  };
+}
+
+// ── Light Mode ─────────────────────────────────────────────────
+export const lightColors: ThemeColors = {
+  bg:        "#F0F8FA",
+  card:      "#FFFFFF",
+  cardAlt:   "#E4F3F7",
+  surface:   "#DFF0F4",
+  overlay:   "rgba(21, 37, 48, 0.6)",
+
+  text:       "#152530",
+  textSec:    "#4D7080",
+  textInverse: "#FFFFFF",
+
+  accent:     "#009DAE",
+  accentSoft: "#B3E5EC",
+
+  navBg:      "#FFFFFF",
+  navActive:  "#009DAE",
+  navInactive:"#93BBC6",
+
+  badge:     "#7C4DFF",
+  badgeText: "#FFFFFF",
+
+  tagBg:  "#EDE7F6",
+  tagText:"#5E35B1",
+
+  border:      "#C4DDE4",
+  borderFocus: "#009DAE",
+
+  highlight: "#E8DEFF",
+
+  error:   "#EF4444",
+  warning: "#F59E0B",
+  success: "#009DAE",
+  info:    "#3B82F6",
+
+  shadowColor: "rgba(0, 157, 174, 0.08)",
+
   thermal: {
     cold: "#1a1aff",
     cool: "#00aaff",
-    mid: "#00ff88",
+    mid:  "#00ff88",
     warm: "#ffcc00",
-    hot: "#ff4400",
+    hot:  "#ff4400",
     peak: "#ff0000",
   },
 };
 
+// ── Dark Mode ──────────────────────────────────────────────────
+export const darkColors: ThemeColors = {
+  bg:        "#090F14",
+  card:      "#101C24",
+  cardAlt:   "#14242E",
+  surface:   "#10222C",
+  overlay:   "rgba(9, 15, 20, 0.85)",
+
+  text:       "#DFF0F4",
+  textSec:    "#7AAAB8",
+  textInverse: "#FFFFFF",
+
+  accent:     "#26C6DA",
+  accentSoft: "#0E2F38",
+
+  navBg:      "#0C1820",
+  navActive:  "#26C6DA",
+  navInactive:"#2A5060",
+
+  badge:     "#2E1A5E",
+  badgeText: "#B388FF",
+
+  tagBg:  "#1A1030",
+  tagText:"#CE93D8",
+
+  border:      "#1A3642",
+  borderFocus: "#26C6DA",
+
+  highlight: "#1A1030",
+
+  error:   "#F87171",
+  warning: "#FCD34D",
+  success: "#26C6DA",
+  info:    "#93C5FD",
+
+  shadowColor: "rgba(0, 0, 0, 0.4)",
+
+  thermal: {
+    cold: "#1a1aff",
+    cool: "#00aaff",
+    mid:  "#00ff88",
+    warm: "#ffcc00",
+    hot:  "#ff4400",
+    peak: "#ff0000",
+  },
+};
+
+// ── Typography ─────────────────────────────────────────────────
 export const Typography = {
   fonts: {
-    heading: "SpaceGrotesk_700Bold",
+    heading:    "SpaceGrotesk_700Bold",
     subheading: "SpaceGrotesk_600SemiBold",
-    body: "SpaceGrotesk_400Regular",
-    mono: "SpaceMono_400Regular",
-    label: "SpaceGrotesk_500Medium",
+    body:       "SpaceGrotesk_400Regular",
+    mono:       "SpaceMono_400Regular",
+    label:      "SpaceGrotesk_500Medium",
   },
   sizes: {
-    xs: 10,
-    sm: 12,
+    xs:   10,
+    sm:   12,
     base: 14,
-    md: 16,
-    lg: 18,
-    xl: 22,
+    md:   16,
+    lg:   18,
+    xl:   22,
     "2xl": 26,
     "3xl": 32,
     "4xl": 40,
   },
   lineHeights: {
     tight: 1.2,
-    base: 1.5,
+    base:  1.5,
     loose: 1.8,
   },
 };
 
+// ── Spacing ────────────────────────────────────────────────────
 export const Spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  xs:   4,
+  sm:   8,
+  md:   12,
+  lg:   16,
+  xl:   24,
   "2xl": 32,
   "3xl": 48,
   "4xl": 64,
 };
 
+// ── Radius ─────────────────────────────────────────────────────
 export const Radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
+  sm:   8,
+  md:   12,
+  lg:   16,
+  xl:   24,
   full: 9999,
 };
 
-export const Shadow = {
-  glow: {
-    shadowColor: "#0080c8",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+// ── Legacy Colors ──────────────────────────────────────────────
+// Kept for backward compatibility during migration.
+// Screens/components still importing Colors directly will continue
+// to work until they are migrated to useTheme(). Remove this block
+// in Phase 8 after the full migration is complete.
+export const Colors = {
+  bg: {
+    primary:    darkColors.bg,
+    secondary:  "#0a1628",
+    card:       darkColors.card,
+    glass:      "rgba(15, 30, 60, 0.5)",
+    glassLight: "rgba(30, 60, 100, 0.25)",
+    input:      darkColors.surface,
+    overlay:    darkColors.overlay,
   },
-  card: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
+  border: {
+    default: darkColors.border,
+    strong:  "rgba(56, 130, 200, 0.5)",
+    focus:   darkColors.borderFocus,
+    subtle:  "rgba(30, 60, 100, 0.2)",
   },
-  subtle: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+  primary: {
+    50:  "#e0f4ff",
+    100: "#b3e4ff",
+    200: "#7dcfff",
+    300: "#40b4f5",
+    400: darkColors.accent,
+    500: "#0080c8",
+    600: "#0066a8",
+    700: "#004d85",
+    800: "#003562",
+    900: "#001e3d",
   },
+  teal: {
+    300: darkColors.accent,
+    400: darkColors.accent,
+    500: darkColors.success,
+    600: "#0d9478",
+  },
+  positive: darkColors.error,
+  negative: darkColors.success,
+  warning:  darkColors.warning,
+  info:     darkColors.info,
+  text: {
+    primary:   darkColors.text,
+    secondary: darkColors.textSec,
+    muted:     darkColors.textSec,
+    inverse:   darkColors.textInverse,
+  },
+  thermal: darkColors.thermal,
 };
