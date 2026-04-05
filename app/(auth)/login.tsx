@@ -14,25 +14,25 @@ import {
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
+import { S } from "../../constants/strings";
 import { dbg } from "../../lib/debug";
 import { useAuthStore } from "../../store/authStore";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { login, error: storeError, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
-    {},
-  );
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
   const validate = () => {
     const e: typeof errors = {};
     if (!email.includes("@")) e.email = "Enter a valid email address";
-    // AUTH-08: Do not enforce password rules on login — only check field is not empty
     if (!password.trim()) e.password = "Enter your password";
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -47,18 +47,10 @@ export default function LoginScreen() {
     setLoading(false);
     if (result.success) {
       switch (result.role) {
-        case "clinic":
-          router.replace("/(clinic)");
-          break;
-        case "patient":
-          router.replace("/(patient)");
-          break;
-        case "admin":
-          router.replace("/(admin)");
-          break;
-        // AUTH-09: Unknown role — fall back to login with a store error
-        default:
-          router.replace("/(auth)/login");
+        case "clinic":   router.replace("/(clinic)"); break;
+        case "patient":  router.replace("/(patient)"); break;
+        case "admin":    router.replace("/(admin)"); break;
+        default:         router.replace("/(auth)/login");
       }
     }
   };
@@ -74,21 +66,41 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo / Brand */}
+          {/* Brand */}
           <View style={styles.brandArea}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="pulse-outline" size={32} color={Colors.primary[300]} />
+            <View
+              style={[
+                styles.logoContainer,
+                {
+                  backgroundColor: `${colors.accent}1A`,
+                  borderColor: colors.accent,
+                  shadowColor: colors.accent,
+                },
+              ]}
+            >
+              <Ionicons name="pulse-outline" size={32} color={colors.accent} />
             </View>
-            <Text style={styles.appName}>Vestigia</Text>
-            <Text style={styles.tagline}>
-              Diabetic Peripheral Neuropathy Screening
+            <Text style={[styles.appName, { color: colors.text }]}>
+              {S.app.name}
+            </Text>
+            <Text style={[styles.tagline, { color: colors.textSec }]}>
+              {S.app.tagline}
             </Text>
           </View>
 
           {/* Card */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Welcome back</Text>
-            <Text style={styles.cardSubtitle}>Sign in to continue</Text>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              Welcome back
+            </Text>
+            <Text style={[styles.cardSubtitle, { color: colors.textSec }]}>
+              Sign in to continue
+            </Text>
 
             <View style={styles.form}>
               <Input
@@ -110,7 +122,7 @@ export default function LoginScreen() {
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
                     size={20}
-                    color={Colors.text.muted}
+                    color={colors.textSec}
                   />
                 }
                 onRightIconPress={() => setShowPassword((v) => !v)}
@@ -121,15 +133,19 @@ export default function LoginScreen() {
                 activeOpacity={0.7}
                 onPress={() => router.push("/(auth)/forgot-password")}
               >
-                <Text style={styles.forgotText}>Forgot password?</Text>
+                <Text style={[styles.forgotText, { color: colors.accent }]}>
+                  Forgot password?
+                </Text>
               </TouchableOpacity>
 
               {storeError ? (
-                <Text style={styles.generalError}>{storeError}</Text>
+                <Text style={[styles.generalError, { color: colors.error }]}>
+                  {storeError}
+                </Text>
               ) : null}
 
               <Button
-                label="Sign In"
+                label={S.auth.signIn}
                 onPress={handleLogin}
                 loading={loading}
                 size="lg"
@@ -140,17 +156,22 @@ export default function LoginScreen() {
 
           {/* Register link */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: colors.textSec }]}>
+              Don't have an account?{" "}
+            </Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => router.push("/(auth)/register")}
             >
-              <Text style={styles.registerLink}>Create account</Text>
+              <Text style={[styles.registerLink, { color: colors.accent }]}>
+                Create account
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Version tag */}
-          <Text style={styles.version}>Vestigia v0.5.2</Text>
+          <Text style={[styles.version, { color: colors.textSec }]}>
+            {S.auth.loginFooter} · {S.app.version}
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenWrapper>
@@ -164,8 +185,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing["4xl"],
   },
-
-  // Brand
   brandArea: {
     alignItems: "center",
     marginBottom: Spacing["3xl"],
@@ -174,55 +193,40 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 20,
-    backgroundColor: Colors.bg.glass,
     borderWidth: 1.5,
-    borderColor: Colors.border.strong,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.lg,
-    shadowColor: Colors.primary[400],
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 10,
   },
-  logoGlyph: {
-    fontSize: 36,
-    color: Colors.primary[300],
-  },
   appName: {
     fontSize: Typography.sizes["3xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     letterSpacing: 1,
   },
   tagline: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
     textAlign: "center",
     letterSpacing: 0.3,
   },
-
-  // Card
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
   },
   cardTitle: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.xs,
   },
   cardSubtitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginBottom: Spacing.xl,
   },
   form: {},
@@ -234,20 +238,14 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.primary[300],
   },
-  loginBtn: {
-    marginTop: Spacing.xs,
-  },
+  loginBtn: { marginTop: Spacing.xs },
   generalError: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#ef4444",
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
-
-  // Footer
   footer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -256,19 +254,15 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   registerLink: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.primary[300],
   },
-
   version: {
     textAlign: "center",
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: Spacing["2xl"],
     letterSpacing: 0.5,
   },

@@ -5,30 +5,36 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
+import { S } from "../../constants/strings";
 
 export default function AccountActivatedScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
 
   return (
     <ScreenWrapper>
       <View style={styles.container}>
         <View style={styles.iconWrap}>
-          <Ionicons
-            name="checkmark-circle"
-            size={72}
-            color={Colors.teal[300]}
-          />
+          <Ionicons name="checkmark-circle" size={72} color={colors.success} />
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.title}>Account Activated</Text>
-          <Text style={styles.subtitle}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
+        >
+          <Text style={[styles.title, { color: colors.text }]}>
+            {S.auth.accountActivated}
+          </Text>
+          <Text style={[styles.subtitle, { color: colors.textSec }]}>
             Your email has been verified and your account is ready to use.{"\n\n"}
-            Sign in to get started with Vestigia.
+            Sign in to get started with {S.app.name}.
           </Text>
           <Button
-            label="Sign In"
+            label={S.auth.signIn}
             onPress={() => router.replace("/(auth)/login")}
             size="lg"
           />
@@ -50,23 +56,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
   },
   title: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.sm,
     textAlign: "center",
   },
   subtitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 22,
     marginBottom: Spacing.xl,
     textAlign: "center",
