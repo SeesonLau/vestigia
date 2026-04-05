@@ -9,7 +9,8 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "teal";
 type ButtonSize = "sm" | "md" | "lg";
@@ -41,7 +42,78 @@ export default function Button({
   textStyle,
   fullWidth = true,
 }: ButtonProps) {
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
+
+  const variantStyle = (): ViewStyle => {
+    switch (variant) {
+      case "primary":
+        return {
+          backgroundColor: colors.accent,
+          borderColor: colors.accent,
+          shadowColor: colors.accent,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.45,
+          shadowRadius: 12,
+          elevation: 6,
+        };
+      case "teal":
+        return {
+          backgroundColor: colors.success,
+          borderColor: colors.success,
+          shadowColor: colors.success,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.45,
+          shadowRadius: 12,
+          elevation: 6,
+        };
+      case "secondary":
+        return {
+          backgroundColor: colors.accentSoft,
+          borderColor: colors.border,
+        };
+      case "ghost":
+        return {
+          backgroundColor: "transparent",
+          borderColor: colors.border,
+        };
+      case "danger":
+        return {
+          backgroundColor: `${colors.error}26`, // 15% opacity
+          borderColor: `${colors.error}80`,      // 50% opacity
+        };
+    }
+  };
+
+  const textColor = (): string => {
+    switch (variant) {
+      case "primary":
+      case "teal":
+        return colors.textInverse;
+      case "secondary":
+        return colors.text;
+      case "ghost":
+        return colors.accent;
+      case "danger":
+        return colors.error;
+    }
+  };
+
+  const sizeStyle = (): ViewStyle => {
+    switch (size) {
+      case "sm": return { paddingVertical: Spacing.xs, paddingHorizontal: Spacing.md, minHeight: 36 };
+      case "md": return { paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.lg, minHeight: 48 };
+      case "lg": return { paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, minHeight: 56 };
+    }
+  };
+
+  const textSize = (): number => {
+    switch (size) {
+      case "sm": return Typography.sizes.sm;
+      case "md": return Typography.sizes.base;
+      case "lg": return Typography.sizes.md;
+    }
+  };
 
   return (
     <TouchableOpacity
@@ -50,8 +122,8 @@ export default function Button({
       activeOpacity={0.75}
       style={[
         styles.base,
-        styles[variant],
-        styles[`size_${size}`],
+        variantStyle(),
+        sizeStyle(),
         fullWidth ? styles.fullWidth : undefined,
         isDisabled ? styles.disabled : undefined,
         style,
@@ -60,9 +132,7 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={
-            variant === "ghost" ? Colors.primary[300] : Colors.text.primary
-          }
+          color={variant === "ghost" ? colors.accent : colors.textInverse}
         />
       ) : (
         <View style={styles.content}>
@@ -72,8 +142,7 @@ export default function Button({
           <Text
             style={[
               styles.text,
-              styles[`text_${variant}`],
-              styles[`textSize_${size}`],
+              { color: textColor(), fontSize: textSize() },
               textStyle,
             ]}
           >
@@ -95,80 +164,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
   },
-  fullWidth: {
-    width: "100%",
-  },
-
-  // Variants
-  primary: {
-    backgroundColor: Colors.primary[500],
-    borderColor: Colors.primary[400],
-    shadowColor: Colors.primary[500],
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  secondary: {
-    backgroundColor: Colors.bg.glassLight,
-    borderColor: Colors.border.strong,
-  },
-  ghost: {
-    backgroundColor: "transparent",
-    borderColor: Colors.border.default,
-  },
-  danger: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.5)",
-  },
-  teal: {
-    backgroundColor: Colors.teal[500],
-    borderColor: Colors.teal[400],
-    shadowColor: Colors.teal[500],
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-
-  // Sizes
-  size_sm: {
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    minHeight: 36,
-  },
-  size_md: {
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: Spacing.lg,
-    minHeight: 48,
-  },
-  size_lg: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    minHeight: 56,
-  },
-
+  fullWidth: { width: "100%" },
   disabled: { opacity: 0.4 },
-
   content: {
     flexDirection: "row",
     alignItems: "center",
   },
   iconLeft: { marginRight: Spacing.sm },
   iconRight: { marginLeft: Spacing.sm },
-
-  // Text
   text: {
     fontFamily: Typography.fonts.subheading,
     letterSpacing: 0.5,
   },
-  text_primary: { color: Colors.text.primary },
-  text_secondary: { color: Colors.text.primary },
-  text_ghost: { color: Colors.primary[300] },
-  text_danger: { color: "#ef4444" },
-  text_teal: { color: Colors.text.primary },
-
-  textSize_sm: { fontSize: Typography.sizes.sm },
-  textSize_md: { fontSize: Typography.sizes.base },
-  textSize_lg: { fontSize: Typography.sizes.md },
 });

@@ -1,10 +1,12 @@
 // components/layout/LoadingScreen.tsx
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
-import { Colors, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Typography } from "../../constants/theme";
 import ScreenWrapper from "./ScreenWrapper";
 
 export default function LoadingScreen() {
+  const { colors } = useTheme();
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -27,8 +29,18 @@ export default function LoadingScreen() {
   return (
     <ScreenWrapper>
       <View style={styles.container}>
-        <Animated.View style={[styles.logoContainer, { opacity: pulse }]}>
-          <Text style={styles.logoGlyph}>◈</Text>
+        <Animated.View
+          style={[
+            styles.logoContainer,
+            {
+              backgroundColor: `${colors.accent}1A`,
+              borderColor: colors.accent,
+              shadowColor: colors.accent,
+              opacity: pulse,
+            },
+          ]}
+        >
+          <Text style={[styles.logoGlyph, { color: colors.accent }]}>◈</Text>
         </Animated.View>
       </View>
     </ScreenWrapper>
@@ -45,12 +57,9 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 20,
-    backgroundColor: Colors.bg.glass,
     borderWidth: 1.5,
-    borderColor: Colors.border.strong,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: Colors.primary[400],
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
@@ -58,7 +67,6 @@ const styles = StyleSheet.create({
   },
   logoGlyph: {
     fontSize: 36,
-    color: Colors.primary[300],
     fontFamily: Typography.fonts.heading,
   },
 });

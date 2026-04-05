@@ -1,7 +1,8 @@
 // components/ui/index.tsx
 import React from "react";
 import { StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 
 // ── Card ──────────────────────────────────────────────────────
 interface CardProps {
@@ -12,12 +13,20 @@ interface CardProps {
 }
 
 export function Card({ children, style, glow, glowColor }: CardProps) {
+  const { colors } = useTheme();
   return (
     <View
       style={[
-        styles.card,
+        {
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: Radius.lg,
+          padding: Spacing.lg,
+          overflow: "hidden",
+        },
         glow && {
-          shadowColor: glowColor ?? Colors.primary[400],
+          shadowColor: glowColor ?? colors.accent,
           shadowOffset: { width: 0, height: 0 },
           shadowOpacity: 0.35,
           shadowRadius: 16,
@@ -49,22 +58,59 @@ export function Badge({
   style,
   textStyle,
 }: BadgeProps) {
-  const variantStyle = badgeVariants[variant];
+  const { colors } = useTheme();
+
+  const variantColors: Record<
+    BadgeVariant,
+    { bg: string; dot: string; text: string }
+  > = {
+    positive: {
+      bg:   `${colors.error}26`,
+      dot:  colors.error,
+      text: colors.error,
+    },
+    negative: {
+      bg:   `${colors.success}26`,
+      dot:  colors.success,
+      text: colors.success,
+    },
+    warning: {
+      bg:   `${colors.warning}26`,
+      dot:  colors.warning,
+      text: colors.warning,
+    },
+    info: {
+      bg:   `${colors.info}26`,
+      dot:  colors.info,
+      text: colors.info,
+    },
+    muted: {
+      bg:   `${colors.textSec}26`,
+      dot:  colors.textSec,
+      text: colors.textSec,
+    },
+  };
+
+  const v = variantColors[variant];
+
   return (
     <View
       style={[
         badgeStyles.base,
         badgeStyles[`size_${size}`],
-        variantStyle.container,
+        {
+          backgroundColor: v.bg,
+          borderColor: `${v.dot}66`,
+        },
         style,
       ]}
     >
-      <View style={[badgeStyles.dot, variantStyle.dot]} />
+      <View style={[badgeStyles.dot, { backgroundColor: v.dot }]} />
       <Text
         style={[
           badgeStyles.text,
           badgeStyles[`textSize_${size}`],
-          variantStyle.text,
+          { color: v.text },
           textStyle,
         ]}
       >
@@ -88,19 +134,21 @@ interface StatusIndicatorProps {
   style?: ViewStyle;
 }
 
-const statusConfig: Record<StatusType, { color: string; label: string }> = {
-  connected: { color: Colors.teal[400], label: "Connected" },
-  disconnected: { color: Colors.text.muted, label: "Disconnected" },
-  connecting: { color: Colors.warning, label: "Connecting..." },
-  scanning: { color: Colors.info, label: "Scanning..." },
-  error: { color: Colors.positive, label: "Error" },
-};
-
 export function StatusIndicator({
   status,
   label,
   style,
 }: StatusIndicatorProps) {
+  const { colors } = useTheme();
+
+  const statusConfig: Record<StatusType, { color: string; label: string }> = {
+    connected:    { color: colors.success,  label: "Connected" },
+    disconnected: { color: colors.textSec,  label: "Disconnected" },
+    connecting:   { color: colors.warning,  label: "Connecting..." },
+    scanning:     { color: colors.info,     label: "Scanning..." },
+    error:        { color: colors.error,    label: "Error" },
+  };
+
   const config = statusConfig[status];
   return (
     <View style={[statusStyles.container, style]}>
@@ -119,10 +167,19 @@ interface DisclaimerProps {
 }
 
 export function Disclaimer({ text, style }: DisclaimerProps) {
+  const { colors } = useTheme();
   return (
-    <View style={[disclaimerStyles.container, style]}>
-      <Text style={disclaimerStyles.icon}>⚕</Text>
-      <Text style={disclaimerStyles.text}>{text}</Text>
+    <View
+      style={[
+        disclaimerStyles.container,
+        { backgroundColor: `${colors.accent}14`, borderColor: colors.border },
+        style,
+      ]}
+    >
+      <Text style={[disclaimerStyles.icon, { color: colors.textSec }]}>⚕</Text>
+      <Text style={[disclaimerStyles.text, { color: colors.textSec }]}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -134,73 +191,23 @@ interface DividerProps {
 }
 
 export function Divider({ label, style }: DividerProps) {
+  const { colors } = useTheme();
   return (
     <View style={[dividerStyles.container, style]}>
-      <View style={dividerStyles.line} />
-      {label && <Text style={dividerStyles.label}>{label}</Text>}
-      {label && <View style={dividerStyles.line} />}
+      <View style={[dividerStyles.line, { backgroundColor: colors.border }]} />
+      {label && (
+        <Text style={[dividerStyles.label, { color: colors.textSec }]}>
+          {label}
+        </Text>
+      )}
+      {label && (
+        <View style={[dividerStyles.line, { backgroundColor: colors.border }]} />
+      )}
     </View>
   );
 }
 
 // ── Styles ─────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.bg.card,
-    borderWidth: 1,
-    borderColor: Colors.border.default,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    overflow: "hidden",
-  },
-});
-
-const badgeVariants: Record<
-  BadgeVariant,
-  { container: ViewStyle; dot: ViewStyle; text: TextStyle }
-> = {
-  positive: {
-    container: {
-      backgroundColor: "rgba(239,68,68,0.15)",
-      borderColor: "rgba(239,68,68,0.4)",
-    },
-    dot: { backgroundColor: "#ef4444" },
-    text: { color: "#fca5a5" },
-  },
-  negative: {
-    container: {
-      backgroundColor: "rgba(20,176,142,0.15)",
-      borderColor: "rgba(20,176,142,0.4)",
-    },
-    dot: { backgroundColor: Colors.teal[400] },
-    text: { color: Colors.teal[300] },
-  },
-  warning: {
-    container: {
-      backgroundColor: "rgba(245,158,11,0.15)",
-      borderColor: "rgba(245,158,11,0.4)",
-    },
-    dot: { backgroundColor: Colors.warning },
-    text: { color: "#fcd34d" },
-  },
-  info: {
-    container: {
-      backgroundColor: "rgba(59,130,246,0.15)",
-      borderColor: "rgba(59,130,246,0.4)",
-    },
-    dot: { backgroundColor: Colors.info },
-    text: { color: "#93c5fd" },
-  },
-  muted: {
-    container: {
-      backgroundColor: "rgba(77,106,150,0.15)",
-      borderColor: "rgba(77,106,150,0.3)",
-    },
-    dot: { backgroundColor: Colors.text.muted },
-    text: { color: Colors.text.muted },
-  },
-};
-
 const badgeStyles = StyleSheet.create({
   base: {
     flexDirection: "row",
@@ -209,10 +216,10 @@ const badgeStyles = StyleSheet.create({
     borderRadius: Radius.full,
     alignSelf: "flex-start",
   },
-  size_sm: { paddingHorizontal: 8, paddingVertical: 3 },
+  size_sm: { paddingHorizontal: 8,  paddingVertical: 3 },
   size_md: { paddingHorizontal: 12, paddingVertical: 5 },
   size_lg: { paddingHorizontal: 16, paddingVertical: 7 },
-  dot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
+  dot:  { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
   text: { fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
   textSize_sm: { fontSize: Typography.sizes.xs },
   textSize_md: { fontSize: Typography.sizes.sm },
@@ -221,12 +228,7 @@ const badgeStyles = StyleSheet.create({
 
 const statusStyles = StyleSheet.create({
   container: { flexDirection: "row", alignItems: "center" },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
+  dot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   label: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
@@ -237,24 +239,16 @@ const statusStyles = StyleSheet.create({
 const disclaimerStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    backgroundColor: "rgba(30, 60, 100, 0.2)",
     borderWidth: 1,
-    borderColor: Colors.border.subtle,
     borderRadius: Radius.md,
     padding: Spacing.md,
     alignItems: "flex-start",
   },
-  icon: {
-    fontSize: 16,
-    marginRight: Spacing.sm,
-    color: Colors.text.muted,
-    lineHeight: 20,
-  },
+  icon: { fontSize: 16, marginRight: Spacing.sm, lineHeight: 20 },
   text: {
     flex: 1,
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 18,
   },
 });
@@ -265,15 +259,10 @@ const dividerStyles = StyleSheet.create({
     alignItems: "center",
     marginVertical: Spacing.lg,
   },
-  line: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.border.subtle,
-  },
+  line: { flex: 1, height: 1 },
   label: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     marginHorizontal: Spacing.md,
     letterSpacing: 1,
     textTransform: "uppercase",

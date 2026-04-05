@@ -1,13 +1,14 @@
 // components/layout/Header.tsx
 import React from "react";
 import {
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
-    ViewStyle,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  ViewStyle,
 } from "react-native";
-import { Colors, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Spacing, Typography } from "../../constants/theme";
 
 interface HeaderProps {
   title: string;
@@ -28,6 +29,8 @@ export default function Header({
   onRightPress,
   style,
 }: HeaderProps) {
+  const { colors } = useTheme();
+
   return (
     <View style={[styles.container, style]}>
       <View style={styles.left}>
@@ -43,8 +46,12 @@ export default function Header({
       </View>
 
       <View style={styles.center}>
-        <Text style={styles.title}>{title}</Text>
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.subtitle, { color: colors.textSec }]}>
+            {subtitle}
+          </Text>
+        )}
       </View>
 
       <View style={styles.right}>
@@ -59,7 +66,7 @@ export default function Header({
         )}
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
     </View>
   );
 }
@@ -87,13 +94,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.sizes.lg,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     letterSpacing: 0.5,
   },
   subtitle: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
     letterSpacing: 0.3,
   },
@@ -106,6 +111,5 @@ const styles = StyleSheet.create({
     left: Spacing.lg,
     right: Spacing.lg,
     height: 1,
-    backgroundColor: Colors.border.subtle,
   },
 });
