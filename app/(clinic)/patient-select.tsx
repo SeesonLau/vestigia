@@ -12,10 +12,11 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useSessionStore } from "../../store/sessionStore";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
 import { Patient } from "../../types";
 
 function ageFromDob(dob?: string): string {
@@ -28,15 +29,16 @@ function ageFromDob(dob?: string): string {
 
 function diabetesLabel(type?: string): string {
   switch (type) {
-    case "type1": return "Type 1";
-    case "type2": return "Type 2";
+    case "type1":       return "Type 1";
+    case "type2":       return "Type 2";
     case "gestational": return "Gestational";
-    default: return "Unknown";
+    default:            return "Unknown";
   }
 }
 
 export default function PatientSelectScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const setSelectedPatient = useSessionStore((s) => s.setSelectedPatient);
 
@@ -57,15 +59,10 @@ export default function PatientSelectScreen() {
       .select("*")
       .eq("clinic_id", user.clinic_id)
       .order("patient_code");
-
     if (q) query.ilike("patient_code", `%${q}%`);
-
     query.then(({ data, error: err }) => {
-      if (err) {
-        setError("Could not load patients. Check your connection.");
-      } else {
-        setPatients(data ?? []);
-      }
+      if (err) setError("Could not load patients. Check your connection.");
+      else setPatients(data ?? []);
       setLoading(false);
     });
   }, [user?.clinic_id, search]);
@@ -81,68 +78,60 @@ export default function PatientSelectScreen() {
 
       <View style={styles.container}>
         {/* Search */}
-        <View style={styles.searchWrap}>
-          <Ionicons name="search-outline" size={16} color={Colors.text.muted} style={styles.searchIcon} />
+        <View style={[styles.searchWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={16} color={colors.textSec} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search by patient code or type..."
-            placeholderTextColor={Colors.text.muted}
+            placeholderTextColor={colors.textSec}
             value={search}
             onChangeText={setSearch}
             autoCapitalize="none"
           />
         </View>
 
-        {/* States */}
         {loading && (
           <View style={styles.center}>
-            <ActivityIndicator color={Colors.primary[300]} />
-            <Text style={styles.centerText}>Loading patients...</Text>
+            <ActivityIndicator color={colors.accent} />
+            <Text style={[styles.centerText, { color: colors.textSec }]}>Loading patients...</Text>
           </View>
         )}
 
         {!loading && error && (
           <View style={styles.center}>
-            <Ionicons name="alert-circle-outline" size={32} color="#f87171" />
-            <Text style={styles.centerText}>{error}</Text>
+            <Ionicons name="alert-circle-outline" size={32} color={colors.error} />
+            <Text style={[styles.centerText, { color: colors.textSec }]}>{error}</Text>
           </View>
         )}
 
         {!loading && !error && patients.length === 0 && (
           <View style={styles.center}>
-            <Ionicons name="people-outline" size={40} color={Colors.text.muted} />
-            <Text style={styles.emptyTitle}>No patients found</Text>
-            <Text style={styles.emptySubtitle}>
+            <Ionicons name="people-outline" size={40} color={colors.textSec} />
+            <Text style={[styles.emptyTitle, { color: colors.textSec }]}>No patients found</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSec }]}>
               {search ? "Try a different search term." : "No patients are registered for your clinic yet."}
             </Text>
           </View>
         )}
 
-        {/* Patient list */}
         {!loading && !error && patients.map((patient) => (
           <TouchableOpacity
             key={patient.id}
-            style={styles.card}
+            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
             activeOpacity={0.75}
             onPress={() => handleSelect(patient)}
           >
-            <View style={styles.avatar}>
-              <Ionicons
-                name={patient.sex === "female" ? "person-outline" : "person-outline"}
-                size={20}
-                color={Colors.primary[300]}
-              />
+            <View style={[styles.avatar, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+              <Ionicons name="person-outline" size={20} color={colors.accent} />
             </View>
             <View style={styles.info}>
-              <Text style={styles.code}>{patient.patient_code}</Text>
-              <Text style={styles.meta}>
+              <Text style={[styles.code, { color: colors.text }]}>{patient.patient_code}</Text>
+              <Text style={[styles.meta, { color: colors.textSec }]}>
                 {ageFromDob(patient.date_of_birth)} · {diabetesLabel(patient.diabetes_type)}
-                {patient.diabetes_duration_years
-                  ? ` · ${patient.diabetes_duration_years}y duration`
-                  : ""}
+                {patient.diabetes_duration_years ? ` · ${patient.diabetes_duration_years}y duration` : ""}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textSec} />
           </TouchableOpacity>
         ))}
       </View>
@@ -159,9 +148,7 @@ const styles = StyleSheet.create({
   searchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     marginBottom: Spacing.lg,
@@ -172,7 +159,6 @@ const styles = StyleSheet.create({
     height: 44,
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
   },
   center: {
     alignItems: "center",
@@ -182,19 +168,16 @@ const styles = StyleSheet.create({
   centerText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.sm,
   },
   emptyTitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.secondary,
     marginTop: Spacing.sm,
   },
   emptySubtitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
     lineHeight: 20,
     marginTop: 4,
@@ -202,9 +185,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -213,9 +194,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.bg.glassLight,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
@@ -224,12 +203,10 @@ const styles = StyleSheet.create({
   code: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.primary,
   },
   meta: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
 });

@@ -95,6 +95,12 @@ export default function AssessmentScreen() {
       if (sessErr) throw new Error("Failed to update session status.");
 
       setSaved(true);
+      clearSession();
+      discardCapture();
+      router.replace({
+        pathname: "/(clinic)/live-feed",
+        params: { lastSessionId: activeSession.id },
+      } as any);
     } catch (err: unknown) {
       setSaveError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
