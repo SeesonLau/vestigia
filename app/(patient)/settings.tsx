@@ -5,7 +5,8 @@ import React from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { useAuthStore } from "../../store/authStore";
 
 type SettingsItem = {
@@ -17,6 +18,7 @@ type SettingsItem = {
 
 export default function PatientSettingsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { logout } = useAuthStore();
 
   const handleLogout = async () => {
@@ -52,31 +54,25 @@ export default function PatientSettingsScreen() {
     <ScreenWrapper>
       <Header title="Settings" />
       <View style={styles.container}>
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {items.map((item, i) => (
             <TouchableOpacity
               key={item.label}
-              style={[styles.row, i < items.length - 1 && styles.rowBorder]}
+              style={[styles.row, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
               onPress={item.onPress}
               activeOpacity={0.7}
             >
               <Ionicons
                 name={item.icon}
                 size={20}
-                color={item.destructive ? "#ef4444" : Colors.primary[300]}
+                color={item.destructive ? colors.error : colors.accent}
                 style={styles.rowIcon}
               />
-              <Text
-                style={[styles.rowLabel, item.destructive && styles.destructiveLabel]}
-              >
+              <Text style={[styles.rowLabel, { color: item.destructive ? colors.error : colors.text }]}>
                 {item.label}
               </Text>
               {!item.destructive && (
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={Colors.text.muted}
-                />
+                <Ionicons name="chevron-forward" size={16} color={colors.textSec} />
               )}
             </TouchableOpacity>
           ))}
@@ -92,9 +88,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     overflow: "hidden",
   },
@@ -104,10 +98,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
   },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border.default,
-  },
   rowIcon: {
     marginRight: Spacing.md,
   },
@@ -115,9 +105,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
-  },
-  destructiveLabel: {
-    color: "#ef4444",
   },
 });

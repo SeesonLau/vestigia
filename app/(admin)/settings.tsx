@@ -13,7 +13,9 @@ import {
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Card } from "../../components/ui/index";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
+import { S } from "../../constants/strings";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 
@@ -40,6 +42,7 @@ function SettingRow({
   icon,
   danger,
 }: SettingRowProps) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -51,26 +54,26 @@ function SettingRow({
         <Ionicons
           name={icon}
           size={18}
-          color={danger ? "#f87171" : Colors.text.muted}
+          color={danger ? colors.error : colors.textSec}
         />
       </View>
       <View style={styles.rowText}>
-        <Text style={[styles.rowLabel, danger ? styles.danger : null]}>
+        <Text style={[styles.rowLabel, { color: danger ? colors.error : colors.text }]}>
           {label}
         </Text>
-        {subtitle ? <Text style={styles.rowSub}>{subtitle}</Text> : null}
+        {subtitle ? <Text style={[styles.rowSub, { color: colors.textSec }]}>{subtitle}</Text> : null}
       </View>
       {toggle ? (
         <Switch
           value={toggleValue}
           onValueChange={onToggle}
-          trackColor={{ false: Colors.border.default, true: Colors.primary[500] }}
-          thumbColor={toggleValue ? Colors.primary[200] : Colors.text.muted}
+          trackColor={{ false: colors.border, true: colors.accent }}
+          thumbColor={toggleValue ? colors.textInverse : colors.textSec}
         />
       ) : value ? (
-        <Text style={styles.rowValue}>{value}</Text>
+        <Text style={[styles.rowValue, { color: colors.textSec }]}>{value}</Text>
       ) : onPress ? (
-        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+        <Ionicons name="chevron-forward" size={18} color={colors.textSec} />
       ) : null}
     </TouchableOpacity>
   );
@@ -81,6 +84,7 @@ const soon = (feature: string) =>
 
 export default function AdminSettingsScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { user, logout } = useAuthStore();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
@@ -99,7 +103,6 @@ export default function AdminSettingsScreen() {
           return;
         }
         const loadedKeys = data?.map((r) => r.key) ?? [];
-        // Seed missing keys on first admin visit
         const toSeed: { key: string; value: unknown; updated_at: string }[] = [];
         if (!loadedKeys.includes("ai_model_version"))
           toSeed.push({ key: "ai_model_version", value: "dpn-v1.2.0", updated_at: new Date().toISOString() });
@@ -155,27 +158,32 @@ export default function AdminSettingsScreen() {
     <ScreenWrapper scrollable>
       <Header
         title="Admin Settings"
-        rightIcon={<Text style={styles.adminBadge}>ADMIN</Text>}
+        rightIcon={
+          <Text style={[styles.adminBadge, { color: colors.warning, borderColor: `${colors.warning}66`, backgroundColor: `${colors.warning}1A` }]}>
+            ADMIN
+          </Text>
+        }
       />
       <View style={styles.container}>
         {/* Profile card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
+        <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.avatar, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}66` }]}>
+            <Text style={[styles.avatarText, { color: colors.warning }]}>
               {user?.full_name?.charAt(0) ?? "A"}
             </Text>
           </View>
           <View>
-            <Text style={styles.profileName}>{user?.full_name ?? "—"}</Text>
-            <Text style={styles.profileEmail}>{user?.email ?? "—"}</Text>
-            <Text style={styles.profileRole}>System Administrator</Text>
+            <Text style={[styles.profileName, { color: colors.text }]}>{user?.full_name ?? "—"}</Text>
+            <Text style={[styles.profileEmail, { color: colors.textSec }]}>{user?.email ?? "—"}</Text>
+            <Text style={[styles.profileRole, { color: colors.warning }]}>System Administrator</Text>
           </View>
         </View>
 
         {configError && (
-          <Text style={styles.configError}>{configError}</Text>
+          <Text style={[styles.configError, { color: colors.error }]}>{configError}</Text>
         )}
-        <Text style={styles.sectionHeader}>System</Text>
+
+        <Text style={[styles.sectionHeader, { color: colors.textSec }]}>System</Text>
         <Card style={styles.card}>
           <SettingRow
             icon="construct-outline"
@@ -185,7 +193,7 @@ export default function AdminSettingsScreen() {
             toggleValue={maintenanceMode}
             onToggle={handleMaintenanceToggle}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="clipboard-outline"
             label="Audit Log"
@@ -194,14 +202,14 @@ export default function AdminSettingsScreen() {
             toggleValue={auditLog}
             onToggle={handleAuditLogToggle}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="hardware-chip-outline"
             label="AI Model Version"
             value={aiModel}
             onPress={() => soon("AI model configuration")}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="thermometer-outline"
             label="Asymmetry Threshold"
@@ -210,14 +218,14 @@ export default function AdminSettingsScreen() {
           />
         </Card>
 
-        <Text style={styles.sectionHeader}>Account</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Account</Text>
         <Card style={styles.card}>
           <SettingRow
             icon="lock-closed-outline"
-            label="Change Password"
+            label={S.auth.changePassword}
             onPress={() => router.push("/(auth)/update-password" as any)}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="notifications-outline"
             label="Notifications"
@@ -225,12 +233,12 @@ export default function AdminSettingsScreen() {
           />
         </Card>
 
-        <Text style={styles.sectionHeader}>About</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSec }]}>About</Text>
         <Card style={styles.card}>
-          <SettingRow icon="information-circle-outline" label="App Version" value="0.3.0" />
-          <View style={styles.divider} />
+          <SettingRow icon="information-circle-outline" label="App Version" value={S.app.version} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow icon="server-outline" label="Database" value="Supabase" />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="document-text-outline"
             label="Privacy Policy"
@@ -238,7 +246,7 @@ export default function AdminSettingsScreen() {
           />
         </Card>
 
-        <Text style={styles.sectionHeader}>Danger Zone</Text>
+        <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Danger Zone</Text>
         <Card style={styles.card}>
           <SettingRow
             icon="log-out-outline"
@@ -248,7 +256,9 @@ export default function AdminSettingsScreen() {
           />
         </Card>
 
-        <Text style={styles.version}>DPN Thermal Admin · v0.3.0</Text>
+        <Text style={[styles.version, { color: colors.textSec }]}>
+          {S.app.name} Admin · {S.app.version}
+        </Text>
       </View>
     </ScreenWrapper>
   );
@@ -258,20 +268,16 @@ const styles = StyleSheet.create({
   adminBadge: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
-    color: Colors.warning,
     letterSpacing: 1.5,
     borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.4)",
     borderRadius: 99,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: "rgba(245,158,11,0.1)",
   },
   container: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   configError: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#f87171",
     textAlign: "center",
     marginBottom: Spacing.md,
   },
@@ -279,9 +285,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -290,39 +294,32 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: "rgba(245,158,11,0.15)",
     borderWidth: 1.5,
-    borderColor: "rgba(245,158,11,0.4)",
     alignItems: "center",
     justifyContent: "center",
   },
   avatarText: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
-    color: Colors.warning,
   },
   profileName: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   profileEmail: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
   profileRole: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.warning,
     letterSpacing: 0.5,
     marginTop: 2,
   },
   sectionHeader: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     letterSpacing: 1.5,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -341,31 +338,24 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
   },
   rowSub: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
-  danger: { color: "#f87171" },
   rowValue: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
   },
-  chevron: { fontSize: 22, color: Colors.text.muted },
   divider: {
     height: 1,
-    backgroundColor: Colors.border.subtle,
     marginLeft: Spacing.lg + 32 + Spacing.md,
   },
   version: {
     textAlign: "center",
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: Spacing.xl,
     marginBottom: Spacing["2xl"],
     letterSpacing: 0.5,

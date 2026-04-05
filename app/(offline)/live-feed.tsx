@@ -19,7 +19,8 @@ import {
   ThermalScale,
 } from "../../components/thermal/index";
 import { StatusIndicator } from "../../components/ui/index";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getMatrixStats, parseY16Frame } from "../../lib/thermal/preprocessing";
 import {
   connectCamera,
@@ -38,6 +39,7 @@ type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export default function OfflineLiveFeedScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const thermalStore = useThermalStore();
 
   //Camera
@@ -136,7 +138,6 @@ export default function OfflineLiveFeedScreen() {
   };
 
   const handleUseFrame = () => {
-    // Pass captured data to save screen via thermalStore
     thermalStore.setLiveFrame(capturedMatrix!, minTemp, maxTemp, meanTemp);
     router.push({
       pathname: "/(offline)/save",
@@ -167,12 +168,12 @@ export default function OfflineLiveFeedScreen() {
         title="Offline Capture"
         leftIcon={
           <TouchableOpacity onPress={() => router.replace("/mode-select" as any)}>
-            <Ionicons name="arrow-back-outline" size={22} color={Colors.text.primary} />
+            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }
         rightIcon={
-          <View style={styles.fpsTag}>
-            <Text style={styles.fpsText}>
+          <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.fpsText, { color: colors.success }]}>
               {cameraStatus === "connected" ? `${fps} fps` : "--"}
             </Text>
           </View>
@@ -184,19 +185,23 @@ export default function OfflineLiveFeedScreen() {
           <StatusIndicator status={statusType} label={statusLabel} />
           <TouchableOpacity
             onPress={() => setShowGuide((v) => !v)}
-            style={[styles.guideToggle, showGuide && styles.guideToggleActive]}
+            style={[
+              styles.guideToggle,
+              { borderColor: colors.border },
+              showGuide && { borderColor: colors.success, backgroundColor: `${colors.success}1A` },
+            ]}
             accessibilityLabel={showGuide ? "Hide guides" : "Show guides"}
             accessibilityRole="button"
           >
-            <Text style={styles.guideToggleText}>Guides</Text>
+            <Text style={[styles.guideToggleText, { color: colors.textSec }]}>Guides</Text>
           </TouchableOpacity>
         </View>
 
         {/* No camera state */}
         {cameraStatus !== "connected" && !captured && (
           <View style={styles.noCamera}>
-            <Ionicons name="camera-outline" size={48} color={Colors.text.muted} style={{ marginBottom: Spacing.md }} />
-            <Text style={styles.noCameraText}>
+            <Ionicons name="camera-outline" size={48} color={colors.textSec} style={{ marginBottom: Spacing.md }} />
+            <Text style={[styles.noCameraText, { color: colors.textSec }]}>
               {cameraStatus === "connecting"
                 ? "Waiting for PureThermal camera…\nPlug in via JST-SH → USB-C"
                 : cameraStatus === "error"
@@ -211,7 +216,7 @@ export default function OfflineLiveFeedScreen() {
           <Animated.View
             style={[
               styles.thermalContainer,
-              captured && styles.capturedFrame,
+              { borderColor: captured ? colors.success : colors.border },
               { transform: [{ scale: pulseAnim }] },
             ]}
           >
@@ -228,7 +233,7 @@ export default function OfflineLiveFeedScreen() {
                   <FootGuidanceOverlay width={MAP_W} height={MAP_H} />
                 )}
                 {captured && (
-                  <View style={styles.capturedOverlay}>
+                  <View style={[styles.capturedOverlay, { backgroundColor: `${colors.success}D9` }]}>
                     <Text style={styles.capturedLabel}>CAPTURED</Text>
                   </View>
                 )}
@@ -241,7 +246,7 @@ export default function OfflineLiveFeedScreen() {
 
         {/* Foot selector */}
         <View style={styles.footSelector}>
-          <Text style={styles.footLabel}>Capture Mode</Text>
+          <Text style={[styles.footLabel, { color: colors.textSec }]}>Capture Mode</Text>
           <View style={styles.footBtns}>
             {(["Left", "Right", "Bilateral"] as const).map((f) => {
               const val = f.toLowerCase() as "left" | "right" | "bilateral";
@@ -250,11 +255,15 @@ export default function OfflineLiveFeedScreen() {
                 <TouchableOpacity
                   key={f}
                   onPress={() => setSelectedFoot(val)}
-                  style={[styles.footBtn, active && styles.footBtnActive]}
+                  style={[
+                    styles.footBtn,
+                    { borderColor: active ? colors.accent : colors.border },
+                    active && { backgroundColor: `${colors.accent}1A` },
+                  ]}
                   activeOpacity={0.7}
                   disabled={captured}
                 >
-                  <Text style={[styles.footBtnText, active && styles.footBtnTextActive]}>
+                  <Text style={[styles.footBtnText, { color: active ? colors.accent : colors.textSec }]}>
                     {f}
                   </Text>
                 </TouchableOpacity>
@@ -274,24 +283,27 @@ export default function OfflineLiveFeedScreen() {
             >
               <View style={[
                 styles.captureBtnOuter,
-                (cameraStatus !== "connected" || !matrix) && styles.captureBtnDisabled,
+                { borderColor: (cameraStatus !== "connected" || !matrix) ? colors.border : colors.accent },
               ]}>
-                <View style={styles.captureBtnInner} />
+                <View style={[
+                  styles.captureBtnInner,
+                  { backgroundColor: (cameraStatus !== "connected" || !matrix) ? colors.border : colors.accent },
+                ]} />
               </View>
-              <Text style={styles.captureBtnLabel}>CAPTURE</Text>
+              <Text style={[styles.captureBtnLabel, { color: colors.textSec }]}>CAPTURE</Text>
             </TouchableOpacity>
           ) : (
             <View style={styles.postCaptureRow}>
               <TouchableOpacity
                 onPress={handleDiscard}
-                style={styles.discardBtn}
+                style={[styles.discardBtn, { borderColor: colors.border }]}
                 activeOpacity={0.7}
               >
-                <Text style={styles.discardText}>Discard</Text>
+                <Text style={[styles.discardText, { color: colors.textSec }]}>Discard</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleUseFrame}
-                style={styles.saveBtn}
+                style={[styles.saveBtn, { backgroundColor: colors.success }]}
                 activeOpacity={0.8}
               >
                 <Text style={styles.saveText}>Save Offline</Text>
@@ -301,7 +313,7 @@ export default function OfflineLiveFeedScreen() {
         </View>
 
         {!captured && cameraStatus === "connected" && (
-          <Text style={styles.hint}>
+          <Text style={[styles.hint, { color: colors.textSec }]}>
             Position both feet within the dashed guides, then tap Capture.
           </Text>
         )}
@@ -313,14 +325,12 @@ export default function OfflineLiveFeedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   fpsTag: {
-    backgroundColor: Colors.bg.glassLight,
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: Colors.border.default,
   },
-  fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono, color: Colors.teal[300] },
+  fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono },
   statusBar: { flexDirection: "row", alignItems: "center", gap: Spacing.lg, marginBottom: Spacing.md },
   guideToggle: {
     marginLeft: "auto",
@@ -328,26 +338,21 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border.default,
   },
-  guideToggleActive: { borderColor: Colors.teal[400], backgroundColor: "rgba(20,176,142,0.1)" },
-  guideToggleText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, color: Colors.text.secondary },
+  guideToggleText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label },
   noCamera: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.xl },
-  noCameraText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: Colors.text.muted, textAlign: "center", lineHeight: 22 },
+  noCameraText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 22 },
   thermalContainer: {
     borderRadius: Radius.lg,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: Colors.border.default,
     marginBottom: Spacing.md,
   },
-  capturedFrame: { borderColor: Colors.teal[400] },
   thermalRow: { flexDirection: "row", alignItems: "stretch", backgroundColor: "#000" },
   capturedOverlay: {
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "rgba(20,176,142,0.85)",
     borderRadius: Radius.full,
     paddingHorizontal: 10,
     paddingVertical: 3,
@@ -357,7 +362,6 @@ const styles = StyleSheet.create({
   footLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -368,11 +372,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border.default,
   },
-  footBtnActive: { borderColor: Colors.primary[400], backgroundColor: "rgba(0,128,200,0.1)" },
-  footBtnText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: Colors.text.muted },
-  footBtnTextActive: { color: Colors.primary[300] },
+  footBtnText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
   controls: { alignItems: "center", marginBottom: Spacing.md },
   captureBtn: { alignItems: "center" },
   captureBtnOuter: {
@@ -380,32 +381,28 @@ const styles = StyleSheet.create({
     height: 72,
     borderRadius: 36,
     borderWidth: 3,
-    borderColor: Colors.primary[400],
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.xs,
     elevation: 8,
   },
-  captureBtnDisabled: { borderColor: Colors.border.default, elevation: 0 },
-  captureBtnInner: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.primary[500] },
-  captureBtnLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading, color: Colors.text.secondary, letterSpacing: 2 },
+  captureBtnInner: { width: 52, height: 52, borderRadius: 26 },
+  captureBtnLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading, letterSpacing: 2 },
   postCaptureRow: { flexDirection: "row", gap: Spacing.md, width: "100%" },
   discardBtn: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     alignItems: "center",
   },
-  discardText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.label, color: Colors.text.muted },
+  discardText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.label },
   saveBtn: {
     flex: 1,
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
-    backgroundColor: Colors.teal[600],
     alignItems: "center",
   },
   saveText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.label, color: "#fff" },
-  hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted, textAlign: "center", lineHeight: 18 },
+  hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 18 },
 });

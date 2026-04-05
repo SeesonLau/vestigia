@@ -249,8 +249,12 @@ export const S = {
     title: "Start Screening",
     goOnline: "Go Online",
     goOnlineSubtitle: "Stream and save directly to cloud",
+    onlineDesc: "Sign in to your account. Access patient records, sync results, and view full history.",
     workOffline: "Work Offline",
     workOfflineSubtitle: "Save locally and sync later",
+    offlineDesc: "Capture thermal scans without an account. Data is saved locally on this device and can be synced later.",
+    startCapture: "Start Capture",
+    hint: "Offline data stays on this device until you sign in and sync it.",
   },
 
   // ── Offline ───────────────────────────────────────────────────

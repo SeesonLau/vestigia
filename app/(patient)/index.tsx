@@ -11,7 +11,8 @@ import ThermalMap, {
 } from "../../components/thermal/ThermalMap";
 import { Badge, Card, Disclaimer } from "../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { dbg } from "../../lib/debug";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
@@ -19,10 +20,11 @@ import { Patient, ScreeningSession } from "../../types";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
-const THUMB_H = Math.round(THUMB_W * (62 / 80));
+const THUMB_H = Math.round(THUMB_W * (120 / 160));
 
 export default function PatientDashboardScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
 
@@ -51,7 +53,6 @@ export default function PatientDashboardScreen() {
           .single();
         dbg("patient/index", `patient fetch — error=${patientErr?.code ?? "none"} message=${patientErr?.message ?? "none"}`);
         if (patientErr?.code === "PGRST116") {
-          // No patient record linked to this auth user yet
           setLoading(false);
           return;
         }
@@ -79,7 +80,6 @@ export default function PatientDashboardScreen() {
           }
         }
 
-        // Pending data requests count
         const { count } = await supabase
           .from("data_requests")
           .select("id", { count: "exact", head: true })
@@ -110,18 +110,18 @@ export default function PatientDashboardScreen() {
         accessibilityRole="button"
         style={{ position: "relative" }}
       >
-        <Ionicons name="notifications-outline" size={20} color={pendingRequests > 0 ? Colors.primary[300] : Colors.text.muted} />
+        <Ionicons name="notifications-outline" size={20} color={pendingRequests > 0 ? colors.accent : colors.textSec} />
         {pendingRequests > 0 && (
-          <View style={styles.notifBadge}>
+          <View style={[styles.notifBadge, { backgroundColor: colors.accent }]}>
             <Text style={styles.notifBadgeText}>{pendingRequests}</Text>
           </View>
         )}
       </TouchableOpacity>
       <TouchableOpacity onPress={() => router.push("/(patient)/settings")} accessibilityLabel="Settings" accessibilityRole="button">
-        <Ionicons name="settings-outline" size={20} color={Colors.text.muted} />
+        <Ionicons name="settings-outline" size={20} color={colors.textSec} />
       </TouchableOpacity>
       <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
-        <Ionicons name="log-out-outline" size={20} color={Colors.text.muted} />
+        <Ionicons name="log-out-outline" size={20} color={colors.textSec} />
       </TouchableOpacity>
     </View>
   );
@@ -131,7 +131,7 @@ export default function PatientDashboardScreen() {
       <ScreenWrapper>
         <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
         <View style={styles.centered}>
-          <ActivityIndicator color={Colors.primary[400]} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       </ScreenWrapper>
     );
@@ -142,7 +142,7 @@ export default function PatientDashboardScreen() {
       <ScreenWrapper>
         <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
         <View style={styles.centered}>
-          <Text style={styles.errorText}>{fetchError}</Text>
+          <Text style={[styles.errorText, { color: colors.error }]}>{fetchError}</Text>
         </View>
       </ScreenWrapper>
     );
@@ -155,8 +155,8 @@ export default function PatientDashboardScreen() {
       <View style={styles.container}>
         {/* Greeting */}
         <View style={styles.greeting}>
-          <Text style={styles.greetingHi}>Hello, {firstName} 👋</Text>
-          <Text style={styles.greetingCode}>
+          <Text style={[styles.greetingHi, { color: colors.text }]}>Hello, {firstName} 👋</Text>
+          <Text style={[styles.greetingCode, { color: colors.textSec }]}>
             Patient ID: {patient?.patient_code ?? "—"}
           </Text>
         </View>
@@ -166,11 +166,13 @@ export default function PatientDashboardScreen() {
           <View
             style={[
               styles.latestCard,
-              isPositive ? styles.latestPositive : styles.latestNegative,
+              isPositive
+                ? { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}66` }
+                : { backgroundColor: `${colors.success}14`, borderColor: `${colors.success}66` },
             ]}
           >
             <View style={styles.latestTop}>
-              <Text style={styles.latestLabel}>Latest Screening Result</Text>
+              <Text style={[styles.latestLabel, { color: colors.textSec }]}>Latest Screening Result</Text>
               <Badge
                 label={latestResult.classification}
                 variant={isPositive ? "positive" : "negative"}
@@ -181,18 +183,18 @@ export default function PatientDashboardScreen() {
               <Ionicons
                 name={isPositive ? "warning-outline" : "checkmark-circle-outline"}
                 size={20}
-                color={isPositive ? "#f87171" : Colors.teal[300]}
+                color={isPositive ? colors.error : colors.success}
               />
               <Text
                 style={[
                   styles.latestClassification,
-                  isPositive ? styles.positiveText : styles.negativeText,
+                  { color: isPositive ? colors.error : colors.success },
                 ]}
               >
                 {isPositive ? " DPN Indicators Detected" : " No DPN Indicators"}
               </Text>
             </View>
-            <Text style={styles.latestDate}>
+            <Text style={[styles.latestDate, { color: colors.textSec }]}>
               Screened on{" "}
               {new Date(latestSession.started_at).toLocaleDateString("en-PH", {
                 year: "numeric",
@@ -203,14 +205,14 @@ export default function PatientDashboardScreen() {
 
             {isPositive && (
               <View style={styles.flaggedRow}>
-                <Text style={styles.flaggedLabel}>Flagged regions: </Text>
-                <Text style={styles.flaggedValues}>
+                <Text style={[styles.flaggedLabel, { color: colors.textSec }]}>Flagged regions: </Text>
+                <Text style={[styles.flaggedValues, { color: colors.error }]}>
                   {latestResult.angiosomes_flagged?.join(", ") ?? "—"}
                 </Text>
               </View>
             )}
 
-            <Text style={styles.confidenceText}>
+            <Text style={[styles.confidenceText, { color: colors.textSec }]}>
               AI Confidence:{" "}
               {latestResult.confidence_score != null
                 ? `${(latestResult.confidence_score * 100).toFixed(1)}%`
@@ -220,7 +222,7 @@ export default function PatientDashboardScreen() {
         ) : (
           !loading && sessions.length === 0 && (
             <Card style={styles.section}>
-              <Text style={styles.emptyText}>No screening sessions yet.</Text>
+              <Text style={[styles.emptyText, { color: colors.textSec }]}>No screening sessions yet.</Text>
             </Card>
           )
         )}
@@ -228,15 +230,15 @@ export default function PatientDashboardScreen() {
         {/* Thermal images from latest session */}
         {latestResult && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Latest Thermal Scans</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Thermal Scans</Text>
             <View style={styles.thumbRow}>
               <View style={styles.thumbWrapper}>
                 <ThermalMap matrix={leftMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
-                <Text style={styles.thumbLabel}>LEFT FOOT</Text>
+                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
               </View>
               <View style={styles.thumbWrapper}>
                 <ThermalMap matrix={rightMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
-                <Text style={styles.thumbLabel}>RIGHT FOOT</Text>
+                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
               </View>
             </View>
           </Card>
@@ -245,44 +247,24 @@ export default function PatientDashboardScreen() {
         {/* Trend */}
         {sessions.length > 0 && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Screening History</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Screening History</Text>
             <View style={styles.trendRow}>
               {sessions.map((s) => {
                 const cls = s.classification?.classification;
+                const dotColor =
+                  cls === "POSITIVE" ? colors.error
+                  : cls === "NEGATIVE" ? colors.success
+                  : colors.textSec;
                 return (
                   <View key={s.id} style={styles.trendItem}>
-                    <View
-                      style={[
-                        styles.trendDot,
-                        {
-                          backgroundColor:
-                            cls === "POSITIVE"
-                              ? Colors.positive
-                              : cls === "NEGATIVE"
-                                ? Colors.negative
-                                : Colors.text.muted,
-                        },
-                      ]}
-                    />
-                    <Text style={styles.trendDate}>
+                    <View style={[styles.trendDot, { backgroundColor: dotColor }]} />
+                    <Text style={[styles.trendDate, { color: colors.textSec }]}>
                       {new Date(s.started_at).toLocaleDateString("en-PH", {
                         month: "short",
                         day: "numeric",
                       })}
                     </Text>
-                    <Text
-                      style={[
-                        styles.trendResult,
-                        {
-                          color:
-                            cls === "POSITIVE"
-                              ? "#f87171"
-                              : cls === "NEGATIVE"
-                                ? Colors.teal[300]
-                                : Colors.text.muted,
-                        },
-                      ]}
-                    >
+                    <Text style={[styles.trendResult, { color: dotColor }]}>
                       {cls ?? "—"}
                     </Text>
                   </View>
@@ -295,7 +277,7 @@ export default function PatientDashboardScreen() {
         {/* Session list */}
         {sessions.length > 0 && (
           <>
-            <Text style={styles.listHeader}>All Sessions</Text>
+            <Text style={[styles.listHeader, { color: colors.textSec }]}>All Sessions</Text>
             {sessions.map((s) => (
               <SessionCard
                 key={s.id}
@@ -318,7 +300,6 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#f87171",
     textAlign: "center",
     paddingHorizontal: Spacing.lg,
   },
@@ -333,12 +314,10 @@ const styles = StyleSheet.create({
   greetingHi: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   greetingCode: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
   },
 
@@ -349,14 +328,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
   },
-  latestPositive: {
-    backgroundColor: "rgba(239,68,68,0.08)",
-    borderColor: "rgba(239,68,68,0.4)",
-  },
-  latestNegative: {
-    backgroundColor: "rgba(20,176,142,0.08)",
-    borderColor: "rgba(20,176,142,0.4)",
-  },
   latestTop: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -366,7 +337,6 @@ const styles = StyleSheet.create({
   latestLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
@@ -379,12 +349,9 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
   },
-  positiveText: { color: "#f87171" },
-  negativeText: { color: Colors.teal[300] },
   latestDate: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginBottom: Spacing.sm,
   },
   flaggedRow: {
@@ -395,17 +362,14 @@ const styles = StyleSheet.create({
   flaggedLabel: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   flaggedValues: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: "#f87171",
   },
   confidenceText: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
   },
 
@@ -414,13 +378,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.md,
   },
   emptyText: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
   },
 
@@ -430,7 +392,6 @@ const styles = StyleSheet.create({
   thumbLabel: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     textAlign: "center",
     letterSpacing: 1.5,
     marginTop: Spacing.xs,
@@ -451,7 +412,6 @@ const styles = StyleSheet.create({
   trendDate: {
     fontSize: 10,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   trendResult: {
     fontSize: 9,
@@ -463,7 +423,6 @@ const styles = StyleSheet.create({
   listHeader: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: Spacing.md,
@@ -473,7 +432,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -4,
     right: -4,
-    backgroundColor: Colors.primary[500],
     borderRadius: Radius.full,
     minWidth: 16,
     height: 16,

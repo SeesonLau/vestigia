@@ -16,12 +16,14 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { generateLocalId } from "../../lib/db/localDb";
 import { saveCapture } from "../../lib/db/offlineCaptures";
 
 export default function OfflineSaveScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const params = useLocalSearchParams<{
     b64: string;
     foot: string;
@@ -77,7 +79,7 @@ export default function OfflineSaveScreen() {
         title="Save Capture"
         leftIcon={
           <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back-outline" size={22} color={Colors.text.primary} />
+            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }
       />
@@ -92,16 +94,16 @@ export default function OfflineSaveScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Capture summary */}
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.summaryRow}>
-              <Ionicons name="thermometer-outline" size={16} color={Colors.teal[400]} />
-              <Text style={styles.summaryText}>
+              <Ionicons name="thermometer-outline" size={16} color={colors.success} />
+              <Text style={[styles.summaryText, { color: colors.textSec }]}>
                 {params.minTemp ? `${parseFloat(params.minTemp).toFixed(1)}°C` : "--"} — {params.maxTemp ? `${parseFloat(params.maxTemp).toFixed(1)}°C` : "--"}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Ionicons name="footsteps-outline" size={16} color={Colors.teal[400]} />
-              <Text style={styles.summaryText}>
+              <Ionicons name="footsteps-outline" size={16} color={colors.success} />
+              <Text style={[styles.summaryText, { color: colors.textSec }]}>
                 {params.foot ? params.foot.charAt(0).toUpperCase() + params.foot.slice(1) : "Bilateral"} foot
               </Text>
             </View>
@@ -109,16 +111,16 @@ export default function OfflineSaveScreen() {
 
           {/* Patient label — required */}
           <View style={styles.section}>
-            <Text style={styles.label}>
-              Patient Label <Text style={styles.required}>*</Text>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Patient Label <Text style={{ color: colors.error }}>*</Text>
             </Text>
-            <Text style={styles.hint}>
+            <Text style={[styles.hint, { color: colors.textSec }]}>
               A name or ID to identify this capture. You can match it to a real patient account when you sync.
             </Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
               placeholder="e.g. John D., Patient 001"
-              placeholderTextColor={Colors.text.muted}
+              placeholderTextColor={colors.textSec}
               value={patientLabel}
               onChangeText={setPatientLabel}
               autoCapitalize="words"
@@ -128,35 +130,37 @@ export default function OfflineSaveScreen() {
 
           {/* Vitals — optional */}
           <View style={styles.section}>
-            <Text style={styles.label}>Vitals <Text style={styles.optional}>(optional)</Text></Text>
+            <Text style={[styles.label, { color: colors.text }]}>
+              Vitals <Text style={[styles.optional, { color: colors.textSec }]}>(optional)</Text>
+            </Text>
 
-            <Text style={styles.inputLabel}>Blood Glucose (mg/dL)</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSec }]}>Blood Glucose (mg/dL)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
               placeholder="e.g. 120"
-              placeholderTextColor={Colors.text.muted}
+              placeholderTextColor={colors.textSec}
               value={bloodGlucose}
               onChangeText={setBloodGlucose}
               keyboardType="numeric"
               returnKeyType="next"
             />
 
-            <Text style={styles.inputLabel}>Blood Pressure</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSec }]}>Blood Pressure</Text>
             <View style={styles.bpRow}>
               <TextInput
-                style={[styles.input, styles.bpInput]}
+                style={[styles.input, styles.bpInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 placeholder="Systolic"
-                placeholderTextColor={Colors.text.muted}
+                placeholderTextColor={colors.textSec}
                 value={systolic}
                 onChangeText={setSystolic}
                 keyboardType="numeric"
                 returnKeyType="next"
               />
-              <Text style={styles.bpSlash}>/</Text>
+              <Text style={[styles.bpSlash, { color: colors.textSec }]}>/</Text>
               <TextInput
-                style={[styles.input, styles.bpInput]}
+                style={[styles.input, styles.bpInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 placeholder="Diastolic"
-                placeholderTextColor={Colors.text.muted}
+                placeholderTextColor={colors.textSec}
                 value={diastolic}
                 onChangeText={setDiastolic}
                 keyboardType="numeric"
@@ -167,7 +171,7 @@ export default function OfflineSaveScreen() {
 
           {/* Save button */}
           <TouchableOpacity
-            style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+            style={[styles.saveBtn, { backgroundColor: colors.success }, saving && styles.saveBtnDisabled]}
             onPress={handleSave}
             activeOpacity={0.8}
             disabled={saving}
@@ -182,7 +186,7 @@ export default function OfflineSaveScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={styles.footerHint}>
+          <Text style={[styles.footerHint, { color: colors.textSec }]}>
             Saved captures can be synced to your account from the History screen after signing in.
           </Text>
         </ScrollView>
@@ -195,37 +199,30 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing["3xl"] },
   summaryCard: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
   summaryRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  summaryText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: Colors.text.secondary },
+  summaryText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
   section: { gap: Spacing.sm },
-  label: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading, color: Colors.text.primary },
-  required: { color: "#f87171" },
-  optional: { color: Colors.text.muted, fontFamily: Typography.fonts.body },
-  hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted, lineHeight: 18 },
-  inputLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, color: Colors.text.muted, letterSpacing: 0.5, marginTop: Spacing.xs },
+  label: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
+  optional: { fontFamily: Typography.fonts.body },
+  hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, lineHeight: 18 },
+  inputLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5, marginTop: Spacing.xs },
   input: {
-    backgroundColor: Colors.bg.glassLight,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
   },
   bpRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   bpInput: { flex: 1 },
-  bpSlash: { fontSize: Typography.sizes.lg, color: Colors.text.muted, fontFamily: Typography.fonts.body },
+  bpSlash: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.body },
   saveBtn: {
-    backgroundColor: Colors.teal[600],
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
     flexDirection: "row",
@@ -239,7 +236,6 @@ const styles = StyleSheet.create({
   footerHint: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
     lineHeight: 18,
   },

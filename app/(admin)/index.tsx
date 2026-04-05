@@ -6,7 +6,8 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { Badge, Card } from "../../components/ui/index";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 
 interface OverviewStats {
@@ -35,6 +36,7 @@ type AdminTab = "overview" | "users" | "clinics";
 
 export default function AdminDashboardScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [tab, setTab] = useState<AdminTab>("overview");
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -118,19 +120,23 @@ export default function AdminDashboardScreen() {
     <ScreenWrapper scrollable>
       <Header
         title="Admin Dashboard"
-        rightIcon={<Text style={styles.adminBadge}>ADMIN</Text>}
+        rightIcon={
+          <Text style={[styles.adminBadge, { color: colors.warning, borderColor: `${colors.warning}66`, backgroundColor: `${colors.warning}1A` }]}>
+            ADMIN
+          </Text>
+        }
       />
 
       {/* Tabs */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, { borderBottomColor: colors.border }]}>
         {(["overview", "users", "clinics"] as AdminTab[]).map((t) => (
           <TouchableOpacity
             key={t}
             onPress={() => setTab(t)}
-            style={[styles.tab, tab === t && styles.tabActive]}
+            style={[styles.tab, tab === t && { borderBottomColor: colors.accent }]}
             activeOpacity={0.7}
           >
-            <Text style={[styles.tabText, tab === t && styles.tabTextActive]}>
+            <Text style={[styles.tabText, { color: tab === t ? colors.accent : colors.textSec }]}>
               {t.charAt(0).toUpperCase() + t.slice(1)}
             </Text>
           </TouchableOpacity>
@@ -139,10 +145,10 @@ export default function AdminDashboardScreen() {
 
       <View style={styles.container}>
         {loading && (
-          <ActivityIndicator size="small" color={Colors.primary[400]} style={{ marginVertical: Spacing.xl }} />
+          <ActivityIndicator size="small" color={colors.accent} style={{ marginVertical: Spacing.xl }} />
         )}
         {!loading && fetchError && (
-          <Text style={styles.errorText}>{fetchError}</Text>
+          <Text style={[styles.errorText, { color: colors.error }]}>{fetchError}</Text>
         )}
         {!loading && !fetchError && tab === "overview" && (
           <>
@@ -154,50 +160,50 @@ export default function AdminDashboardScreen() {
                 { label: "Active Clinics", value: stats.activeClinics },
                 { label: "Registered Users", value: stats.registeredUsers },
               ] as { label: string; value: number }[]).map((s) => (
-                <View key={s.label} style={styles.statCard}>
-                  <Text style={styles.statValue}>{s.value}</Text>
-                  <Text style={styles.statLabel}>{s.label}</Text>
+                <View key={s.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{s.value}</Text>
+                  <Text style={[styles.statLabel, { color: colors.textSec }]}>{s.label}</Text>
                 </View>
               ))}
             </View>
 
             {/* AI Config */}
             <Card style={styles.section}>
-              <Text style={styles.sectionTitle}>AI Model Configuration</Text>
-              <View style={styles.modelRow}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>AI Model Configuration</Text>
+              <View style={[styles.modelRow, { borderBottomColor: colors.border }]}>
                 <View>
-                  <Text style={styles.modelKey}>Active Model</Text>
-                  <Text style={styles.modelValue}>{aiModel}</Text>
+                  <Text style={[styles.modelKey, { color: colors.textSec }]}>Active Model</Text>
+                  <Text style={[styles.modelValue, { color: colors.text }]}>{aiModel}</Text>
                 </View>
                 <Badge label="Live" variant="negative" />
               </View>
-              <View style={styles.modelRow}>
+              <View style={[styles.modelRow, { borderBottomColor: colors.border }]}>
                 <View>
-                  <Text style={styles.modelKey}>Asymmetry Threshold</Text>
-                  <Text style={styles.modelValue}>{threshold}°C</Text>
+                  <Text style={[styles.modelKey, { color: colors.textSec }]}>Asymmetry Threshold</Text>
+                  <Text style={[styles.modelValue, { color: colors.text }]}>{threshold}°C</Text>
                 </View>
                 <Badge label="Standard" variant="info" />
               </View>
               <TouchableOpacity style={styles.configBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/settings")}>
-                <Text style={styles.configBtnText}>Configure Model Settings</Text>
-                <Ionicons name="chevron-forward" size={14} color={Colors.primary[400]} />
+                <Text style={[styles.configBtnText, { color: colors.accent }]}>Configure Model Settings</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.accent} />
               </TouchableOpacity>
             </Card>
 
             {/* Data export */}
             <Card style={styles.section}>
-              <Text style={styles.sectionTitle}>Data Export</Text>
-              <Text style={styles.exportSubtitle}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Data Export</Text>
+              <Text style={[styles.exportSubtitle, { color: colors.textSec }]}>
                 Export session data for research or reporting
               </Text>
               <View style={styles.exportBtns}>
-                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "CSV export is not yet available.")}>
-                  <Ionicons name="bar-chart-outline" size={16} color={Colors.text.secondary} />
-                  <Text style={styles.exportBtnText}>Export CSV</Text>
+                <TouchableOpacity style={[styles.exportBtn, { borderColor: colors.border, backgroundColor: colors.surface }]} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "CSV export is not yet available.")}>
+                  <Ionicons name="bar-chart-outline" size={16} color={colors.textSec} />
+                  <Text style={[styles.exportBtnText, { color: colors.textSec }]}>Export CSV</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.exportBtn} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "PDF export is not yet available.")}>
-                  <Ionicons name="document-text-outline" size={16} color={Colors.text.secondary} />
-                  <Text style={styles.exportBtnText}>Export PDF</Text>
+                <TouchableOpacity style={[styles.exportBtn, { borderColor: colors.border, backgroundColor: colors.surface }]} activeOpacity={0.7} onPress={() => Alert.alert("Coming Soon", "PDF export is not yet available.")}>
+                  <Ionicons name="document-text-outline" size={16} color={colors.textSec} />
+                  <Text style={[styles.exportBtnText, { color: colors.textSec }]}>Export PDF</Text>
                 </TouchableOpacity>
               </View>
             </Card>
@@ -207,36 +213,28 @@ export default function AdminDashboardScreen() {
         {tab === "users" && (
           <>
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>{recentUsers.length} recent users</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/users")}>
-                <Text style={styles.addBtnText}>View All</Text>
+              <Text style={[styles.listTitle, { color: colors.textSec }]}>{recentUsers.length} recent users</Text>
+              <TouchableOpacity style={[styles.addBtn, { borderColor: `${colors.accent}80`, backgroundColor: `${colors.accent}1A` }]} activeOpacity={0.7} onPress={() => router.push("/(admin)/users")}>
+                <Text style={[styles.addBtnText, { color: colors.accent }]}>View All</Text>
               </TouchableOpacity>
             </View>
             {recentUsers.map((user) => (
-              <TouchableOpacity key={user.id} style={styles.userCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/users")}>
-                <View style={styles.userAvatar}>
-                  <Text style={styles.userAvatarText}>
+              <TouchableOpacity key={user.id} style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]} activeOpacity={0.75} onPress={() => router.push("/(admin)/users")}>
+                <View style={[styles.userAvatar, { backgroundColor: `${colors.accent}26`, borderColor: `${colors.accent}66` }]}>
+                  <Text style={[styles.userAvatarText, { color: colors.accent }]}>
                     {user.full_name.charAt(0)}
                   </Text>
                 </View>
                 <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{user.full_name}</Text>
-                  <Text style={styles.userMeta}>
+                  <Text style={[styles.userName, { color: colors.text }]}>{user.full_name}</Text>
+                  <Text style={[styles.userMeta, { color: colors.textSec }]}>
                     {user.clinic_name ?? "Patient account"}
                   </Text>
                 </View>
                 <View style={styles.userRight}>
-                  <Badge
-                    label={user.role}
-                    variant={user.role === "clinic" ? "info" : "muted"}
-                    size="sm"
-                  />
+                  <Badge label={user.role} variant={user.role === "clinic" ? "info" : "muted"} size="sm" />
                   <View style={{ marginTop: 4 }}>
-                    <Badge
-                      label={user.is_active ? "active" : "inactive"}
-                      variant={user.is_active ? "negative" : "warning"}
-                      size="sm"
-                    />
+                    <Badge label={user.is_active ? "active" : "inactive"} variant={user.is_active ? "negative" : "warning"} size="sm" />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -247,23 +245,19 @@ export default function AdminDashboardScreen() {
         {tab === "clinics" && (
           <>
             <View style={styles.listHeader}>
-              <Text style={styles.listTitle}>{recentClinics.length} recent clinics</Text>
-              <TouchableOpacity style={styles.addBtn} activeOpacity={0.7} onPress={() => router.push("/(admin)/clinics")}>
-                <Text style={styles.addBtnText}>View All</Text>
+              <Text style={[styles.listTitle, { color: colors.textSec }]}>{recentClinics.length} recent clinics</Text>
+              <TouchableOpacity style={[styles.addBtn, { borderColor: `${colors.accent}80`, backgroundColor: `${colors.accent}1A` }]} activeOpacity={0.7} onPress={() => router.push("/(admin)/clinics")}>
+                <Text style={[styles.addBtnText, { color: colors.accent }]}>View All</Text>
               </TouchableOpacity>
             </View>
             {recentClinics.map((clinic) => (
-              <TouchableOpacity key={clinic.id} style={styles.clinicCard} activeOpacity={0.75} onPress={() => router.push("/(admin)/clinics")}>
+              <TouchableOpacity key={clinic.id} style={[styles.clinicCard, { backgroundColor: colors.card, borderColor: colors.border }]} activeOpacity={0.75} onPress={() => router.push("/(admin)/clinics")}>
                 <View style={styles.clinicTop}>
-                  <Text style={styles.clinicName}>{clinic.name}</Text>
-                  <Badge
-                    label={clinic.facility_type.replace(/_/g, " ")}
-                    variant="info"
-                    size="sm"
-                  />
+                  <Text style={[styles.clinicName, { color: colors.text }]}>{clinic.name}</Text>
+                  <Badge label={clinic.facility_type.replace(/_/g, " ")} variant="info" size="sm" />
                 </View>
                 <View style={styles.clinicStats}>
-                  <Text style={styles.clinicStat}>
+                  <Text style={[styles.clinicStat, { color: colors.textSec }]}>
                     {clinic.device_count} device{clinic.device_count !== 1 ? "s" : ""}
                   </Text>
                 </View>
@@ -280,27 +274,22 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#f87171",
     textAlign: "center",
     marginVertical: Spacing.xl,
   },
   adminBadge: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
-    color: Colors.warning,
     letterSpacing: 1.5,
     borderWidth: 1,
-    borderColor: "rgba(245,158,11,0.4)",
     borderRadius: Radius.full,
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: "rgba(245,158,11,0.1)",
   },
   tabBar: {
     flexDirection: "row",
     paddingHorizontal: Spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
     marginBottom: Spacing.md,
   },
   tab: {
@@ -310,14 +299,11 @@ const styles = StyleSheet.create({
     borderBottomColor: "transparent",
     marginBottom: -1,
   },
-  tabActive: { borderBottomColor: Colors.primary[400] },
   tabText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
   },
-  tabTextActive: { color: Colors.primary[300] },
   container: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing["2xl"],
@@ -333,37 +319,25 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: "45%",
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
   },
   statValue: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   statLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
-  statChange: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.mono,
-    marginTop: 4,
-  },
-  changeUp: { color: Colors.teal[300] },
-  changeDown: { color: "#f87171" },
 
   // Sections
   section: { marginBottom: Spacing.lg },
   sectionTitle: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.md,
   },
 
@@ -374,18 +348,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
   },
   modelKey: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
   },
   modelValue: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.primary,
     marginTop: 2,
   },
   configBtn: {
@@ -397,14 +368,12 @@ const styles = StyleSheet.create({
   configBtnText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.primary[300],
   },
 
   // Export
   exportSubtitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginBottom: Spacing.md,
   },
   exportBtns: { flexDirection: "row", gap: Spacing.md },
@@ -414,8 +383,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border.default,
-    backgroundColor: Colors.bg.glassLight,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.xs,
@@ -423,7 +390,6 @@ const styles = StyleSheet.create({
   exportBtnText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.secondary,
   },
 
   // Users
@@ -436,7 +402,6 @@ const styles = StyleSheet.create({
   listTitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
     textTransform: "uppercase",
   },
@@ -445,20 +410,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.primary[500],
-    backgroundColor: "rgba(0,128,200,0.1)",
   },
   addBtnText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.primary[300],
   },
   userCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -467,9 +427,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary[800],
     borderWidth: 1,
-    borderColor: Colors.primary[600],
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
@@ -477,27 +435,22 @@ const styles = StyleSheet.create({
   userAvatarText: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.primary[200],
   },
   userInfo: { flex: 1 },
   userName: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.primary,
   },
   userMeta: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: 2,
   },
   userRight: { alignItems: "flex-end", gap: 2 },
 
   // Clinics
   clinicCard: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -512,17 +465,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.primary,
     marginRight: Spacing.sm,
   },
   clinicStats: { flexDirection: "row", alignItems: "center", gap: Spacing.xs },
   clinicStat: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
-  },
-  clinicStatDot: {
-    fontSize: Typography.sizes.sm,
-    color: Colors.text.muted,
   },
 });

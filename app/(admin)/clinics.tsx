@@ -16,7 +16,8 @@ import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import { Badge } from "../../components/ui/index";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 
 //Types
@@ -44,11 +45,11 @@ const FACILITY_LABELS: Record<string, string> = {
 };
 
 export default function AdminClinicsScreen() {
+  const { colors } = useTheme();
   const [clinics, setClinics] = useState<ClinicRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<ClinicRow | null>(null);
   const [toggling, setToggling] = useState(false);
-
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchClinics = async () => {
@@ -71,36 +72,36 @@ export default function AdminClinicsScreen() {
 
   const renderClinic = useCallback(({ item }: { item: ClinicRow }) => (
     <TouchableOpacity
-      style={styles.clinicCard}
+      style={[styles.clinicCard, { backgroundColor: colors.card, borderColor: colors.border }]}
       activeOpacity={0.75}
       onPress={() => setSelected(item)}
     >
       <View style={styles.clinicTop}>
-        <View style={styles.clinicIcon}>
-          <Text style={styles.clinicIconText}>H</Text>
+        <View style={[styles.clinicIcon, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.clinicIconText, { color: colors.textSec }]}>H</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.clinicName}>{item.name}</Text>
+          <Text style={[styles.clinicName, { color: colors.text }]}>{item.name}</Text>
           <View style={styles.clinicMeta}>
             <Badge label={FACILITY_LABELS[item.facility_type] ?? item.facility_type} variant="info" size="sm" />
             <Badge label={item.is_active ? "Active" : "Inactive"} variant={item.is_active ? "negative" : "muted"} size="sm" />
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={18} color={Colors.text.muted} />
+        <Ionicons name="chevron-forward" size={18} color={colors.textSec} />
       </View>
-      <View style={styles.clinicStats}>
+      <View style={[styles.clinicStats, { borderTopColor: colors.border }]}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{item.devices.length}</Text>
-          <Text style={styles.statLabel}>Devices</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{item.devices.length}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSec }]}>Devices</Text>
         </View>
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{item.devices.filter((d) => d.is_active).length}</Text>
-          <Text style={styles.statLabel}>Active</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{item.devices.filter((d) => d.is_active).length}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSec }]}>Active</Text>
         </View>
       </View>
     </TouchableOpacity>
-  ), []);
+  ), [colors]);
 
   const handleToggleActive = async () => {
     if (!selected) return;
@@ -132,11 +133,11 @@ export default function AdminClinicsScreen() {
       <View style={styles.container}>
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={Colors.primary[400]} />
+            <ActivityIndicator color={colors.accent} />
           </View>
         ) : fetchError ? (
           <View style={styles.centered}>
-            <Text style={styles.errorText}>{fetchError}</Text>
+            <Text style={[styles.errorText, { color: colors.error }]}>{fetchError}</Text>
           </View>
         ) : (
           <FlatList
@@ -157,40 +158,40 @@ export default function AdminClinicsScreen() {
         onRequestClose={() => setSelected(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <View style={[styles.modalCard, { backgroundColor: colors.cardAlt, borderColor: colors.border }]}>
             {selected && (
               <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={styles.modalTitle}>{selected.name}</Text>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{selected.name}</Text>
                 <Badge
                   label={FACILITY_LABELS[selected.facility_type] ?? selected.facility_type}
                   variant="info"
                   style={{ marginBottom: Spacing.lg }}
                 />
 
-                <View style={styles.modalSection}>
+                <View style={[styles.modalSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   {[
                     ["ID", selected.id],
                     ["Type", selected.facility_type],
                     ["Devices", String(selected.devices.length)],
                     ["Status", selected.is_active ? "Active" : "Inactive"],
                   ].map(([label, value]) => (
-                    <View key={label} style={styles.modalRow}>
-                      <Text style={styles.modalRowLabel}>{label}</Text>
-                      <Text style={styles.modalRowValue}>{value}</Text>
+                    <View key={label} style={[styles.modalRow, { borderBottomColor: colors.border }]}>
+                      <Text style={[styles.modalRowLabel, { color: colors.textSec }]}>{label}</Text>
+                      <Text style={[styles.modalRowValue, { color: colors.text }]}>{value}</Text>
                     </View>
                   ))}
                 </View>
 
                 {selected.devices.length > 0 && (
                   <>
-                    <Text style={styles.devicesHeader}>Registered Devices</Text>
+                    <Text style={[styles.devicesHeader, { color: colors.textSec }]}>Registered Devices</Text>
                     {selected.devices.map((dev) => (
-                      <View key={dev.id} style={styles.deviceRow}>
+                      <View key={dev.id} style={[styles.deviceRow, { backgroundColor: colors.card }]}>
                         <View style={styles.deviceCodeRow}>
-                          <Ionicons name="hardware-chip-outline" size={12} color={Colors.text.muted} />
-                          <Text style={styles.deviceCode}> {dev.device_code}</Text>
+                          <Ionicons name="hardware-chip-outline" size={12} color={colors.textSec} />
+                          <Text style={[styles.deviceCode, { color: colors.accent }]}> {dev.device_code}</Text>
                         </View>
-                        <Text style={styles.deviceFw}>{dev.firmware_version ?? "—"}</Text>
+                        <Text style={[styles.deviceFw, { color: colors.textSec }]}>{dev.firmware_version ?? "—"}</Text>
                         <Badge
                           label={dev.is_active ? "Active" : "Inactive"}
                           variant={dev.is_active ? "negative" : "muted"}
@@ -227,12 +228,10 @@ export default function AdminClinicsScreen() {
 
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, color: "#f87171", textAlign: "center" },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center" },
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   clinicCard: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -246,9 +245,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: Colors.bg.glassLight,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     alignItems: "center",
     justifyContent: "center",
     marginRight: Spacing.md,
@@ -256,65 +253,53 @@ const styles = StyleSheet.create({
   clinicIconText: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
   },
   clinicName: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.primary,
     marginBottom: 4,
   },
   clinicMeta: { flexDirection: "row", gap: Spacing.xs },
-  chevron: { fontSize: 22, color: Colors.text.muted },
   clinicStats: {
     flexDirection: "row",
     borderTopWidth: 1,
-    borderTopColor: Colors.border.subtle,
     paddingTop: Spacing.sm,
   },
   statItem: { flex: 1, alignItems: "center" },
   statValue: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   statLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
   },
   statDivider: {
     width: 1,
-    backgroundColor: Colors.border.subtle,
     marginHorizontal: Spacing.md,
   },
   //Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(5,13,26,0.85)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: Colors.bg.secondary,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderColor: Colors.border.default,
     padding: Spacing.xl,
     maxHeight: "75%",
   },
   modalTitle: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   modalSection: {
-    backgroundColor: Colors.bg.card,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     marginBottom: Spacing.lg,
     overflow: "hidden",
   },
@@ -324,23 +309,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
   },
   modalRowLabel: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
   },
   modalRowValue: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.primary,
   },
   devicesHeader: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     letterSpacing: 1.5,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -348,7 +329,6 @@ const styles = StyleSheet.create({
   deviceRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.card,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -362,12 +342,10 @@ const styles = StyleSheet.create({
   deviceCode: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.primary[300],
   },
   deviceFw: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
   },
   modalActions: { gap: Spacing.sm, marginTop: Spacing.md },
 });

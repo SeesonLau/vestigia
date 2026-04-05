@@ -13,7 +13,8 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 
@@ -33,6 +34,7 @@ type PendingRequest = {
 
 export default function PatientSyncScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
 
   const [requests, setRequests] = useState<PendingRequest[]>([]);
@@ -78,10 +80,7 @@ export default function PatientSyncScreen() {
       return;
     }
     setRequests((prev) => prev.filter((r) => r.id !== req.id));
-    Alert.alert(
-      "Accepted",
-      "The session has been added to your health record.",
-    );
+    Alert.alert("Accepted", "The session has been added to your health record.");
   };
 
   const handleReject = (req: PendingRequest) => {
@@ -116,12 +115,12 @@ export default function PatientSyncScreen() {
     const isActioning = actioningId === item.id;
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
         {/* Clinic + date */}
         <View style={styles.cardHeader}>
           <View style={styles.clinicRow}>
-            <Ionicons name="business-outline" size={14} color={Colors.text.muted} />
-            <Text style={styles.clinicName}>
+            <Ionicons name="business-outline" size={14} color={colors.textSec} />
+            <Text style={[styles.clinicName, { color: colors.text }]}>
               {item.session?.clinic?.name ?? "Unknown Clinic"}
             </Text>
           </View>
@@ -132,8 +131,8 @@ export default function PatientSyncScreen() {
 
         {/* Session info */}
         <View style={styles.infoRow}>
-          <Ionicons name="calendar-outline" size={13} color={Colors.text.muted} />
-          <Text style={styles.infoText}>
+          <Ionicons name="calendar-outline" size={13} color={colors.textSec} />
+          <Text style={[styles.infoText, { color: colors.textSec }]}>
             {item.session
               ? new Date(item.session.started_at).toLocaleDateString("en-PH", {
                   year: "numeric",
@@ -146,19 +145,19 @@ export default function PatientSyncScreen() {
 
         {capture && (
           <View style={styles.infoRow}>
-            <Ionicons name="footsteps-outline" size={13} color={Colors.text.muted} />
-            <Text style={styles.infoText}>
+            <Ionicons name="footsteps-outline" size={13} color={colors.textSec} />
+            <Text style={[styles.infoText, { color: colors.textSec }]}>
               {capture.foot.charAt(0).toUpperCase() + capture.foot.slice(1)} foot
             </Text>
-            <Text style={styles.infoDivider}>·</Text>
-            <Ionicons name="thermometer-outline" size={13} color={Colors.text.muted} />
-            <Text style={styles.infoText}>
+            <Text style={[styles.infoDivider, { color: colors.textSec }]}>·</Text>
+            <Ionicons name="thermometer-outline" size={13} color={colors.textSec} />
+            <Text style={[styles.infoText, { color: colors.textSec }]}>
               {capture.min_temp_c.toFixed(1)}–{capture.max_temp_c.toFixed(1)}°C
             </Text>
           </View>
         )}
 
-        <Text style={styles.sentDate}>
+        <Text style={[styles.sentDate, { color: colors.textSec }]}>
           Sent {new Date(item.created_at).toLocaleDateString("en-PH", {
             month: "short",
             day: "numeric",
@@ -169,15 +168,15 @@ export default function PatientSyncScreen() {
         {/* Actions */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={styles.rejectBtn}
+            style={[styles.rejectBtn, { borderColor: colors.border }]}
             onPress={() => handleReject(item)}
             disabled={isActioning}
             activeOpacity={0.7}
           >
-            <Text style={styles.rejectText}>Reject</Text>
+            <Text style={[styles.rejectText, { color: colors.textSec }]}>Reject</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.acceptBtn, isActioning && styles.btnDisabled]}
+            style={[styles.acceptBtn, { backgroundColor: colors.success }, isActioning && styles.btnDisabled]}
             onPress={() => handleAccept(item)}
             disabled={isActioning}
             activeOpacity={0.8}
@@ -194,7 +193,7 @@ export default function PatientSyncScreen() {
         </View>
       </View>
     );
-  }, [actioningId]);
+  }, [actioningId, colors]);
 
   return (
     <ScreenWrapper>
@@ -203,14 +202,14 @@ export default function PatientSyncScreen() {
         subtitle="Pending clinic submissions"
         leftIcon={
           <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back-outline" size={22} color={Colors.text.primary} />
+            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }
       />
 
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator color={Colors.primary[400]} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       ) : (
         <FlatList
@@ -224,11 +223,11 @@ export default function PatientSyncScreen() {
               <Ionicons
                 name="checkmark-circle-outline"
                 size={48}
-                color={Colors.teal[400]}
+                color={colors.success}
                 style={styles.emptyIcon}
               />
-              <Text style={styles.emptyTitle}>All caught up</Text>
-              <Text style={styles.emptyHint}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>All caught up</Text>
+              <Text style={[styles.emptyHint, { color: colors.textSec }]}>
                 No pending session requests from your clinic.
               </Text>
             </View>
@@ -244,9 +243,7 @@ const styles = StyleSheet.create({
   list: { padding: Spacing.lg, paddingBottom: Spacing["3xl"] },
   //Card
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -262,7 +259,6 @@ const styles = StyleSheet.create({
   clinicName: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     flex: 1,
   },
   pendingBadge: {
@@ -278,13 +274,11 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
-  infoDivider: { color: Colors.text.muted, marginHorizontal: 2 },
+  infoDivider: { marginHorizontal: 2 },
   sentDate: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
   },
   //Actions
@@ -298,19 +292,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     alignItems: "center",
   },
   rejectText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
   },
   acceptBtn: {
     flex: 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
-    backgroundColor: Colors.teal[600],
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -328,13 +319,11 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.xs,
   },
   emptyHint: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
   },
 });
