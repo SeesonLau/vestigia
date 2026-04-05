@@ -15,13 +15,16 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import ClinicPicker from "../../components/ui/ClinicPicker";
 import Input from "../../components/ui/Input";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
+import { S } from "../../constants/strings";
 import { useAuthStore } from "../../store/authStore";
 
 type Role = "patient" | "clinic";
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { register, error: storeError, clearError } = useAuthStore();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,14 +41,12 @@ export default function RegisterScreen() {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = "Full name is required";
     if (!email.includes("@")) e.email = "Enter a valid email address";
-    // AUTH-04: Check all password rules together so every failure is visible at once
     const missing: string[] = [];
     if (password.length < 8) missing.push("8+ characters");
     if (!/[A-Z]/.test(password)) missing.push("uppercase letter");
     if (!/[0-9]/.test(password)) missing.push("number");
     if (missing.length) e.password = `Must include: ${missing.join(", ")}`;
-    if (password !== confirmPassword)
-      e.confirmPassword = "Passwords do not match";
+    if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -53,31 +54,17 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
-    const result = await register(
-      email,
-      password,
-      fullName,
-      role,
-      selectedClinicId ?? undefined,
-    );
+    const result = await register(email, password, fullName, role, selectedClinicId ?? undefined);
     setLoading(false);
     if (result.success) {
       if (result.needsConfirmation) {
         setEmailSent(true);
       } else {
         switch (result.role) {
-          case "clinic":
-            router.replace("/(clinic)");
-            break;
-          case "patient":
-            router.replace("/(patient)");
-            break;
-          case "admin":
-            router.replace("/(admin)");
-            break;
-          // AUTH-09: Unknown role — fall back to login
-          default:
-            router.replace("/(auth)/login");
+          case "clinic":   router.replace("/(clinic)"); break;
+          case "patient":  router.replace("/(patient)"); break;
+          case "admin":    router.replace("/(admin)"); break;
+          default:         router.replace("/(auth)/login");
         }
       }
     }
@@ -96,22 +83,43 @@ export default function RegisterScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="pulse-outline" size={32} color={Colors.primary[300]} />
+            <View
+              style={[
+                styles.logoContainer,
+                {
+                  backgroundColor: `${colors.accent}1A`,
+                  borderColor: colors.accent,
+                  shadowColor: colors.accent,
+                },
+              ]}
+            >
+              <Ionicons name="pulse-outline" size={32} color={colors.accent} />
             </View>
-            <Text style={styles.title}>Create Account</Text>
-            <Text style={styles.subtitle}>Join the DPN Thermal platform</Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              {S.auth.register}
+            </Text>
+            <Text style={[styles.subtitle, { color: colors.textSec }]}>
+              Join the DPN Thermal platform
+            </Text>
           </View>
 
           {emailSent ? (
-            /* Email confirmation screen */
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Check your inbox</Text>
-              <Text style={styles.confirmSubtitle}>
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                Check your inbox
+              </Text>
+              <Text style={[styles.confirmSubtitle, { color: colors.textSec }]}>
                 We've sent a confirmation link to{" "}
-                <Text style={styles.emailHighlight}>{email}</Text>.{"\n\n"}
-                Click the link in the email to activate your account, then sign
-                in.
+                <Text style={[styles.emailHighlight, { color: colors.accent }]}>
+                  {email}
+                </Text>
+                .{"\n\n"}Click the link in the email to activate your account,
+                then sign in.
               </Text>
               <Button
                 label="Back to Sign In"
@@ -121,9 +129,15 @@ export default function RegisterScreen() {
               />
             </View>
           ) : (
-            /* Registration form */
-            <View style={styles.card}>
-              <Text style={styles.sectionLabel}>Account Type</Text>
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+            >
+              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>
+                Account Type
+              </Text>
               <View style={styles.roleRow}>
                 {(["patient", "clinic"] as Role[]).map((r) => (
                   <TouchableOpacity
@@ -131,23 +145,22 @@ export default function RegisterScreen() {
                     onPress={() => { setRole(r); setSelectedClinicId(null); }}
                     style={[
                       styles.roleBtn,
-                      role === r ? styles.roleBtnActive : undefined,
+                      {
+                        borderColor: role === r ? colors.accent : colors.border,
+                        backgroundColor: role === r ? `${colors.accent}1F` : "transparent",
+                      },
                     ]}
                     activeOpacity={0.75}
                   >
                     <Ionicons
-                      name={
-                        r === "patient" ? "person-outline" : "business-outline"
-                      }
+                      name={r === "patient" ? "person-outline" : "business-outline"}
                       size={18}
-                      color={
-                        role === r ? Colors.primary[300] : Colors.text.muted
-                      }
+                      color={role === r ? colors.accent : colors.textSec}
                     />
                     <Text
                       style={[
                         styles.roleLabel,
-                        role === r ? styles.roleLabelActive : undefined,
+                        { color: role === r ? colors.accent : colors.textSec },
                       ]}
                     >
                       {r.charAt(0).toUpperCase() + r.slice(1)}
@@ -156,7 +169,6 @@ export default function RegisterScreen() {
                 ))}
               </View>
 
-              {/* Clinic picker — shown only when role is clinic */}
               {role === "clinic" && (
                 <ClinicPicker
                   selectedId={selectedClinicId}
@@ -164,42 +176,32 @@ export default function RegisterScreen() {
                 />
               )}
 
-              {/* Form */}
               <View style={styles.form}>
                 <Input
                   placeholder="Full name"
                   value={fullName}
-                  onChangeText={(v) => {
-                    setFullName(v);
-                    clearError();
-                  }}
+                  onChangeText={(v) => { setFullName(v); clearError(); }}
                   error={errors.fullName}
                   autoCapitalize="words"
                 />
                 <Input
                   placeholder="Email address"
                   value={email}
-                  onChangeText={(v) => {
-                    setEmail(v);
-                    clearError();
-                  }}
+                  onChangeText={(v) => { setEmail(v); clearError(); }}
                   keyboardType="email-address"
                   error={errors.email}
                 />
                 <Input
                   placeholder="Password"
                   value={password}
-                  onChangeText={(v) => {
-                    setPassword(v);
-                    clearError();
-                  }}
+                  onChangeText={(v) => { setPassword(v); clearError(); }}
                   secureTextEntry={!showPassword}
                   error={errors.password}
                   rightIcon={
                     <Ionicons
                       name={showPassword ? "eye-off-outline" : "eye-outline"}
                       size={20}
-                      color={Colors.text.muted}
+                      color={colors.textSec}
                     />
                   }
                   onRightIconPress={() => setShowPassword((v) => !v)}
@@ -214,32 +216,37 @@ export default function RegisterScreen() {
               </View>
 
               {storeError ? (
-                <Text style={styles.generalError}>{storeError}</Text>
+                <Text style={[styles.generalError, { color: colors.error }]}>
+                  {storeError}
+                </Text>
               ) : null}
 
               <Button
-                label="Create Account"
+                label={S.auth.register}
                 onPress={handleRegister}
                 loading={loading}
                 size="lg"
               />
 
-              <Text style={styles.terms}>
+              <Text style={[styles.terms, { color: colors.textSec }]}>
                 By creating an account, you agree to our{" "}
-                <Text style={styles.link}>Terms of Service</Text> and{" "}
-                <Text style={styles.link}>Privacy Policy</Text>.
+                <Text style={{ color: colors.accent }}>Terms of Service</Text> and{" "}
+                <Text style={{ color: colors.accent }}>Privacy Policy</Text>.
               </Text>
             </View>
           )}
 
-          {/* Login link */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
+            <Text style={[styles.footerText, { color: colors.textSec }]}>
+              Already have an account?{" "}
+            </Text>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => router.replace("/(auth)/login")}
             >
-              <Text style={styles.loginLink}>Sign in</Text>
+              <Text style={[styles.loginLink, { color: colors.accent }]}>
+                Sign in
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -262,61 +269,46 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 16,
-    backgroundColor: Colors.bg.glass,
     borderWidth: 1.5,
-    borderColor: Colors.border.strong,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.md,
-    shadowColor: Colors.primary[400],
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 16,
     elevation: 8,
   },
-  logoGlyph: {
-    fontSize: 28,
-    color: Colors.primary[300],
-  },
   title: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   subtitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
   },
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
   },
   cardTitle: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   confirmSubtitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 22,
     marginBottom: Spacing.xl,
   },
   emailHighlight: {
-    color: Colors.primary[300],
     fontFamily: Typography.fonts.subheading,
   },
   sectionLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -335,36 +327,25 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border.default,
-    backgroundColor: "transparent",
-  },
-  roleBtnActive: {
-    borderColor: Colors.primary[400],
-    backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
   roleLabel: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.muted,
   },
-  roleLabelActive: { color: Colors.primary[300] },
   form: { marginBottom: Spacing.lg },
   generalError: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#ef4444",
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
   terms: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
     marginTop: Spacing.md,
     lineHeight: 18,
   },
-  link: { color: Colors.primary[300] },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -373,11 +354,9 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   loginLink: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.primary[300],
   },
 });

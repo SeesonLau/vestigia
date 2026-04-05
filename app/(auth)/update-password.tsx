@@ -1,7 +1,7 @@
 // app/(auth)/update-password.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,24 +13,22 @@ import {
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
-import { useEffect } from "react";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 
 export default function UpdatePasswordScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>(
-    {},
-  );
+  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({});
   const [generalError, setGeneralError] = useState("");
 
   // AUTH-11: Verify a valid session exists (set by the deep link handler).
-  // Without this, updateUser() would silently fail for users who land here without a reset token.
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
@@ -79,16 +77,22 @@ export default function UpdatePasswordScreen() {
             <Ionicons
               name={done ? "checkmark-circle-outline" : "key-outline"}
               size={56}
-              color={done ? Colors.teal[300] : Colors.primary[300]}
+              color={done ? colors.success : colors.accent}
             />
           </View>
 
-          <View style={styles.card}>
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.card, borderColor: colors.border },
+            ]}
+          >
             {done ? (
-              //Success
               <>
-                <Text style={styles.title}>Password Updated</Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  Password Updated
+                </Text>
+                <Text style={[styles.subtitle, { color: colors.textSec }]}>
                   Your password has been changed successfully. Sign in with your
                   new password.
                 </Text>
@@ -99,10 +103,11 @@ export default function UpdatePasswordScreen() {
                 />
               </>
             ) : (
-              //Form
               <>
-                <Text style={styles.title}>Set New Password</Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.title, { color: colors.text }]}>
+                  Set New Password
+                </Text>
+                <Text style={[styles.subtitle, { color: colors.textSec }]}>
                   Enter and confirm your new password below.
                 </Text>
 
@@ -116,7 +121,7 @@ export default function UpdatePasswordScreen() {
                     <Ionicons
                       name={showPassword ? "eye-off-outline" : "eye-outline"}
                       size={20}
-                      color={Colors.text.muted}
+                      color={colors.textSec}
                     />
                   }
                   onRightIconPress={() => setShowPassword((v) => !v)}
@@ -131,7 +136,9 @@ export default function UpdatePasswordScreen() {
                 />
 
                 {generalError ? (
-                  <Text style={styles.generalError}>{generalError}</Text>
+                  <Text style={[styles.generalError, { color: colors.error }]}>
+                    {generalError}
+                  </Text>
                 ) : null}
 
                 <Button
@@ -159,29 +166,24 @@ const styles = StyleSheet.create({
   },
   iconWrap: { alignItems: "center", marginBottom: Spacing.xl },
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
   },
   title: {
     fontSize: Typography.sizes["2xl"],
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.sm,
   },
   subtitle: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 22,
     marginBottom: Spacing.xl,
   },
   generalError: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: "#ef4444",
     textAlign: "center",
     marginBottom: Spacing.sm,
   },
