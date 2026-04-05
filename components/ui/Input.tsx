@@ -8,7 +8,8 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 
 interface InputProps {
   label?: string;
@@ -56,26 +57,38 @@ export default function Input({
   autoCapitalize = "none",
   editable = true,
 }: InputProps) {
+  const { colors } = useTheme();
   const [focused, setFocused] = useState(false);
 
   return (
     <View style={[styles.wrapper, style]}>
-      {label && <Text style={styles.label}>{label}</Text>}
+      {label && (
+        <Text style={[styles.label, { color: colors.textSec }]}>{label}</Text>
+      )}
 
       <View
         style={[
           styles.inputContainer,
-          focused ? styles.focused : undefined,
-          !!error ? styles.errorBorder : undefined,
+          {
+            backgroundColor: colors.surface,
+            borderColor: focused
+              ? colors.borderFocus
+              : error
+              ? colors.error
+              : colors.border,
+          },
           !editable ? styles.disabled : undefined,
         ]}
       >
         {icon && <View style={styles.iconLeft}>{icon}</View>}
-        {prefix && <Text style={styles.affix}>{prefix}</Text>}
+        {prefix && (
+          <Text style={[styles.affix, { color: colors.textSec }]}>{prefix}</Text>
+        )}
 
         <TextInput
           style={[
             styles.input,
+            { color: colors.text },
             icon ? styles.inputWithIcon : undefined,
             suffix || rightIcon ? styles.inputWithSuffix : undefined,
             multiline ? styles.multiline : undefined,
@@ -83,7 +96,7 @@ export default function Input({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor={Colors.text.muted}
+          placeholderTextColor={colors.textSec}
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           onFocus={() => setFocused(true)}
@@ -92,10 +105,12 @@ export default function Input({
           numberOfLines={numberOfLines}
           autoCapitalize={autoCapitalize}
           editable={editable}
-          selectionColor={Colors.primary[400]}
+          selectionColor={colors.accent}
         />
 
-        {suffix && <Text style={styles.affix}>{suffix}</Text>}
+        {suffix && (
+          <Text style={[styles.affix, { color: colors.textSec }]}>{suffix}</Text>
+        )}
         {rightIcon && (
           <TouchableOpacity onPress={onRightIconPress} style={styles.iconRight}>
             {rightIcon}
@@ -104,9 +119,9 @@ export default function Input({
       </View>
 
       {error ? (
-        <Text style={styles.errorText}>{error}</Text>
+        <Text style={[styles.helperText, { color: colors.error }]}>{error}</Text>
       ) : hint ? (
-        <Text style={styles.hintText}>{hint}</Text>
+        <Text style={[styles.helperText, { color: colors.textSec }]}>{hint}</Text>
       ) : null}
     </View>
   );
@@ -119,7 +134,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.secondary,
     marginBottom: Spacing.xs,
     letterSpacing: 0.5,
     textTransform: "uppercase",
@@ -127,19 +141,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.input,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     minHeight: 48,
     paddingHorizontal: Spacing.md,
-  },
-  focused: {
-    borderColor: Colors.border.focus,
-    backgroundColor: "rgba(10, 30, 60, 0.9)",
-  },
-  errorBorder: {
-    borderColor: "rgba(239, 68, 68, 0.6)",
   },
   disabled: {
     opacity: 0.5,
@@ -148,7 +153,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
     paddingVertical: Spacing.sm,
   },
   inputWithIcon: {
@@ -172,19 +176,11 @@ const styles = StyleSheet.create({
   affix: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginHorizontal: Spacing.xs,
   },
-  errorText: {
+  helperText: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: "#ef4444",
-    marginTop: Spacing.xs,
-  },
-  hintText: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.xs,
   },
 });
