@@ -19,7 +19,7 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getCaptureById, markSynced } from "../../lib/db/offlineCaptures";
-import { parseY16Frame } from "../../lib/thermal/preprocessing";
+import { parseStoredMatrix } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import type { LocalCapture, Patient } from "../../types";
@@ -89,7 +89,7 @@ export default function SyncScreen() {
       if (devErr || !device) throw new Error("No active device found for your clinic. Register a device first.");
 
       // 2. Parse thermal matrix from stored B64
-      const matrix = parseY16Frame(capture.thermal_matrix_b64);
+      const matrix = parseStoredMatrix(capture.thermal_matrix_b64);
 
       // 3. Create screening session
       const { data: session, error: sessErr } = await supabase

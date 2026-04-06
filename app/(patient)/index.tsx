@@ -1,8 +1,9 @@
 // app/(patient)/index.tsx
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { SessionCard } from "../../components/session/index";
@@ -14,6 +15,7 @@ import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { dbg } from "../../lib/debug";
+import { getMatrixStats, parseCsvMatrix } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { Patient, ScreeningSession } from "../../types";
@@ -39,6 +41,53 @@ export default function PatientDashboardScreen() {
   const [pendingRequests, setPendingRequests] = useState(0);
   const leftMatrix = useRef(generateMockThermalMatrix()).current;
   const rightMatrix = useRef(generateMockThermalMatrix()).current;
+
+  //Import
+  const [importedLeftMatrix, setImportedLeftMatrix] = useState<number[][] | null>(null);
+  const [importedRightMatrix, setImportedRightMatrix] = useState<number[][] | null>(null);
+  const [importedImageUri, setImportedImageUri] = useState<string | null>(null);
+  const [importedImageName, setImportedImageName] = useState<string | null>(null);
+  const [importedCsvName, setImportedCsvName] = useState<string | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importStep, setImportStep] = useState<"left" | "right" | null>(null);
+
+  const handlePickImage = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["image/jpeg", "image/png"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setImportedImageUri(asset.uri);
+    setImportedImageName(asset.name);
+  };
+
+  const handlePickCsv = async (foot: "left" | "right") => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["text/csv", "text/plain", "text/comma-separated-values", "*/*"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setImportStep(foot);
+    setImportLoading(true);
+    try {
+      const content = await fetch(asset.uri).then((r) => r.text());
+      const parsed = parseCsvMatrix(content);
+      getMatrixStats(parsed); // validates it has numeric data
+      if (foot === "left") {
+        setImportedLeftMatrix(parsed);
+      } else {
+        setImportedRightMatrix(parsed);
+      }
+      setImportedCsvName(asset.name);
+    } catch {
+      Alert.alert("CSV Error", "Could not read temperature data. Ensure the file contains comma-separated °C values.");
+    } finally {
+      setImportLoading(false);
+      setImportStep(null);
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
@@ -231,15 +280,122 @@ export default function PatientDashboardScreen() {
         {latestResult && (
           <Card style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Thermal Scans</Text>
+
+            {/* Thermal thumbnails */}
             <View style={styles.thumbRow}>
               <View style={styles.thumbWrapper}>
-                <ThermalMap matrix={leftMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
+                <ThermalMap
+                  matrix={importedLeftMatrix ?? leftMatrix}
+                  minTemp={importedLeftMatrix ? getMatrixStats(importedLeftMatrix).min : 29}
+                  maxTemp={importedLeftMatrix ? getMatrixStats(importedLeftMatrix).max : 37}
+                  width={THUMB_W}
+                  height={THUMB_H}
+                />
                 <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
               </View>
               <View style={styles.thumbWrapper}>
-                <ThermalMap matrix={rightMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
+                <ThermalMap
+                  matrix={importedRightMatrix ?? rightMatrix}
+                  minTemp={importedRightMatrix ? getMatrixStats(importedRightMatrix).min : 29}
+                  maxTemp={importedRightMatrix ? getMatrixStats(importedRightMatrix).max : 37}
+                  width={THUMB_W}
+                  height={THUMB_H}
+                />
                 <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
               </View>
+            </View>
+
+            {/* Reference image thumbnail */}
+            {importedImageUri && (
+              <View style={styles.refImageWrapper}>
+                <Image source={{ uri: importedImageUri }} style={styles.refImage} resizeMode="cover" />
+                <Text style={[styles.refImageLabel, { color: colors.textSec }]}>
+                  Reference: {importedImageName}
+                </Text>
+              </View>
+            )}
+
+            {/* Import controls */}
+            <View style={styles.importDivider}>
+              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.importDividerText, { color: colors.textSec }]}>import scan files</Text>
+              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
+            </View>
+
+            <View style={styles.importRow}>
+              {/* Image */}
+              <TouchableOpacity
+                onPress={handlePickImage}
+                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedImageName ? colors.accent : colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="image-outline" size={18} color={importedImageName ? colors.accent : colors.textSec} />
+                <Text style={[styles.importCardTitle, { color: importedImageName ? colors.accent : colors.text }]}>
+                  Thermal Image
+                </Text>
+                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
+                  {importedImageName ?? "JPG / PNG"}
+                </Text>
+                {importedImageName && (
+                  <TouchableOpacity
+                    onPress={() => { setImportedImageUri(null); setImportedImageName(null); }}
+                    style={styles.importClear}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+
+              {/* Left CSV */}
+              <TouchableOpacity
+                onPress={() => handlePickCsv("left")}
+                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedLeftMatrix ? colors.success : colors.border }]}
+                activeOpacity={0.7}
+                disabled={importLoading && importStep === "left"}
+              >
+                <Ionicons name="document-text-outline" size={18} color={importedLeftMatrix ? colors.success : colors.textSec} />
+                <Text style={[styles.importCardTitle, { color: importedLeftMatrix ? colors.success : colors.text }]}>
+                  Left CSV
+                </Text>
+                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
+                  {importLoading && importStep === "left" ? "Parsing…" : (importedLeftMatrix ? (importedCsvName ?? "Loaded") : "°C data")}
+                </Text>
+                {importedLeftMatrix && (
+                  <TouchableOpacity
+                    onPress={() => setImportedLeftMatrix(null)}
+                    style={styles.importClear}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+
+              {/* Right CSV */}
+              <TouchableOpacity
+                onPress={() => handlePickCsv("right")}
+                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedRightMatrix ? colors.success : colors.border }]}
+                activeOpacity={0.7}
+                disabled={importLoading && importStep === "right"}
+              >
+                <Ionicons name="document-text-outline" size={18} color={importedRightMatrix ? colors.success : colors.textSec} />
+                <Text style={[styles.importCardTitle, { color: importedRightMatrix ? colors.success : colors.text }]}>
+                  Right CSV
+                </Text>
+                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
+                  {importLoading && importStep === "right" ? "Parsing…" : (importedRightMatrix ? "Loaded" : "°C data")}
+                </Text>
+                {importedRightMatrix && (
+                  <TouchableOpacity
+                    onPress={() => setImportedRightMatrix(null)}
+                    style={styles.importClear}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
             </View>
           </Card>
         )}
@@ -439,4 +595,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   notifBadgeText: { fontSize: 9, fontFamily: Typography.fonts.heading, color: "#fff" },
+  //Import section
+  refImageWrapper: { marginTop: Spacing.sm, marginBottom: Spacing.md },
+  refImage: { width: "100%", height: 80, borderRadius: Radius.sm },
+  refImageLabel: { fontSize: 10, fontFamily: Typography.fonts.mono, marginTop: 4 },
+  importDivider: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.sm },
+  importLine: { flex: 1, height: 1 },
+  importDividerText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+  importRow: { flexDirection: "row", gap: Spacing.xs },
+  importCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    alignItems: "center",
+    gap: 4,
+    position: "relative",
+  },
+  importCardTitle: { fontSize: 10, fontFamily: Typography.fonts.heading, textAlign: "center" },
+  importCardFile: { fontSize: 9, fontFamily: Typography.fonts.mono, textAlign: "center" },
+  importClear: { position: "absolute", top: 4, right: 4 },
 });
