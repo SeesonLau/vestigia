@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-06 (v0.8.0)
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,9 +10,11 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint URL, request format, and response schema are confirmed by AI team. |
-| 2 | GAP-08 | Add abnormal region overlay on thermal map | 3–4 hrs | Depends on FR-507 response shape (flagged angiosome zones). Visual highlight on ThermalMap. |
-| 3 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506 done) to compute real angiosome temps. Still needs FR-507 to validate output. |
+| 1 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub — rejects all calls. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
+| 2 | — | `npx expo run:android` rebuild | 15 min | **Must be done now** — `react-native-ble-plx` native module won't load until native app is rebuilt. BLE scan will crash on Expo Go. |
+| 3 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint URL, request format, and response schema are confirmed by AI team. |
+| 4 | GAP-08 | Add abnormal region overlay on thermal map | 3–4 hrs | Depends on FR-507 response shape (flagged angiosome zones). Visual highlight on ThermalMap. |
+| 5 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506 done) to compute real angiosome temps. Still needs FR-507 to validate output. |
 
 ---
 
@@ -132,6 +134,9 @@ If the AI API already returns a `risk_level`, use that directly instead.
 
 | Item | Version | Date |
 |---|---|---|
+| GAP-01/02/03 — Real BLE scanning (react-native-ble-plx) + ESP32 WiFi WebSocket stream (Waveshare MIO802M5S) | v0.8.0 | 2026-04-06 |
+| Session detail screens removed (clinic + patient) — blank 5th tab eliminated | v0.8.0 | 2026-04-06 |
+| CameraSource dual-path in live-feed (FLIR UVC vs ESP32 WiFi) | v0.8.0 | 2026-04-06 |
 | BUG-06 — `THUMB_H` ratio fix (4 files, 62/80 → 120/160) | v0.7.0 | 2026-04-06 |
 | Phase 7+8 — Full Arctic Mint theme migration (all 24 screens + components) | v0.7.0 | 2026-04-06 |
 | App renamed Lumenai in `app.json` | v0.7.0 | 2026-04-06 |
@@ -142,9 +147,6 @@ If the AI API already returns a `risk_level`, use that directly instead.
 
 | Item | Reason | Resume When |
 |---|---|---|
-| BLE device scanning (GAP-01) | Hardware not finalized | Device spec confirmed |
-| Wi-Fi WebSocket to scanner (GAP-02) | Hardware not finalized | Device spec confirmed |
-| Real thermal frame streaming (GAP-03) | Hardware uses UVC — BLE/Wi-Fi deferred | N/A — UVC implemented |
 | AI model API integration (GAP-04 / FR-507) | External AI model API not yet deployed — lives in a **separate repo**. This app will call it via HTTP. | AI model API endpoint confirmed + accessible |
 | Angiosome computation from matrix (CODE-09) | FR-506 done; still needs FR-507 response format to validate output | FR-507 done |
 | Push notifications | Not in core thesis scope | Post-defense |
@@ -199,3 +201,8 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.6.0 | FR-508 — Risk scoring: computeRiskLevel, computeRiskLevelFromResult, getRiskLevelDescription (1.5°C / 2.2°C thresholds) | 2026-04-05 |
 | v0.6.0 | GAP-18 — Admin Activate/Deactivate now shows Alert on Supabase error | 2026-04-05 |
 | v0.6.0 | WatermelonDB removed; offline-first implemented with expo-sqlite v16 (resolves GAP-06, DB-03, DB-04) | 2026-04-05 |
+| v0.8.0 | Real BLE scanning via react-native-ble-plx (GAP-01) — filters ESP32-Thermal*, reads IP from BLE char | 2026-04-06 |
+| v0.8.0 | ESP32 WiFi WebSocket stream (GAP-02) — TM binary frame protocol, wifiCamera.ts | 2026-04-06 |
+| v0.8.0 | Live-feed dual camera path: UVC (FLIR) vs WiFi (ESP32); CameraSource type; FPS badge shows source (GAP-03) | 2026-04-06 |
+| v0.8.0 | pairing.tsx full rewrite — Active Source card, FLIR section, ESP32 WiFi section, BLE Discovery | 2026-04-06 |
+| v0.8.0 | Session detail screens removed (clinic + patient) — blank 5th tab eliminated from clinic nav | 2026-04-06 |

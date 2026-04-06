@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-04-05 (v0.6.0)
+**Last verified:** 2026-04-06 (v0.8.0)
 
 ---
 
@@ -176,9 +176,10 @@
 | ~~DB-02~~ | Supabase | — | RLS not verified; INSERT WITH CHECK clauses unconfirmed | High | ✅ Fixed 2026-03-20 |
 | GAP-06 / DB-03 | — | — | WatermelonDB sync logic not started — no offline support | High | Deferred |
 | DB-04 | — | — | No conflict resolution strategy for local/remote sync | Medium | Deferred |
-| GAP-01 | `store/sessionStore.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | Deferred (hardware) |
-| GAP-02 | `store/sessionStore.ts` | — | Wi-Fi WebSocket to `192.168.4.1:3333` not implemented | High | Deferred (hardware) |
-| GAP-03 | `store/sessionStore.ts` | — | Thermal frames from mock `setInterval`, not real hardware | High | Deferred (hardware) |
+| ~~GAP-01~~ | `lib/thermal/bleCamera.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | ✅ Fixed 2026-04-06 |
+| ~~GAP-02~~ | `lib/thermal/wifiCamera.ts` | — | Wi-Fi WebSocket to ESP32 not implemented | High | ✅ Fixed 2026-04-06 |
+| ~~GAP-03~~ | `app/(clinic)/live-feed.tsx` | — | Thermal frames from mock `setInterval`, not real hardware | High | ✅ Fixed 2026-04-06 (WiFi WebSocket + UVC paths) |
+| HW-01 | `android/app/.../UVCModule.kt` | — | UVCModule.kt is a stub — rejects all calls; real libuvccamera-release.aar not linked | High | Open (needs AAR) |
 
 ---
 
@@ -194,5 +195,5 @@
 | Security | 3 | 0 | 3 | 0 |
 | Navigation | 3 | 1 | 2 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
-| Schema / DB | 7 | 0 | 2 | 5 |
-| **Total** | **99** | **7** | **84** | **8** |
+| Schema / DB | 8 | 1 | 5 | 2 |
+| **Total** | **100** | **8** | **87** | **5** |
