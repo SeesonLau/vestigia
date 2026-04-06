@@ -1,310 +1,199 @@
 // app/(clinic)/assessment.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Animated,
-  Dimensions,
   StyleSheet,
   Text,
-  View
+  View,
 } from "react-native";
-import {
-  AngiosomeTable,
-  ClassificationCard,
-  TCIDisplay,
-} from "../../components/assessment/index";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import ThermalMap, {
-  generateMockThermalMatrix,
-} from "../../components/thermal/ThermalMap";
 import Button from "../../components/ui/Button";
-import { Badge, Card, Disclaimer } from "../../components/ui/index";
-import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
-import { supabase } from "../../lib/supabase";
+import { useDPNStore } from "../../store/dpnStore";
 import { useSessionStore, useThermalStore } from "../../store/sessionStore";
-
-const { width: SCREEN_W } = Dimensions.get("window");
-const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
-const THUMB_H = Math.round(THUMB_W * (120 / 160));
-
-// Mock result
-const MOCK_RESULT = {
-  classification: "POSITIVE" as const,
-  confidence_score: 0.874,
-  asymmetry_mpa_c: 2.8,
-  asymmetry_lpa_c: 1.4,
-  asymmetry_mca_c: 3.1,
-  asymmetry_lca_c: 0.9,
-  max_asymmetry_c: 3.1,
-  angiosomes_flagged: ["MPA", "MCA"],
-  bilateral_tci: 0.042,
-  model_version: "dpn-v1.2.0",
-  processing_time_ms: 1240,
-  classified_at: new Date().toISOString(),
-};
-
-type ScreenState = "processing" | "result";
 
 export default function AssessmentScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { activeSession, clearSession } = useSessionStore();
-  const discardCapture = useThermalStore((s) => s.discardCapture);
-  const [state, setState] = useState<ScreenState>("processing");
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const { clearSession } = useSessionStore();
+  const leftMatrix    = useThermalStore((s) => s.leftMatrix);
+  const rightMatrix   = useThermalStore((s) => s.rightMatrix);
+  const leftImageB64  = useThermalStore((s) => s.leftImageB64);
+  const rightImageB64 = useThermalStore((s) => s.rightImageB64);
+  const discardCapture  = useThermalStore((s) => s.discardCapture);
+  const clearBilateral  = useThermalStore((s) => s.clearBilateral);
 
-  const handleExit = () => {
-    clearSession();
-    discardCapture();
-    router.replace("/(clinic)");
-  };
+  const { status, error: dpnError, startScan, clearScan } = useDPNStore();
 
-  const handleSave = async () => {
-    if (!activeSession?.id) {
-      setSaveError("No active session found. Please restart the screening.");
-      return;
-    }
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const { error: classErr } = await supabase.from("classification_results").insert({
-        session_id: activeSession.id,
-        classification: MOCK_RESULT.classification,
-        confidence_score: MOCK_RESULT.confidence_score,
-        asymmetry_mpa_c: MOCK_RESULT.asymmetry_mpa_c,
-        asymmetry_lpa_c: MOCK_RESULT.asymmetry_lpa_c,
-        asymmetry_mca_c: MOCK_RESULT.asymmetry_mca_c,
-        asymmetry_lca_c: MOCK_RESULT.asymmetry_lca_c,
-        max_asymmetry_c: MOCK_RESULT.max_asymmetry_c,
-        angiosomes_flagged: MOCK_RESULT.angiosomes_flagged,
-        bilateral_tci: MOCK_RESULT.bilateral_tci,
-        model_version: MOCK_RESULT.model_version,
-        processing_time_ms: MOCK_RESULT.processing_time_ms,
-        classified_at: MOCK_RESULT.classified_at,
-      });
-      if (classErr) throw new Error("Failed to save classification result.");
-
-      const { error: sessErr } = await supabase
-        .from("screening_sessions")
-        .update({ status: "completed", completed_at: new Date().toISOString() })
-        .eq("id", activeSession.id);
-      if (sessErr) throw new Error("Failed to update session status.");
-
-      setSaved(true);
-      clearSession();
-      discardCapture();
-      router.replace({
-        pathname: "/(clinic)/live-feed",
-        params: { lastSessionId: activeSession.id },
-      } as any);
-    } catch (err: unknown) {
-      setSaveError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const fadeIn = useRef(new Animated.Value(0)).current;
-
-  // Clear session on unmount (guards stale state if user leaves without saving)
+  //Breathing progress animation (indeterminate — honest UX, no fake timing)
+  const breathAnim = useRef(new Animated.Value(0.1)).current;
   useEffect(() => {
-    return () => {
-      if (!saved) {
-        clearSession();
-        discardCapture();
-      }
-    };
-  }, [saved]);
-
-  // Simulate cloud processing
-  useEffect(() => {
-    const anim = Animated.timing(progressAnim, {
-      toValue: 1,
-      duration: 3500,
-      useNativeDriver: false,
-    });
-    anim.start(() => {
-      setState("result");
-      Animated.timing(fadeIn, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }).start();
-    });
-    return () => anim.stop();
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathAnim, { toValue: 0.82, duration: 2200, useNativeDriver: false }),
+        Animated.timing(breathAnim, { toValue: 0.25, duration: 1100, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
   }, []);
 
-  const progressWidth = progressAnim.interpolate({
+  const progressWidth = breathAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["0%", "100%"],
   });
 
-  const leftMatrix = useRef(generateMockThermalMatrix()).current;
-  const rightMatrix = useRef(generateMockThermalMatrix()).current;
+  //Start scan once on mount
+  useEffect(() => {
+    if (!leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64) return;
+    startScan({
+      left_image_b64:    leftImageB64,
+      right_image_b64:   rightImageB64,
+      left_temperatures:  leftMatrix,
+      right_temperatures: rightMatrix,
+    });
+  }, []);
+
+  //Navigate to result screen on success
+  useEffect(() => {
+    if (status === "success") {
+      router.replace("/(clinic)/dpn-result");
+    }
+  }, [status]);
+
+  const handleCancel = () => {
+    clearScan();
+    clearSession();
+    discardCapture();
+    clearBilateral();
+    router.replace("/(clinic)");
+  };
+
+  const handleRetry = () => {
+    if (!leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64) {
+      handleCancel();
+      return;
+    }
+    startScan({
+      left_image_b64:    leftImageB64,
+      right_image_b64:   rightImageB64,
+      left_temperatures:  leftMatrix,
+      right_temperatures: rightMatrix,
+    });
+  };
+
+  //Missing bilateral captures — shouldn't normally happen
+  const missingCaptures = !leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64;
+
+  if (missingCaptures) {
+    return (
+      <ScreenWrapper>
+        <Header title="AI Assessment" />
+        <View style={styles.processingContainer}>
+          <View style={[styles.processingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.error} style={styles.processingIcon} />
+            <Text style={[styles.processingTitle, { color: colors.text }]}>Missing Captures</Text>
+            <Text style={[styles.processingSubtitle, { color: colors.textSec }]}>
+              Both left and right foot captures are required. Return to the camera screen and capture both feet.
+            </Text>
+            <Button
+              label="Go Back"
+              onPress={handleCancel}
+              variant="primary"
+              size="md"
+              style={styles.actionBtn}
+            />
+          </View>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <ScreenWrapper>
+        <Header title="AI Assessment" />
+        <View style={styles.processingContainer}>
+          <View style={[styles.processingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="alert-circle-outline" size={48} color={colors.error} style={styles.processingIcon} />
+            <Text style={[styles.processingTitle, { color: colors.text }]}>Analysis Failed</Text>
+            <Text style={[styles.processingSubtitle, { color: colors.textSec }]}>{dpnError}</Text>
+            <View style={styles.errorActions}>
+              <Button label="Retry" onPress={handleRetry} variant="primary" size="md" />
+              <Button label="Cancel Session" onPress={handleCancel} variant="ghost" size="md" />
+            </View>
+          </View>
+        </View>
+      </ScreenWrapper>
+    );
+  }
+
+  //Loading / server_waking states
+  const isWaking = status === "server_waking";
+  const accentColor = isWaking ? colors.warning : colors.accent;
+  const steps = isWaking
+    ? ["Server Waking", "Models Loading", "Ready"]
+    : ["Uploading", "Processing", "Classifying"];
 
   return (
     <ScreenWrapper>
       <Header
         title="AI Assessment"
-        subtitle={state === "processing" ? "Processing..." : undefined}
+        subtitle={isWaking ? "Server Starting Up" : "Processing..."}
       />
 
-      {state === "processing" ? (
-        <View style={styles.processingContainer}>
-          <View style={[styles.processingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Ionicons name="analytics-outline" size={48} color={colors.accent} style={styles.processingIcon} />
-            <Text style={[styles.processingTitle, { color: colors.text }]}>Analyzing Thermal Data</Text>
-            <Text style={[styles.processingSubtitle, { color: colors.textSec }]}>
-              Uploading and processing through the AI classification model...
-            </Text>
-
-            {/* Progress bar */}
-            <View style={[styles.progressTrack, { backgroundColor: colors.surface }]}>
-              <Animated.View
-                style={[styles.progressFill, { width: progressWidth, backgroundColor: colors.accent }]}
-              />
-            </View>
-
-            {/* Step indicators */}
-            <View style={styles.steps}>
-              {["Uploading", "Processing", "Classifying"].map((step) => (
-                <View key={step} style={styles.step}>
-                  <View style={[styles.stepDot, { backgroundColor: colors.accent }]} />
-                  <Text style={[styles.stepText, { color: colors.textSec }]}>{step}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </View>
-      ) : (
-        <Animated.ScrollView
-          style={[styles.scroll, { opacity: fadeIn }]}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Classification result */}
-          <ClassificationCard
-            classification={MOCK_RESULT.classification}
-            confidence={MOCK_RESULT.confidence_score}
-            style={styles.section}
+      <View style={styles.processingContainer}>
+        <View style={[styles.processingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Ionicons
+            name="analytics-outline"
+            size={48}
+            color={accentColor}
+            style={styles.processingIcon}
           />
+          <Text style={[styles.processingTitle, { color: colors.text }]}>
+            {isWaking ? "Server Starting Up" : "Analyzing Thermal Data"}
+          </Text>
+          <Text style={[styles.processingSubtitle, { color: colors.textSec }]}>
+            {isWaking
+              ? "The AI server is warming up. This can take up to 30 seconds on first use."
+              : "Uploading and processing both feet through the DPN classification model..."}
+          </Text>
 
-          {/* Metadata row */}
-          <View style={styles.metaRow}>
-            <Badge label={MOCK_RESULT.model_version} variant="muted" />
-            <View style={styles.processingTimeRow}>
-              <Ionicons name="timer-outline" size={12} color={colors.textSec} />
-              <Text style={[styles.processingTime, { color: colors.textSec }]}> {MOCK_RESULT.processing_time_ms}ms</Text>
-            </View>
-          </View>
-
-          {/* Thermal thumbnails */}
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Captured Frames</Text>
-            <View style={styles.thumbRow}>
-              <View style={styles.thumbContainer}>
-                <ThermalMap
-                  matrix={leftMatrix}
-                  minTemp={29}
-                  maxTemp={37}
-                  width={THUMB_W}
-                  height={THUMB_H}
-                />
-                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
-              </View>
-              <View style={styles.thumbContainer}>
-                <ThermalMap
-                  matrix={rightMatrix}
-                  minTemp={29}
-                  maxTemp={37}
-                  width={THUMB_W}
-                  height={THUMB_H}
-                />
-                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
-              </View>
-            </View>
-          </Card>
-
-          {/* Angiosome asymmetry table */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Bilateral Asymmetry Analysis
-            </Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
-              Values exceeding 2.2°C threshold are flagged
-            </Text>
-            <AngiosomeTable
-              asymmetries={{
-                mpa: MOCK_RESULT.asymmetry_mpa_c,
-                lpa: MOCK_RESULT.asymmetry_lpa_c,
-                mca: MOCK_RESULT.asymmetry_mca_c,
-                lca: MOCK_RESULT.asymmetry_lca_c,
-              }}
-              flagged={MOCK_RESULT.angiosomes_flagged}
-              style={styles.table}
+          {/* Breathing progress bar */}
+          <View style={[styles.progressTrack, { backgroundColor: colors.surface }]}>
+            <Animated.View
+              style={[styles.progressFill, { width: progressWidth, backgroundColor: accentColor }]}
             />
           </View>
 
-          {/* TCI */}
-          <TCIDisplay
-            leftTci={0.038}
-            rightTci={0.046}
-            bilateralTci={MOCK_RESULT.bilateral_tci}
-            style={styles.section}
-          />
-
-          {/* Disclaimer */}
-          <Disclaimer text={DISCLAIMER_TEXT} style={styles.section} />
-
-          {/* Actions */}
-          {!saved ? (
-            <View style={styles.actions}>
-              {saveError && (
-                <Text style={styles.saveError}>{saveError}</Text>
-              )}
-              <Button
-                label="Discard Result"
-                onPress={handleExit}
-                variant="ghost"
-                size="md"
-              />
-              <Button
-                label="Save to Cloud"
-                onPress={handleSave}
-                loading={saving}
-                variant="teal"
-                size="lg"
-              />
-            </View>
-          ) : (
-            <View style={[styles.savedBanner, { backgroundColor: `${colors.success}1A`, borderColor: `${colors.success}4D` }]}>
-              <View style={styles.savedRow}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={colors.success} />
-                <Text style={[styles.savedText, { color: colors.success }]}> Session saved successfully</Text>
+          {/* Step indicators */}
+          <View style={styles.steps}>
+            {steps.map((step) => (
+              <View key={step} style={styles.step}>
+                <View style={[styles.stepDot, { backgroundColor: accentColor }]} />
+                <Text style={[styles.stepText, { color: colors.textSec }]}>{step}</Text>
               </View>
-              <Button
-                label="New Session"
-                onPress={handleExit}
-                variant="primary"
-                size="md"
-              />
-            </View>
-          )}
-        </Animated.ScrollView>
-      )}
+            ))}
+          </View>
+
+          <Button
+            label="Cancel"
+            onPress={handleCancel}
+            variant="ghost"
+            size="sm"
+            style={styles.cancelBtn}
+          />
+        </View>
+      </View>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  // Processing state
   processingContainer: {
     flex: 1,
     alignItems: "center",
@@ -347,6 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     width: "100%",
+    marginBottom: Spacing.xl,
   },
   step: { alignItems: "center", gap: 4 },
   stepDot: {
@@ -359,81 +249,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fonts.label,
     letterSpacing: 0.5,
   },
-
-  // Result state
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing["2xl"],
-  },
-  section: { marginBottom: Spacing.lg },
-  sectionTitle: {
-    fontSize: Typography.sizes.md,
-    fontFamily: Typography.fonts.heading,
-    marginBottom: Spacing.xs,
-  },
-  sectionSubtitle: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-    marginBottom: Spacing.md,
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: Spacing.lg,
-  },
-  processingTimeRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-  },
-  processingTime: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.mono,
-  },
-
-  // Thermal thumbs
-  thumbRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  thumbContainer: { flex: 1 },
-  thumbLabel: {
-    fontSize: 9,
-    fontFamily: Typography.fonts.heading,
-    letterSpacing: 1.5,
-    textAlign: "center",
-    marginTop: Spacing.xs,
-  },
-
-  table: { marginTop: Spacing.sm },
-
-  // Actions
-  actions: {
-    gap: Spacing.sm,
-  },
-  saveError: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-    color: "#f87171",
-    textAlign: "center",
-    marginBottom: Spacing.xs,
-  },
-  savedRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-  },
-  savedBanner: {
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    alignItems: "center",
-    gap: Spacing.md,
-  },
-  savedText: {
-    fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.subheading,
-  },
+  errorActions: { gap: Spacing.sm, width: "100%", marginTop: Spacing.lg },
+  actionBtn: { marginTop: Spacing.lg, width: "100%" },
+  cancelBtn: { marginTop: Spacing.sm, width: "100%" },
 });
