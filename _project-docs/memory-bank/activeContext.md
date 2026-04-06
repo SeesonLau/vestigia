@@ -1,9 +1,34 @@
-# Active Context — Vestigia
-**Last updated:** 2026-04-04
+# Active Context — Lumenai (formerly Vestigia)
+**Last updated:** 2026-04-06
 
 ---
 
-## What Was Done This Session (2026-04-04)
+## What Was Done This Session (2026-04-06)
+
+### Phase 7 — Patient / Admin / Offline screen migration to useTheme()
+- `app/(patient)/_layout.tsx`, `app/(admin)/_layout.tsx`, `app/(offline)/_layout.tsx` — bg from useTheme()
+- `app/(patient)/settings.tsx`, `app/(patient)/sync.tsx`, `app/(patient)/index.tsx` — full useTheme()
+- `app/(admin)/index.tsx`, `app/(admin)/settings.tsx`, `app/(admin)/users.tsx`, `app/(admin)/clinics.tsx` — full useTheme()
+- `app/(offline)/live-feed.tsx`, `app/(offline)/save.tsx`, `app/mode-select.tsx` — full useTheme()
+- `constants/strings.ts` — added missing `modeSelect` string fields
+- **BUG-06 fixed** in `app/(patient)/index.tsx` — `THUMB_H` ratio `62/80` → `120/160`
+
+### Phase 8 — Clinic screens + shared components migration + cleanup
+- `components/thermal/index.tsx`, `components/ui/ClinicPicker.tsx` — migrated to useTheme()
+- `components/session/index.tsx` — migrated; `statusConfig` color values changed to functions `(colors) => string`
+- `components/assessment/index.tsx` — migrated; `TCIItem` + `AnnotItem` receive color props from parent
+- `app/(auth)/_layout.tsx` — migrated to useTheme()
+- `app/(clinic)/assessment.tsx` — migrated; **BUG-06 fixed** (`120/160`)
+- `app/(clinic)/live-feed.tsx` — migrated
+- `app/(clinic)/sync.tsx` — migrated
+- `app/(patient)/session/[id].tsx` — migrated; **BUG-06 fixed** (`120/160`)
+- `app/(clinic)/session/[id].tsx` — migrated; **BUG-06 fixed** (`120/160`)
+- `constants/theme.ts` — legacy `Colors` export deleted (migration complete)
+- `app.json` — display name changed: `"vestigia"` → `"Lumenai"`
+
+---
+
+## What Was Done in Previous Session (2026-04-04)
 
 ### UVC Camera Integration
 - `android/app/src/main/java/com/anonymous/vestigia/UVCModule.kt` — Native Kotlin module (saki4510t/UVCCamera)
@@ -79,8 +104,9 @@
 ## Next Steps (priority order)
 1. **FR-507** — AI model API client — waiting on AI team to confirm endpoint URL, request format, response schema, auth method
 2. **GAP-08** — Thermal map angiosome overlay — depends on FR-507 response shape
-3. **Edge Function deploy** — manual step, run when ready
-4. **npm install** — remove WatermelonDB from node_modules
+3. **CODE-09** — Replace `MOCK_ANGIOSOMES` in clinical-data.tsx with real preprocessing output
+4. **Edge Function deploy** — manual step, run when ready
+5. **npm install** — remove WatermelonDB from node_modules
 
 ---
 

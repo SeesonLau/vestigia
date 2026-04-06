@@ -1,6 +1,6 @@
-# Progress — Vestigia
-**Current version:** 0.6.0
-**Last verified:** 2026-04-04
+# Progress — Lumenai (formerly Vestigia)
+**Current version:** 0.7.0
+**Last verified:** 2026-04-06
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.7.0 | 2026-04-06 | Full Arctic Mint theme migration (Phase 7+8), legacy Colors removed, app renamed to Lumenai, BUG-06 fixed in 4 files |
 | 0.6.0 | 2026-04-04 | UVC camera, offline-first feature, FR-506 preprocessing, FR-508 risk scoring, GAP-18 admin alerts |
 | 0.5.3 | 2026-03-30 | QA sweep: 12 bugs fixed (UX-17, GAP-15/16/17, UX-15/16, CODE-16/14, A11Y-05, NAV-03, PERF-09/10/11). 9 open issues remain |
 | 0.5.2 | 2026-03-24 | Quick fixes: assessment unmount cleanup, patient-select Supabase search, risk_level type added. Full QA audit — 0 regressions |
@@ -68,6 +69,9 @@
 - **Patient settings reachable** — settings icon added to patient dashboard header (NAV-03)
 - **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
 - **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
+- **Arctic Mint theme** — full light/dark mode system with `ThemeProvider` + `useTheme()` hook; all 24 screens and all shared components migrated; legacy `Colors` export removed from `constants/theme.ts`
+- **App renamed Lumenai** — `app.json` display name updated; `constants/strings.ts` app name set to "Lumenai"
+- **BUG-06 fixed** — `THUMB_H` ratio corrected to `(120/160)` in 4 files: `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx`
 - **UVC camera** — Android native module (saki4510t/UVCCamera), JS bridge, live-feed wired to real frames
 - **FR-506** — `lib/thermal/preprocessing.ts`: `parseY16Frame`, `normalizeMatrix`, `segmentFootRegion`, `buildApiPayload`
 - **Offline-first** — mode-select, offline live-feed + save, SQLite storage, History Local tab, clinic sync, patient accept/reject
