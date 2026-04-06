@@ -239,9 +239,32 @@ export const S = {
     noDevicesFound: "No devices found",
     noDevicesFoundSubtitle:
       "Make sure your DPN Scanner is powered on and in range, then tap Scan.",
-    pairSelected: "Pair Selected Device",
-    pairing: "Pairing...",
-    pairedBanner: "Device paired and data stream active",
+    pairSelected: "Connect via BLE",
+    pairing: "Connecting...",
+    pairedBanner: "BLE connected — IP retrieved",
+    // Camera source
+    activeSource: "Active Camera Source",
+    sourceFlir: "FLIR Lepton 3.5",
+    sourceEsp32Wifi: "ESP32 Wi-Fi",
+    useThisCamera: "Use This Camera",
+    // FLIR section
+    flirSection: "FLIR Lepton 3.5 (UVC)",
+    flirSectionSubtitle: "JST-SH connector → USB-C via PureThermal Mini Pro",
+    flirNote: "Camera connects automatically when the PureThermal is plugged in on the Live Feed screen.",
+    // WiFi section
+    wifiSection: "ESP32 Wi-Fi (Waveshare MIO802M5S)",
+    wifiSectionSubtitle: "Connect via USB-C ↔ USB-C or the same Wi-Fi network",
+    wifiIpLabel: "Device IP Address",
+    wifiIpPlaceholder: "e.g. 192.168.4.1",
+    wifiPortLabel: "Port",
+    wifiTest: "Test Connection",
+    wifiTesting: "Testing...",
+    wifiConnect: "Connect & Use",
+    wifiConnecting: "Connecting...",
+    wifiDisconnect: "Disconnect",
+    wifiConnected: "Stream active",
+    wifiUnreachable: "Device unreachable. Check IP and make sure the ESP32 is on.",
+    wifiConnectError: "Could not connect to device stream.",
   },
 
   // ── Mode Select ───────────────────────────────────────────────

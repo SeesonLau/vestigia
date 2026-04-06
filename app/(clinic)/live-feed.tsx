@@ -31,8 +31,13 @@ import {
   onCameraDisconnected,
   onFrame,
 } from "../../lib/thermal/uvcCamera";
+import {
+  connectWifi,
+  disconnectWifi,
+  onWifiFrame,
+} from "../../lib/thermal/wifiCamera";
 import { supabase } from "../../lib/supabase";
-import { useThermalStore } from "../../store/sessionStore";
+import { useDeviceStore, useThermalStore } from "../../store/sessionStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const MAP_W = SCREEN_W - Spacing.lg * 2 - 40;
@@ -51,6 +56,7 @@ export default function LiveFeedScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const thermalStore = useThermalStore();
+  const { cameraSource, wifiIp, wifiPort } = useDeviceStore();
   const { lastSessionId } = useLocalSearchParams<{ lastSessionId?: string }>();
 
   //Camera
@@ -108,15 +114,47 @@ export default function LiveFeedScreen() {
     if (count > 1) setFps(Math.round(((count - 1) / (now - oldest)) * 1000));
   }, []);
 
-  //Camera setup
+  //Camera setup — branches on active camera source
   useEffect(() => {
+    setCameraStatus("connecting");
+    setCameraError(null);
+    frameTimestamps.current = [];
+
+    if (cameraSource === "wifi") {
+      //ESP32 Wi-Fi WebSocket stream
+      if (!wifiIp) {
+        setCameraStatus("error");
+        setCameraError("No Wi-Fi IP configured. Set it in the Pairing screen.");
+        return;
+      }
+      onWifiFrame((mat, min, max, mean) => {
+        if (capturedRef.current) return;
+        setMatrix(mat);
+        setMinTemp(min);
+        setMaxTemp(max);
+        setMeanTemp(mean);
+        computeFps();
+      });
+      connectWifi(
+        wifiIp,
+        wifiPort,
+        () => setCameraStatus("connected"),
+        () => {
+          setCameraStatus("disconnected");
+          setMatrix(null);
+          setFps(0);
+          frameTimestamps.current = [];
+        },
+      );
+      return () => disconnectWifi();
+    }
+
+    //FLIR Lepton 3.5 — UVC via JST-SH → USB-C
     let unsubFrame: (() => void) | null = null;
     let unsubConnect: (() => void) | null = null;
     let unsubDisconnect: (() => void) | null = null;
 
-    async function setup() {
-      setCameraStatus("connecting");
-      setCameraError(null);
+    async function setupUvc() {
       unsubConnect = onCameraConnected(() => setCameraStatus("connected"));
       unsubDisconnect = onCameraDisconnected(() => {
         setCameraStatus("disconnected");
@@ -144,14 +182,14 @@ export default function LiveFeedScreen() {
       }
     }
 
-    setup();
+    setupUvc();
     return () => {
       unsubFrame?.();
       unsubConnect?.();
       unsubDisconnect?.();
       disconnectCamera();
     };
-  }, []);
+  }, [cameraSource, wifiIp, wifiPort]);
 
   const handleCapture = () => {
     if (!matrix) return;
@@ -193,6 +231,7 @@ export default function LiveFeedScreen() {
         rightIcon={
           <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.fpsText, { color: colors.success }]}>
+              {cameraSource === "wifi" ? "ESP32" : "FLIR"}{" · "}
               {cameraStatus === "connected" ? `${fps} fps` : "--"}
             </Text>
           </View>

@@ -26,15 +26,21 @@ export const useSessionStore = create<SessionState>((set) => ({
 }));
 
 // store/deviceStore.ts
-import { BLEDevice, ConnectionStatus } from "../types";
+import { BLEDevice, CameraSource, ConnectionStatus } from "../types";
 
 interface DeviceState {
   bleStatus: ConnectionStatus;
   wifiStatus: ConnectionStatus;
   pairedDevice: BLEDevice | null;
+  cameraSource: CameraSource;
+  wifiIp: string | null;
+  wifiPort: number;
   setBleStatus: (s: ConnectionStatus) => void;
   setWifiStatus: (s: ConnectionStatus) => void;
   setPairedDevice: (d: BLEDevice | null) => void;
+  setCameraSource: (s: CameraSource) => void;
+  setWifiIp: (ip: string | null) => void;
+  setWifiPort: (port: number) => void;
   disconnect: () => void;
 }
 
@@ -42,14 +48,22 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   bleStatus: "disconnected",
   wifiStatus: "disconnected",
   pairedDevice: null,
+  cameraSource: "uvc",
+  wifiIp: null,
+  wifiPort: 8080,
   setBleStatus: (s) => set({ bleStatus: s }),
   setWifiStatus: (s) => set({ wifiStatus: s }),
   setPairedDevice: (d) => set({ pairedDevice: d }),
+  setCameraSource: (s) => set({ cameraSource: s }),
+  setWifiIp: (ip) => set({ wifiIp: ip }),
+  setWifiPort: (port) => set({ wifiPort: port }),
   disconnect: () =>
     set({
       bleStatus: "disconnected",
       wifiStatus: "disconnected",
       pairedDevice: null,
+      cameraSource: "uvc",
+      wifiIp: null,
     }),
 }));
 
@@ -74,7 +88,7 @@ interface ThermalState {
   setFps: (fps: number) => void;
 }
 
-export const useThermalStore = create<ThermalState>((set, get) => ({
+export const useThermalStore = create<ThermalState>((set) => ({
   liveMatrix: null,
   capturedMatrix: null,
   capturedFoot: null,
