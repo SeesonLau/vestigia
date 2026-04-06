@@ -3,145 +3,101 @@
 
 ---
 
-## What Was Done This Session (2026-04-06) — v0.8.0
+## What Was Done This Session (2026-04-06) — v0.9.0
+
+### DPN Classification API Integration (FR-507 — complete)
+
+**Four gaps closed:**
+
+1. **Bilateral capture state** — `useThermalStore` now holds `leftMatrix`, `rightMatrix`, `leftImageB64`, `rightImageB64` plus actions `captureLeft()`, `captureRight()`, `clearBilateral()`
+
+2. **Base64 image generation** — `lib/thermal/thermalPng.ts` (NEW): pure-JS PNG encoder using Iron colormap (matches ThermalMap.tsx); CRC32 + Adler32 + DEFLATE stored blocks; no native dependencies. Imported image files read as base64 via `expo-file-system.readAsStringAsync`.
+
+3. **Correct API payload shape** — `assessment.tsx` now assembles `DPNScanRequest` directly from thermalStore: `left_temperatures`/`right_temperatures` = raw °C matrices; `left_image_b64`/`right_image_b64` = PNG b64 strings. `buildApiPayload()` in `preprocessing.ts` is not used for this path.
+
+4. **Assessment wired to real API** — `assessment.tsx` calls `useDPNStore().startScan()` on mount; shows breathing progress bar; navigates to `dpn-result` on success; error/retry state.
+
+**New files:**
+- `lib/dpnApi.ts` — API client (`checkServerHealth`, `scanPatient`)
+- `store/dpnStore.ts` — Zustand slice (status, result, error, startScan, clearScan)
+- `lib/thermal/thermalPng.ts` — Pure-JS PNG encoder
+- `app/(clinic)/dpn-result.tsx` — Result screen with save-to-cloud
+
+**Modified files:**
+- `store/sessionStore.ts` — thermalStore extended (additive)
+- `app/(clinic)/live-feed.tsx` — Two-step bilateral capture flow
+- `app/(clinic)/assessment.tsx` — Real API call, no mock data
+- `app/(clinic)/dpn-result.tsx` — Save-to-cloud added
+- `app/(clinic)/_layout.tsx` — `dpn-result` registered as hidden screen
+
+---
+
+## What Was Done Previous Session (2026-04-06) — v0.8.0
 
 ### Dual Camera Support — FLIR Lepton 3.5 + Waveshare ESP32 MIO802M5S
-- `lib/thermal/bleCamera.ts` (NEW) — Real BLE scanning via `react-native-ble-plx`; filters `ESP32-Thermal*` devices; reads WiFi IP from BLE char `0000ffe1-...`; exports `requestBlePermissions`, `scanBle`, `connectBle`, `disconnectBle`, `destroyBleManager`
-- `lib/thermal/wifiCamera.ts` (NEW) — WebSocket stream for ESP32; binary protocol: `TM` magic + uint16 w/h + pixels (uint16 LE, value = temp×100); exports `connectWifi`, `disconnectWifi`, `onWifiFrame`, `pingWifi`
-- `store/sessionStore.ts` — `useDeviceStore` extended with `cameraSource`, `wifiIp`, `wifiPort`; `disconnect()` resets source to `"uvc"` and `wifiIp` to null; unused `get` removed from `useThermalStore`
-- `types/index.ts` — `CameraSource = "uvc" | "wifi"` added
-- `constants/strings.ts` — All WiFi/FLIR/BLE UI strings added to `S.pairing`
-- `android/app/src/main/AndroidManifest.xml` — BLE permissions block added (Android 12+ + legacy)
-- `app/(clinic)/pairing.tsx` (REWRITE) — Active Camera Source card, FLIR info section, ESP32 WiFi section (IP + port + test + connect), BLE Discovery section (real scan), USB registration retained
-- `app/(clinic)/live-feed.tsx` — Camera `useEffect` branches on `cameraSource`; WiFi: `onWifiFrame` + `connectWifi`; UVC: existing bridge; FPS badge shows camera source label
+- `lib/thermal/bleCamera.ts` (NEW) — Real BLE scanning via `react-native-ble-plx`
+- `lib/thermal/wifiCamera.ts` (NEW) — WebSocket stream for ESP32; binary TM frame protocol
+- `store/sessionStore.ts` — `useDeviceStore` extended with `cameraSource`, `wifiIp`, `wifiPort`
+- `app/(clinic)/pairing.tsx` (REWRITE) — Active Camera Source card, FLIR info, ESP32 WiFi, BLE Discovery
+- `app/(clinic)/live-feed.tsx` — Camera `useEffect` branches on `cameraSource`
 
 ### Session Detail Screens Removed
-- `app/(clinic)/session/[id].tsx` — DELETED (no UI entry point; was causing blank 5th tab in clinic nav)
-- `app/(patient)/session/[id].tsx` — DELETED (same)
-- `app/(clinic)/_layout.tsx` — `session` Tabs.Screen entry removed
-- `app/(clinic)/history.tsx` — `onPress` on session cards removed
-- `app/(patient)/index.tsx` — `onPress` on session cards removed
-
----
-
-## What Was Done Previous Session (2026-04-06) — v0.7.0
-
-### Phase 7 — Patient / Admin / Offline screen migration to useTheme()
-- `app/(patient)/_layout.tsx`, `app/(admin)/_layout.tsx`, `app/(offline)/_layout.tsx` — bg from useTheme()
-- `app/(patient)/settings.tsx`, `app/(patient)/sync.tsx`, `app/(patient)/index.tsx` — full useTheme()
-- `app/(admin)/index.tsx`, `app/(admin)/settings.tsx`, `app/(admin)/users.tsx`, `app/(admin)/clinics.tsx` — full useTheme()
-- `app/(offline)/live-feed.tsx`, `app/(offline)/save.tsx`, `app/mode-select.tsx` — full useTheme()
-- `constants/strings.ts` — added missing `modeSelect` string fields
-- **BUG-06 fixed** in `app/(patient)/index.tsx` — `THUMB_H` ratio `62/80` → `120/160`
-
-### Phase 8 — Clinic screens + shared components migration + cleanup
-- `components/thermal/index.tsx`, `components/ui/ClinicPicker.tsx` — migrated to useTheme()
-- `components/session/index.tsx` — migrated; `statusConfig` color values changed to functions `(colors) => string`
-- `components/assessment/index.tsx` — migrated; `TCIItem` + `AnnotItem` receive color props from parent
-- `app/(auth)/_layout.tsx` — migrated to useTheme()
-- `app/(clinic)/assessment.tsx` — migrated; **BUG-06 fixed** (`120/160`)
-- `app/(clinic)/live-feed.tsx` — migrated
-- `app/(clinic)/sync.tsx` — migrated
-- `app/(patient)/session/[id].tsx` — migrated; **BUG-06 fixed** (`120/160`)
-- `app/(clinic)/session/[id].tsx` — migrated; **BUG-06 fixed** (`120/160`)
-- `constants/theme.ts` — legacy `Colors` export deleted (migration complete)
-- `app.json` — display name changed: `"vestigia"` → `"Lumenai"`
-
----
-
-## What Was Done in Previous Session (2026-04-04)
-
-### UVC Camera Integration
-- `android/app/src/main/java/com/anonymous/vestigia/UVCModule.kt` — Native Kotlin module (saki4510t/UVCCamera)
-- `android/app/src/main/java/com/anonymous/vestigia/UVCPackage.kt` — ReactPackage registration
-- `android/app/src/main/java/com/anonymous/vestigia/MainApplication.kt` — Registered UVCPackage
-- `android/app/build.gradle` — JitPack dependency added
-- `android/app/src/main/res/xml/usb_device_filter.xml` — VID=0x1e4e, PID=0x0100
-- `android/app/src/main/AndroidManifest.xml` — USB host feature + device-attached intent filter
-- `lib/thermal/uvcCamera.ts` — JS bridge for native module
-- `.gitignore` — Removed `/android` (bare workflow with custom native modules)
-- `app/(clinic)/live-feed.tsx` — Rewritten to use real UVC frames
-
-### Thermal Data Pipeline (FR-506 complete)
-- `lib/thermal/preprocessing.ts` — `parseY16Frame` (B64 Y16→160×120 °C matrix), `normalizeMatrix`, `segmentFootRegion`, `getMatrixStats`, `buildApiPayload`
-
-### Offline-First Feature (complete)
-- `app/mode-select.tsx` — Entry point: Go Online | Work Offline
-- `app/(offline)/_layout.tsx` — Stack navigator
-- `app/(offline)/live-feed.tsx` — Same UVC logic, saves B64 + metadata to SQLite
-- `app/(offline)/save.tsx` — Patient label + optional vitals form, `saveCapture()`
-- `lib/db/localDb.ts` — `getDb()`, `migrate()`, `generateLocalId()`
-- `lib/db/offlineCaptures.ts` — `saveCapture`, `getCaptureById`, `getAllCaptures`, `getUnsyncedCaptures`, `markSynced`, `deleteCapture`
-- `app/(clinic)/history.tsx` — Rewritten: Cloud|Local toggle, local capture cards with sync button
-- `app/(clinic)/sync.tsx` — Patient search → upload session to Supabase → data_request → markSynced
-- `app/(patient)/sync.tsx` — List pending data_requests, accept/reject
-- `app/(patient)/index.tsx` — Notification bell with badge for pending requests
-- `types/index.ts` — Added `LocalCapture`, `DataRequest` interfaces
-- `package.json` — Removed WatermelonDB
-
-### GAP-18 Fixed
-- `app/(admin)/users.tsx` — Alert on Supabase error in handleToggleActive
-- `app/(admin)/clinics.tsx` — Alert on Supabase error in handleToggleActive
-
-### FR-508 Complete
-- `lib/classification/riskScoring.ts` — `computeRiskLevel(asymmetry)`, `computeRiskLevelFromResult(result)`, `getRiskLevelDescription(level)` — LOW/MEDIUM/HIGH thresholding at 1.5°C / 2.2°C
+- `app/(clinic)/session/[id].tsx` — DELETED
+- `app/(patient)/session/[id].tsx` — DELETED
 
 ---
 
 ## Current State
 
+### DPN API Integration
+- ✅ `lib/dpnApi.ts` — typed client with 60s timeout + error mapping
+- ✅ `store/dpnStore.ts` — full server-waking retry logic (polls every 5s up to 60s)
+- ✅ `lib/thermal/thermalPng.ts` — pure-JS PNG encoder (no native rebuild needed)
+- ✅ `app/(clinic)/live-feed.tsx` — two-step bilateral capture (Left → Right)
+- ✅ `app/(clinic)/assessment.tsx` — real API call, breathing progress, wakes server
+- ✅ `app/(clinic)/dpn-result.tsx` — full result display + save-to-cloud
+
 ### Camera
-- ✅ FLIR Lepton 3.5 (UVC) — native UVC bridge exists; UVCModule.kt is a stub (real AAR not linked); live-feed shows "Camera Disconnected" for UVC until AAR is added
-- ✅ ESP32 Waveshare MIO802M5S (WiFi) — WebSocket stream fully implemented; BLE auto-discovery implemented; `pairing.tsx` allows manual IP entry + BLE scan → IP auto-fill
-- ⚠️ BLE native module requires `npx expo run:android` rebuild (react-native-ble-plx added)
-- ⚠️ ESP32 firmware requirements: advertise as `ESP32-Thermal*`, BLE service `0000ffe0-...`, IP char `0000ffe1-...`, WebSocket on port 8080 with TM binary frame protocol
+- ✅ FLIR Lepton 3.5 (UVC) — native bridge exists; UVCModule.kt is a stub (real AAR not linked)
+- ✅ ESP32 Waveshare MIO802M5S (WiFi) — WebSocket stream + BLE auto-discovery implemented
+- ⚠️ BLE native module requires `npx expo run:android` rebuild (react-native-ble-plx added in v0.8.0)
+- ⚠️ ESP32 firmware requirements: advertise as `ESP32-Thermal*`, BLE service `0000ffe0-...`, IP char `0000ffe1-...`, WebSocket on port 8080
 
 ### Auth
 - ✅ Login, register, logout, session restore all working
 - ✅ Password reset + email confirmation deep links working
 - ✅ Rate limiting, error mapping, session guards — all done
-- ✅ Cold start <1 second (no blocking DB call)
 
 ### App
-- ✅ Full clinic screening flow: Dashboard → Pair → Patient Select → Live Feed → Clinical Data → Assessment
-- ✅ Assessment result saved to `classification_results`
-- ✅ Session detail screens read real Supabase data (both clinic + patient)
+- ✅ Full clinic screening flow: Dashboard → Pair → Patient Select → Live Feed (bilateral) → Clinical Data → Assessment → DPN Result
+- ✅ Assessment saves real API results to `classification_results`
 - ✅ History screen — Cloud (Supabase) + Local (SQLite) toggle
-- ✅ Admin users + clinics screens read from Supabase; Activate/Deactivate wired with error alerts
+- ✅ Admin users + clinics screens read from Supabase
 - ✅ 30-minute inactivity timeout on all roles
-- ✅ All settings screens fully wired
 - ✅ Offline-first: capture → save locally → sync to Supabase → patient accepts
-- ✅ UVC camera: Android native module wired, live-feed uses real frames
-- ✅ Thermal preprocessing pipeline complete (FR-506)
-- ✅ Risk scoring library complete (FR-508)
-- ❌ AI model API client (FR-507) — blocked on AI team endpoint confirmation
-- ❌ Angiosome overlay on thermal map (GAP-08) — depends on FR-507
+- ✅ Thermal preprocessing pipeline (FR-506)
+- ✅ Risk scoring library (FR-508)
+- ✅ FR-507 DPN API integration — COMPLETE
+- ❌ Angiosome overlay on thermal map (GAP-08) — API returns summary asymmetry, not per-angiosome
 
 ### Open Issues
 - NAV-01: No back button on assessment (intentional, low priority)
-- GAP-08: Thermal map angiosome overlay (deferred, needs FR-507)
-- Edge Function not yet deployed
+- GAP-08: Thermal map angiosome overlay (deferred — API does not return per-angiosome data)
+- `clinical-data.tsx` saves only one `thermal_captures` row (bilateral); per-foot rows not saved separately
 
 ### Pending Manual Steps
-- `npx expo run:android` — rebuild required for `react-native-ble-plx` native module
+- `npx expo run:android` — rebuild required for `react-native-ble-plx`
 - `npm install` — to remove WatermelonDB from node_modules
 - `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
-- ESP32 firmware configuration (BLE + WebSocket per protocol spec in `lib/thermal/wifiCamera.ts`)
+- ESP32 firmware configuration (BLE + WebSocket per protocol spec)
 
 ---
 
 ## Next Steps (priority order)
-1. **`npx expo run:android`** — rebuild for BLE native module (must be done before BLE can be tested)
-2. **UVCModule.kt real implementation** — link real `libuvccamera-release.aar` to `android/app/libs/` to enable FLIR UVC path
-3. **ESP32 firmware** — implement BLE advertising + WebSocket server per protocol spec
-4. **FR-507** — AI model API client — waiting on AI team to confirm endpoint URL, request format, response schema, auth method
-5. **GAP-08** — Thermal map angiosome overlay — depends on FR-507 response shape
-6. **Edge Function deploy** — manual step, run when ready
-7. **npm install** — remove WatermelonDB from node_modules
-
----
-
-## Open Questions
-- **AI model API contract** — endpoint URL, request format, response schema, auth method?
-- **Preprocessing scope** — does the external AI API expect raw matrices or normalized data?
-- **Risk scoring ownership** — does the AI API return `risk_level` directly, or does the app compute it?
+1. **End-to-end test** — full scan flow on device: bilateral capture → API call → result → save to Supabase
+2. **Verify PNG encoding** — confirm server can decode `left_image_b64`/`right_image_b64` (decode + render)
+3. **`npx expo run:android`** — rebuild for BLE native module
+4. **UVCModule.kt real implementation** — link `libuvccamera-release.aar`
+5. **GAP-08** — Thermal map angiosome overlay — decide if `diagnosis_factors` strings are enough or if API needs per-angiosome values
+6. **ESP32 firmware** — BLE advertising + WebSocket server per protocol spec
+7. **Edge Function deploy** — `npx supabase functions deploy auth-redirect`

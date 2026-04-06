@@ -3,6 +3,28 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.9.0] — 2026-04-06
+
+### Added — DPN Classification API Integration (FR-507)
+- `lib/dpnApi.ts` — Typed API client for `https://charlesgaid-dpn-classification-api.hf.space`; `checkServerHealth()` + `scanPatient()`; 60s `AbortController` timeout; maps HTTP 400/500/503/408 to user-facing error messages
+- `store/dpnStore.ts` — Zustand slice with `status: 'idle' | 'loading' | 'success' | 'error' | 'server_waking'`, `result`, `error`; `startScan()` health-checks server (polls every 5s up to 60s if models not loaded), then calls API; `clearScan()` resets state
+- `lib/thermal/thermalPng.ts` — Pure-JS PNG encoder; converts thermal `number[][]` matrix → base64 PNG using Iron colormap (matches `ThermalMap.tsx`); CRC32 + Adler32 + DEFLATE stored blocks; no native dependencies
+- `app/(clinic)/dpn-result.tsx` — DPN result screen: large DPN Detected/No DPN Detected banner, per-foot prediction cards, temperature asymmetry with clinically significant warning, diagnosis factors list, clinical note disclaimer, Save to Cloud / Discard Result actions
+
+### Changed
+- `store/sessionStore.ts` / `useThermalStore` — Added `leftMatrix`, `rightMatrix`, `leftImageB64`, `rightImageB64`, `captureLeft()`, `captureRight()`, `clearBilateral()` (additive — no existing fields changed)
+- `app/(clinic)/live-feed.tsx` — Two-step bilateral capture replacing single-frame flow; step indicator (Left Foot → Right Foot) with checkmarks; capture button colour/label changes per step; imported image files converted to base64 via `expo-file-system`; live/CSV path generates PNG via `thermalMatrixToPngB64`; `thermalStore.capture("bilateral")` still called for `clinical-data.tsx` backward compat
+- `app/(clinic)/assessment.tsx` — Removed mock data and fake 3.5s progress bar; reads bilateral captures from thermalStore; calls `startScan()` on mount; breathing indeterminate progress animation; colour shifts to amber during `server_waking`; navigates to `dpn-result` on success; error state with Retry / Cancel
+- `app/(clinic)/dpn-result.tsx` — Added save-to-cloud: inserts to `classification_results`, updates session to `completed`, routes back to live-feed with `lastSessionId`; full cleanup of session + bilateral stores on save or discard
+- `app/(clinic)/_layout.tsx` — Registered `dpn-result` as hidden `Tabs.Screen`
+
+### Known Gaps (deferred)
+- Angiosome-level fields (`asymmetry_mpa_c` etc., `angiosomes_flagged`, `bilateral_tci`) saved as `null` — API returns summary asymmetry only, not per-angiosome breakdown
+- `model_version` hardcoded as `"dpn-api-v1"` — API does not return a version string
+- GAP-08 (angiosome thermal overlay) still deferred
+
+---
+
 ## [0.8.0] — 2026-04-06
 
 ### Added — Dual Camera Support (FLIR + ESP32 Wi-Fi)

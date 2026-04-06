@@ -1,6 +1,7 @@
 // app/(clinic)/live-feed.tsx
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -27,6 +28,7 @@ import { StatusIndicator } from "../../components/ui/index";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getMatrixStats, parseCsvMatrix, parseY16Frame } from "../../lib/thermal/preprocessing";
+import { thermalMatrixToPngB64 } from "../../lib/thermal/thermalPng";
 import {
   connectCamera,
   disconnectCamera,
@@ -47,6 +49,7 @@ const MAP_W = SCREEN_W - Spacing.lg * 2 - 40;
 const MAP_H = Math.round(MAP_W * (120 / 160));
 
 type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
+type CaptureStep = "left" | "right";
 
 type LastResult = {
   classification: "POSITIVE" | "NEGATIVE";
@@ -75,9 +78,11 @@ export default function LiveFeedScreen() {
 
   //UI
   const [showGuide, setShowGuide] = useState(true);
-  const [captured, setCaptured] = useState(false);
-  const [capturedMatrix, setCapturedMatrix] = useState<number[][] | null>(null);
-  const [selectedFoot, setSelectedFoot] = useState<"left" | "right" | "bilateral">("bilateral");
+
+  //Bilateral capture steps
+  const [captureStep, setCaptureStep] = useState<CaptureStep>("left");
+  const [leftCaptured, setLeftCaptured] = useState(false);
+  const [rightCaptured, setRightCaptured] = useState(false);
 
   //Last result panel
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
@@ -91,6 +96,15 @@ export default function LiveFeedScreen() {
   const frameTimestamps = useRef<number[]>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const capturedRef = useRef(false);
+
+  const bothCaptured = leftCaptured && rightCaptured;
+
+  //Reset import state between steps
+  const resetImport = () => {
+    setImportImageUri(null);
+    setImportImageName(null);
+    setImportCsvName(null);
+  };
 
   //Fetch last session result once if navigated back from assessment
   useEffect(() => {
@@ -130,7 +144,6 @@ export default function LiveFeedScreen() {
     frameTimestamps.current = [];
 
     if (cameraSource === "wifi") {
-      //ESP32 Wi-Fi WebSocket stream
       if (!wifiIp) {
         setCameraStatus("error");
         setCameraError("No Wi-Fi IP configured. Set it in the Pairing screen.");
@@ -200,24 +213,60 @@ export default function LiveFeedScreen() {
     };
   }, [cameraSource, wifiIp, wifiPort]);
 
-  const handleCapture = () => {
-    if (!matrix) return;
+  //Build image b64 from matrix or imported file
+  const getImageB64 = async (currentMatrix: number[][]): Promise<string> => {
+    if (importImageUri) {
+      try {
+        return await FileSystem.readAsStringAsync(importImageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch {
+        // fall through to generated PNG
+      }
+    }
+    return thermalMatrixToPngB64(currentMatrix, minTemp, maxTemp);
+  };
+
+  //Pulse animation helper
+  const triggerPulse = () => {
     Animated.sequence([
       Animated.timing(pulseAnim, { toValue: 1.08, duration: 80, useNativeDriver: true }),
       Animated.timing(pulseAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start();
-    setCapturedMatrix(matrix);
-    capturedRef.current = true;
-    setCaptured(true);
-    thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
-    thermalStore.capture(selectedFoot);
   };
 
+  //Capture live-camera frame for current step
+  const handleCapture = async () => {
+    if (!matrix) return;
+    triggerPulse();
+    const imageB64 = await getImageB64(matrix);
+
+    if (captureStep === "left") {
+      thermalStore.captureLeft(matrix, imageB64);
+      thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+      setLeftCaptured(true);
+      setCaptureStep("right");
+      capturedRef.current = false; // resume stream for right-foot positioning
+      resetImport();
+    } else {
+      thermalStore.captureRight(matrix, imageB64);
+      thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+      thermalStore.capture("bilateral"); // keeps capturedMatrix for clinical-data Supabase insert
+      setRightCaptured(true);
+      capturedRef.current = true; // freeze feed — both feet captured
+      resetImport();
+    }
+  };
+
+  //Discard all captures and restart
   const handleDiscard = () => {
     capturedRef.current = false;
-    setCaptured(false);
-    setCapturedMatrix(null);
+    setLeftCaptured(false);
+    setRightCaptured(false);
+    setCaptureStep("left");
+    thermalStore.clearBilateral();
     thermalStore.discardCapture();
+    resetImport();
   };
 
   //Import handlers
@@ -256,17 +305,27 @@ export default function LiveFeedScreen() {
     }
   };
 
-  const handleUseImport = () => {
+  //Use imported data for current capture step
+  const handleUseImport = async () => {
     if (!matrix) return;
-    Animated.sequence([
-      Animated.timing(pulseAnim, { toValue: 1.08, duration: 80, useNativeDriver: true }),
-      Animated.timing(pulseAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
-    ]).start();
-    setCapturedMatrix(matrix);
-    capturedRef.current = true;
-    setCaptured(true);
-    thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
-    thermalStore.capture(selectedFoot);
+    triggerPulse();
+    const imageB64 = await getImageB64(matrix);
+
+    if (captureStep === "left") {
+      thermalStore.captureLeft(matrix, imageB64);
+      thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+      setLeftCaptured(true);
+      setCaptureStep("right");
+      capturedRef.current = false;
+      resetImport();
+    } else {
+      thermalStore.captureRight(matrix, imageB64);
+      thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+      thermalStore.capture("bilateral");
+      setRightCaptured(true);
+      capturedRef.current = true;
+      resetImport();
+    }
   };
 
   const statusLabel =
@@ -319,8 +378,25 @@ export default function LiveFeedScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Bilateral capture step indicator */}
+        <View style={[styles.stepRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <StepDot
+            label="Left Foot"
+            done={leftCaptured}
+            active={!leftCaptured}
+            colors={colors}
+          />
+          <View style={[styles.stepConnector, { backgroundColor: leftCaptured ? colors.success : colors.border }]} />
+          <StepDot
+            label="Right Foot"
+            done={rightCaptured}
+            active={leftCaptured && !rightCaptured}
+            colors={colors}
+          />
+        </View>
+
         {/* No camera state */}
-        {cameraStatus !== "connected" && !captured && (
+        {cameraStatus !== "connected" && !bothCaptured && (
           <View style={styles.noCamera}>
             <Ionicons name="camera-outline" size={48} color={colors.textSec} style={{ marginBottom: Spacing.md }} />
             <Text style={[styles.noCameraText, { color: colors.textSec }]}>
@@ -334,29 +410,35 @@ export default function LiveFeedScreen() {
         )}
 
         {/* Thermal viewer */}
-        {(matrix || capturedMatrix) && (
+        {matrix && (
           <Animated.View
             style={[
               styles.thermalContainer,
-              { borderColor: captured ? colors.success : colors.border },
+              { borderColor: bothCaptured ? colors.success : leftCaptured ? colors.warning : colors.border },
               { transform: [{ scale: pulseAnim }] },
             ]}
           >
             <View style={styles.thermalRow}>
               <View style={styles.mapWrapper}>
                 <ThermalMap
-                  matrix={captured ? capturedMatrix! : matrix!}
+                  matrix={matrix}
                   minTemp={minTemp}
                   maxTemp={maxTemp}
                   width={MAP_W}
                   height={MAP_H}
                 />
-                {showGuide && !captured && (
+                {showGuide && !bothCaptured && (
                   <FootGuidanceOverlay width={MAP_W} height={MAP_H} />
                 )}
-                {captured && (
+                {/* Capture status overlay */}
+                {leftCaptured && !rightCaptured && (
+                  <View style={[styles.capturedOverlay, { backgroundColor: `${colors.warning}D9` }]}>
+                    <Text style={styles.capturedLabel}>LEFT CAPTURED · POSITION RIGHT</Text>
+                  </View>
+                )}
+                {bothCaptured && (
                   <View style={[styles.capturedOverlay, { backgroundColor: `${colors.success}D9` }]}>
-                    <Text style={styles.capturedLabel}>CAPTURED</Text>
+                    <Text style={styles.capturedLabel}>BOTH FEET CAPTURED</Text>
                   </View>
                 )}
               </View>
@@ -366,55 +448,45 @@ export default function LiveFeedScreen() {
           </Animated.View>
         )}
 
-        {/* Foot selector */}
-        <View style={styles.footSelector}>
-          <Text style={[styles.footLabel, { color: colors.textSec }]}>Capture Mode</Text>
-          <View style={styles.footBtns}>
-            {(["Left", "Right", "Bilateral"] as const).map((f) => {
-              const val = f.toLowerCase() as "left" | "right" | "bilateral";
-              const active = selectedFoot === val;
-              return (
-                <TouchableOpacity
-                  key={f}
-                  onPress={() => setSelectedFoot(val)}
-                  style={[
-                    styles.footBtn,
-                    { borderColor: active ? colors.accent : colors.border },
-                    active && { backgroundColor: `${colors.accent}1A` },
-                  ]}
-                  activeOpacity={0.7}
-                  disabled={captured}
-                >
-                  <Text style={[styles.footBtnText, { color: active ? colors.accent : colors.textSec }]}>{f}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
         {/* Controls */}
         <View style={styles.controls}>
-          {!captured ? (
-            <TouchableOpacity
-              onPress={handleCapture}
-              style={styles.captureBtn}
-              activeOpacity={0.8}
-              disabled={cameraStatus !== "connected" || !matrix}
-            >
-              <View style={[
-                styles.captureBtnOuter,
-                { borderColor: colors.accent },
-                (cameraStatus !== "connected" || !matrix) && { borderColor: colors.border, elevation: 0 },
-              ]}>
-                <View style={[styles.captureBtnInner, { backgroundColor: colors.accent }]} />
-              </View>
-              <Text style={[styles.captureBtnLabel, { color: colors.textSec }]}>CAPTURE</Text>
-            </TouchableOpacity>
+          {!bothCaptured ? (
+            <>
+              <TouchableOpacity
+                onPress={handleCapture}
+                style={styles.captureBtn}
+                activeOpacity={0.8}
+                disabled={cameraStatus !== "connected" || !matrix}
+              >
+                <View style={[
+                  styles.captureBtnOuter,
+                  { borderColor: captureStep === "left" ? colors.accent : colors.warning },
+                  (cameraStatus !== "connected" || !matrix) && { borderColor: colors.border, elevation: 0 },
+                ]}>
+                  <View style={[
+                    styles.captureBtnInner,
+                    { backgroundColor: captureStep === "left" ? colors.accent : colors.warning },
+                  ]} />
+                </View>
+                <Text style={[styles.captureBtnLabel, { color: colors.textSec }]}>
+                  CAPTURE {captureStep.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+              {leftCaptured && (
+                <TouchableOpacity
+                  onPress={handleDiscard}
+                  style={styles.discardLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.discardLinkText, { color: colors.textSec }]}>Restart both captures</Text>
+                </TouchableOpacity>
+              )}
+            </>
           ) : (
             <View style={styles.postCaptureRow}>
-              <Button label="Discard" onPress={handleDiscard} variant="ghost" size="md" style={styles.halfBtn} />
+              <Button label="Discard All" onPress={handleDiscard} variant="ghost" size="md" style={styles.halfBtn} />
               <Button
-                label="Use This Frame"
+                label="Continue"
                 onPress={() => router.push("/(clinic)/clinical-data")}
                 variant="teal"
                 size="md"
@@ -424,14 +496,16 @@ export default function LiveFeedScreen() {
           )}
         </View>
 
-        {!captured && cameraStatus === "connected" && (
+        {!bothCaptured && cameraStatus === "connected" && (
           <Text style={[styles.hint, { color: colors.textSec }]}>
-            Position both feet within the dashed guides, then tap Capture.
+            {captureStep === "left"
+              ? "Position the LEFT foot within the guides, then tap Capture."
+              : "Left foot captured. Now position the RIGHT foot and tap Capture."}
           </Text>
         )}
 
-        {/* Import from files */}
-        {!captured && (
+        {/* Import from files (hidden once both captured) */}
+        {!bothCaptured && (
           <View style={[styles.importSection, { borderColor: colors.border }]}>
             <View style={styles.importDivider}>
               <View style={[styles.importLine, { backgroundColor: colors.border }]} />
@@ -493,15 +567,17 @@ export default function LiveFeedScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Use imported data CTA */}
+            {/* Use imported data CTA (visible when CSV loaded) */}
             {importCsvName && matrix && (
               <TouchableOpacity
                 onPress={handleUseImport}
-                style={[styles.importCta, { backgroundColor: colors.accent }]}
+                style={[styles.importCta, { backgroundColor: captureStep === "left" ? colors.accent : colors.warning }]}
                 activeOpacity={0.8}
               >
                 <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                <Text style={styles.importCtaText}>Use Imported Data</Text>
+                <Text style={styles.importCtaText}>
+                  Use as {captureStep === "left" ? "Left" : "Right"} Foot
+                </Text>
               </TouchableOpacity>
             )}
           </View>
@@ -553,6 +629,48 @@ export default function LiveFeedScreen() {
   );
 }
 
+//Step dot sub-component
+function StepDot({
+  label,
+  done,
+  active,
+  colors,
+}: {
+  label: string;
+  done: boolean;
+  active: boolean;
+  colors: import("../../constants/theme").ThemeColors;
+}) {
+  const dotColor = done ? colors.success : active ? colors.accent : colors.border;
+  return (
+    <View style={stepStyles.container}>
+      <View style={[stepStyles.dot, { borderColor: dotColor, backgroundColor: done ? dotColor : "transparent" }]}>
+        {done && <Ionicons name="checkmark" size={12} color="#fff" />}
+      </View>
+      <Text style={[stepStyles.label, { color: done ? colors.success : active ? colors.text : colors.textSec }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const stepStyles = StyleSheet.create({
+  container: { alignItems: "center", gap: 4 },
+  dot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  label: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.label,
+    letterSpacing: 0.5,
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.lg,
@@ -575,6 +693,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   guideToggleText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label },
+
+  //Step indicator
+  stepRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+    gap: Spacing.lg,
+  },
+  stepConnector: { flex: 1, height: 2, borderRadius: 1 },
+
   noCamera: { alignItems: "center", justifyContent: "center", paddingHorizontal: Spacing.xl, paddingVertical: Spacing["3xl"] },
   noCameraText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 22 },
   thermalContainer: {
@@ -594,22 +727,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   capturedLabel: { fontSize: 10, fontFamily: Typography.fonts.heading, color: "#fff", letterSpacing: 1.5 },
-  footSelector: { marginBottom: Spacing.lg },
-  footLabel: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.label,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: Spacing.sm,
-  },
-  footBtns: { flexDirection: "row", gap: Spacing.sm },
-  footBtn: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-  },
-  footBtnText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
   controls: { alignItems: "center", marginBottom: Spacing.md },
   captureBtn: { alignItems: "center" },
   captureBtnOuter: {
@@ -624,9 +741,12 @@ const styles = StyleSheet.create({
   },
   captureBtnInner: { width: 52, height: 52, borderRadius: 26 },
   captureBtnLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading, letterSpacing: 2 },
+  discardLink: { marginTop: Spacing.sm },
+  discardLinkText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textDecorationLine: "underline" },
   postCaptureRow: { flexDirection: "row", gap: Spacing.md, width: "100%" },
   halfBtn: { flex: 1 },
   hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 18, marginBottom: Spacing.md },
+
   //Import section
   importSection: { marginBottom: Spacing.lg },
   importDivider: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
@@ -655,6 +775,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
   },
   importCtaText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading, color: "#fff" },
+
   //Last result panel
   resultPanel: {
     marginTop: Spacing.lg,

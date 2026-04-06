@@ -1,5 +1,5 @@
 # Progress — Lumenai (formerly Vestigia)
-**Current version:** 0.8.0
+**Current version:** 0.9.0
 **Last verified:** 2026-04-06
 
 > Detailed checklists: `_project-docs/progress/`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.0 | 2026-04-06 | DPN Classification API integration (FR-507) — bilateral capture flow, pure-JS PNG encoder, real API client + store, wired assessment + result screen |
 | 0.8.0 | 2026-04-06 | Real BLE + Wi-Fi dual camera support (FLIR + ESP32 MIO802M5S); session detail screens removed |
 | 0.7.0 | 2026-04-06 | Full Arctic Mint theme migration (Phase 7+8), legacy Colors removed, app renamed to Lumenai, BUG-06 fixed in 4 files |
 | 0.6.0 | 2026-04-04 | UVC camera, offline-first feature, FR-506 preprocessing, FR-508 risk scoring, GAP-18 admin alerts |

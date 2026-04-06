@@ -77,6 +77,11 @@ interface ThermalState {
   maxTemp: number;
   meanTemp: number;
   fps: number;
+  // Bilateral DPN capture — left + right stored separately for API
+  leftMatrix: number[][] | null;
+  rightMatrix: number[][] | null;
+  leftImageB64: string | null;
+  rightImageB64: string | null;
   setLiveFrame: (
     matrix: number[][],
     min: number,
@@ -86,6 +91,9 @@ interface ThermalState {
   capture: (foot: FootSide) => void;
   discardCapture: () => void;
   setFps: (fps: number) => void;
+  captureLeft: (matrix: number[][], imageB64: string) => void;
+  captureRight: (matrix: number[][], imageB64: string) => void;
+  clearBilateral: () => void;
 }
 
 export const useThermalStore = create<ThermalState>((set) => ({
@@ -96,9 +104,16 @@ export const useThermalStore = create<ThermalState>((set) => ({
   maxTemp: 38,
   meanTemp: 33,
   fps: 0,
+  leftMatrix: null,
+  rightMatrix: null,
+  leftImageB64: null,
+  rightImageB64: null,
   setLiveFrame: (matrix, min, max, mean) =>
     set({ liveMatrix: matrix, minTemp: min, maxTemp: max, meanTemp: mean }),
   capture: (foot) => set((s) => ({ capturedMatrix: s.liveMatrix, capturedFoot: foot })),
   discardCapture: () => set({ capturedMatrix: null, capturedFoot: null }),
   setFps: (fps) => set({ fps }),
+  captureLeft: (matrix, imageB64) => set({ leftMatrix: matrix, leftImageB64: imageB64 }),
+  captureRight: (matrix, imageB64) => set({ rightMatrix: matrix, rightImageB64: imageB64 }),
+  clearBilateral: () => set({ leftMatrix: null, rightMatrix: null, leftImageB64: null, rightImageB64: null }),
 }));
