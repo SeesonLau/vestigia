@@ -90,7 +90,6 @@ export default function ClinicLayout() {
       <Tabs.Screen name="patient-select" options={{ href: null as any }} />
       <Tabs.Screen name="clinical-data"  options={{ href: null as any }} />
       <Tabs.Screen name="assessment"     options={{ href: null as any }} />
-      <Tabs.Screen name="session"        options={{ href: null as any }} />
       <Tabs.Screen name="sync"           options={{ href: null as any }} />
     </Tabs>
   );
