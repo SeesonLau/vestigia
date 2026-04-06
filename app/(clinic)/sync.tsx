@@ -16,7 +16,8 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getCaptureById, markSynced } from "../../lib/db/offlineCaptures";
 import { parseY16Frame } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
@@ -25,6 +26,7 @@ import type { LocalCapture, Patient } from "../../types";
 
 export default function SyncScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const user = useAuthStore((s) => s.user);
 
@@ -169,12 +171,12 @@ export default function SyncScreen() {
           title="Sync to Account"
           leftIcon={
             <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="arrow-back-outline" size={22} color={Colors.text.primary} />
+              <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
             </TouchableOpacity>
           }
         />
         <View style={styles.loadingState}>
-          <ActivityIndicator color={Colors.primary[400]} />
+          <ActivityIndicator color={colors.accent} />
         </View>
       </ScreenWrapper>
     );
@@ -186,7 +188,7 @@ export default function SyncScreen() {
         title="Sync to Account"
         leftIcon={
           <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back-outline" size={22} color={Colors.text.primary} />
+            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }
       />
@@ -201,52 +203,52 @@ export default function SyncScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Capture summary */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Offline Capture</Text>
+          <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.cardTitle, { color: colors.textSec }]}>Offline Capture</Text>
             <View style={styles.captureRow}>
-              <Text style={styles.captureLabel}>{capture.patient_label}</Text>
+              <Text style={[styles.captureLabel, { color: colors.text }]}>{capture.patient_label}</Text>
               <View style={styles.unsyncedBadge}>
                 <Text style={styles.unsyncedText}>Unsynced</Text>
               </View>
             </View>
             <View style={styles.metaRow}>
-              <Ionicons name="footsteps-outline" size={13} color={Colors.text.muted} />
-              <Text style={styles.meta}>
+              <Ionicons name="footsteps-outline" size={13} color={colors.textSec} />
+              <Text style={[styles.meta, { color: colors.textSec }]}>
                 {capture.foot_side.charAt(0).toUpperCase() + capture.foot_side.slice(1)} foot
               </Text>
-              <Text style={styles.metaDivider}>·</Text>
-              <Ionicons name="thermometer-outline" size={13} color={Colors.text.muted} />
-              <Text style={styles.meta}>
+              <Text style={[styles.metaDivider, { color: colors.textSec }]}>·</Text>
+              <Ionicons name="thermometer-outline" size={13} color={colors.textSec} />
+              <Text style={[styles.meta, { color: colors.textSec }]}>
                 {capture.min_temp.toFixed(1)}–{capture.max_temp.toFixed(1)}°C
               </Text>
             </View>
             {(capture.blood_glucose_mgdl || capture.systolic_bp_mmhg) && (
               <View style={styles.metaRow}>
-                <Ionicons name="pulse-outline" size={13} color={Colors.text.muted} />
-                <Text style={styles.meta}>
+                <Ionicons name="pulse-outline" size={13} color={colors.textSec} />
+                <Text style={[styles.meta, { color: colors.textSec }]}>
                   {capture.blood_glucose_mgdl ? `${capture.blood_glucose_mgdl} mg/dL` : ""}
                   {capture.blood_glucose_mgdl && capture.systolic_bp_mmhg ? "  ·  " : ""}
                   {capture.systolic_bp_mmhg ? `${capture.systolic_bp_mmhg}/${capture.diastolic_bp_mmhg} mmHg` : ""}
                 </Text>
               </View>
             )}
-            <Text style={styles.captureDate}>
+            <Text style={[styles.captureDate, { color: colors.textSec }]}>
               {new Date(capture.captured_at).toLocaleString()}
             </Text>
           </View>
 
           {/* Patient search */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Match to Patient</Text>
-            <Text style={styles.sectionHint}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Match to Patient</Text>
+            <Text style={[styles.sectionHint, { color: colors.textSec }]}>
               Search by patient code to link this capture to a patient record in your clinic.
             </Text>
-            <View style={styles.searchRow}>
-              <Ionicons name="search-outline" size={16} color={Colors.text.muted} style={styles.searchIcon} />
+            <View style={[styles.searchRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={16} color={colors.textSec} style={styles.searchIcon} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
                 placeholder="Search patient code..."
-                placeholderTextColor={Colors.text.muted}
+                placeholderTextColor={colors.textSec}
                 value={query}
                 onChangeText={(v) => {
                   setQuery(v);
@@ -256,17 +258,17 @@ export default function SyncScreen() {
                 returnKeyType="search"
               />
               {searching && (
-                <ActivityIndicator size="small" color={Colors.primary[400]} style={{ marginRight: Spacing.sm }} />
+                <ActivityIndicator size="small" color={colors.accent} style={{ marginRight: Spacing.sm }} />
               )}
             </View>
 
             {/* Search results */}
             {searchResults.length > 0 && !selectedPatient && (
-              <View style={styles.resultList}>
+              <View style={[styles.resultList, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {searchResults.map((p, idx) => (
                   <TouchableOpacity
                     key={p.id}
-                    style={[styles.resultItem, idx === searchResults.length - 1 && { borderBottomWidth: 0 }]}
+                    style={[styles.resultItem, { borderBottomColor: colors.border }, idx === searchResults.length - 1 && { borderBottomWidth: 0 }]}
                     onPress={() => {
                       setSelectedPatient(p);
                       setQuery(p.patient_code);
@@ -274,15 +276,15 @@ export default function SyncScreen() {
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.resultCode}>{p.patient_code}</Text>
+                    <Text style={[styles.resultCode, { color: colors.text }]}>{p.patient_code}</Text>
                     {p.sex && (
-                      <Text style={styles.resultMeta}>
+                      <Text style={[styles.resultMeta, { color: colors.textSec }]}>
                         {p.sex.charAt(0).toUpperCase() + p.sex.slice(1)}
                         {p.diabetes_type ? ` · ${p.diabetes_type}` : ""}
                       </Text>
                     )}
                     {!p.user_id && (
-                      <Text style={styles.noAccountNote}>No app account</Text>
+                      <Text style={[styles.noAccountNote, { color: colors.textSec }]}>No app account</Text>
                     )}
                   </TouchableOpacity>
                 ))}
@@ -292,16 +294,16 @@ export default function SyncScreen() {
 
           {/* Selected patient preview */}
           {selectedPatient && (
-            <View style={styles.selectedCard}>
+            <View style={[styles.selectedCard, { backgroundColor: `${colors.accent}14`, borderColor: `${colors.accent}40` }]}>
               <View style={styles.selectedHeader}>
-                <Ionicons name="person-circle-outline" size={20} color={Colors.primary[300]} />
-                <Text style={styles.selectedCode}>{selectedPatient.patient_code}</Text>
+                <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
+                <Text style={[styles.selectedCode, { color: colors.text }]}>{selectedPatient.patient_code}</Text>
                 <TouchableOpacity onPress={() => { setSelectedPatient(null); setQuery(""); }}>
-                  <Ionicons name="close-circle-outline" size={18} color={Colors.text.muted} />
+                  <Ionicons name="close-circle-outline" size={18} color={colors.textSec} />
                 </TouchableOpacity>
               </View>
               {selectedPatient.diabetes_type && (
-                <Text style={styles.selectedMeta}>
+                <Text style={[styles.selectedMeta, { color: colors.textSec }]}>
                   {selectedPatient.diabetes_type}
                   {selectedPatient.diabetes_duration_years
                     ? ` · ${selectedPatient.diabetes_duration_years}yr duration`
@@ -310,13 +312,13 @@ export default function SyncScreen() {
               )}
               {selectedPatient.user_id ? (
                 <View style={styles.accountRow}>
-                  <Ionicons name="checkmark-circle-outline" size={13} color={Colors.teal[400]} />
-                  <Text style={styles.accountNote}>Has app account — will receive a notification</Text>
+                  <Ionicons name="checkmark-circle-outline" size={13} color={colors.success} />
+                  <Text style={[styles.accountNote, { color: colors.success }]}>Has app account — will receive a notification</Text>
                 </View>
               ) : (
                 <View style={styles.accountRow}>
-                  <Ionicons name="information-circle-outline" size={13} color={Colors.text.muted} />
-                  <Text style={styles.noAccountNoteInline}>No app account — session saved, no notification sent</Text>
+                  <Ionicons name="information-circle-outline" size={13} color={colors.textSec} />
+                  <Text style={[styles.noAccountNoteInline, { color: colors.textSec }]}>No app account — session saved, no notification sent</Text>
                 </View>
               )}
             </View>
@@ -324,7 +326,7 @@ export default function SyncScreen() {
 
           {/* Sync button */}
           <TouchableOpacity
-            style={[styles.syncBtn, (!selectedPatient || syncing) && styles.syncBtnDisabled]}
+            style={[styles.syncBtn, { backgroundColor: colors.accent }, (!selectedPatient || syncing) && styles.syncBtnDisabled]}
             onPress={handleSync}
             disabled={!selectedPatient || syncing}
             activeOpacity={0.8}
@@ -339,7 +341,7 @@ export default function SyncScreen() {
             )}
           </TouchableOpacity>
 
-          <Text style={styles.footerNote}>
+          <Text style={[styles.footerNote, { color: colors.textSec }]}>
             The capture will be linked to the selected patient and remain on this device until deleted.
           </Text>
         </ScrollView>
@@ -354,9 +356,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.lg, paddingBottom: Spacing["3xl"] },
   //Capture card
   card: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.xs,
@@ -364,7 +364,6 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: 2,
@@ -373,7 +372,6 @@ const styles = StyleSheet.create({
   captureLabel: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     flex: 1,
   },
   unsyncedBadge: {
@@ -386,29 +384,25 @@ const styles = StyleSheet.create({
   },
   unsyncedText: { fontSize: 10, fontFamily: Typography.fonts.label, color: "#fbbf24" },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  meta: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted },
-  metaDivider: { color: Colors.text.muted, marginHorizontal: 2 },
-  captureDate: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.text.muted },
+  meta: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
+  metaDivider: { marginHorizontal: 2 },
+  captureDate: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   //Section
   section: { gap: Spacing.sm },
   sectionTitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   sectionHint: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 18,
   },
   //Search
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bg.glassLight,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
   },
   searchIcon: { paddingLeft: Spacing.md },
@@ -418,42 +412,33 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.primary,
   },
   resultList: {
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     overflow: "hidden",
   },
   resultItem: {
     padding: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
     gap: 2,
   },
   resultCode: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   resultMeta: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   noAccountNote: {
     fontSize: 10,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     marginTop: 2,
   },
   //Selected patient
   selectedCard: {
-    backgroundColor: "rgba(0,128,200,0.08)",
     borderWidth: 1,
-    borderColor: Colors.primary[700],
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.xs,
@@ -463,23 +448,19 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
   },
   selectedMeta: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   accountRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
-  accountNote: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, color: Colors.teal[400] },
+  accountNote: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   noAccountNoteInline: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   //Sync button
   syncBtn: {
-    backgroundColor: Colors.primary[600],
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
     flexDirection: "row",
@@ -497,7 +478,6 @@ const styles = StyleSheet.create({
   footerNote: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
     lineHeight: 18,
   },

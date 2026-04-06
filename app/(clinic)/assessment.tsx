@@ -22,13 +22,14 @@ import ThermalMap, {
 import Button from "../../components/ui/Button";
 import { Badge, Card, Disclaimer } from "../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
-const THUMB_H = Math.round(THUMB_W * (62 / 80));
+const THUMB_H = Math.round(THUMB_W * (120 / 160));
 
 // Mock result
 const MOCK_RESULT = {
@@ -50,6 +51,7 @@ type ScreenState = "processing" | "result";
 
 export default function AssessmentScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { activeSession, clearSession } = useSessionStore();
   const discardCapture = useThermalStore((s) => s.discardCapture);
   const [state, setState] = useState<ScreenState>("processing");
@@ -156,17 +158,17 @@ export default function AssessmentScreen() {
 
       {state === "processing" ? (
         <View style={styles.processingContainer}>
-          <View style={styles.processingCard}>
-            <Ionicons name="analytics-outline" size={48} color={Colors.primary[400]} style={styles.processingIcon} />
-            <Text style={styles.processingTitle}>Analyzing Thermal Data</Text>
-            <Text style={styles.processingSubtitle}>
+          <View style={[styles.processingCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="analytics-outline" size={48} color={colors.accent} style={styles.processingIcon} />
+            <Text style={[styles.processingTitle, { color: colors.text }]}>Analyzing Thermal Data</Text>
+            <Text style={[styles.processingSubtitle, { color: colors.textSec }]}>
               Uploading and processing through the AI classification model...
             </Text>
 
             {/* Progress bar */}
-            <View style={styles.progressTrack}>
+            <View style={[styles.progressTrack, { backgroundColor: colors.surface }]}>
               <Animated.View
-                style={[styles.progressFill, { width: progressWidth }]}
+                style={[styles.progressFill, { width: progressWidth, backgroundColor: colors.accent }]}
               />
             </View>
 
@@ -174,8 +176,8 @@ export default function AssessmentScreen() {
             <View style={styles.steps}>
               {["Uploading", "Processing", "Classifying"].map((step) => (
                 <View key={step} style={styles.step}>
-                  <View style={styles.stepDot} />
-                  <Text style={styles.stepText}>{step}</Text>
+                  <View style={[styles.stepDot, { backgroundColor: colors.accent }]} />
+                  <Text style={[styles.stepText, { color: colors.textSec }]}>{step}</Text>
                 </View>
               ))}
             </View>
@@ -198,14 +200,14 @@ export default function AssessmentScreen() {
           <View style={styles.metaRow}>
             <Badge label={MOCK_RESULT.model_version} variant="muted" />
             <View style={styles.processingTimeRow}>
-              <Ionicons name="timer-outline" size={12} color={Colors.text.muted} />
-              <Text style={styles.processingTime}> {MOCK_RESULT.processing_time_ms}ms</Text>
+              <Ionicons name="timer-outline" size={12} color={colors.textSec} />
+              <Text style={[styles.processingTime, { color: colors.textSec }]}> {MOCK_RESULT.processing_time_ms}ms</Text>
             </View>
           </View>
 
           {/* Thermal thumbnails */}
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Captured Frames</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Captured Frames</Text>
             <View style={styles.thumbRow}>
               <View style={styles.thumbContainer}>
                 <ThermalMap
@@ -215,7 +217,7 @@ export default function AssessmentScreen() {
                   width={THUMB_W}
                   height={THUMB_H}
                 />
-                <Text style={styles.thumbLabel}>LEFT FOOT</Text>
+                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
               </View>
               <View style={styles.thumbContainer}>
                 <ThermalMap
@@ -225,17 +227,17 @@ export default function AssessmentScreen() {
                   width={THUMB_W}
                   height={THUMB_H}
                 />
-                <Text style={styles.thumbLabel}>RIGHT FOOT</Text>
+                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
               </View>
             </View>
           </Card>
 
           {/* Angiosome asymmetry table */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Bilateral Asymmetry Analysis
             </Text>
-            <Text style={styles.sectionSubtitle}>
+            <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
               Values exceeding 2.2°C threshold are flagged
             </Text>
             <AngiosomeTable
@@ -282,10 +284,10 @@ export default function AssessmentScreen() {
               />
             </View>
           ) : (
-            <View style={styles.savedBanner}>
+            <View style={[styles.savedBanner, { backgroundColor: `${colors.success}1A`, borderColor: `${colors.success}4D` }]}>
               <View style={styles.savedRow}>
-                <Ionicons name="checkmark-circle-outline" size={18} color={Colors.teal[300]} />
-                <Text style={styles.savedText}> Session saved successfully</Text>
+                <Ionicons name="checkmark-circle-outline" size={18} color={colors.success} />
+                <Text style={[styles.savedText, { color: colors.success }]}> Session saved successfully</Text>
               </View>
               <Button
                 label="New Session"
@@ -311,9 +313,7 @@ const styles = StyleSheet.create({
   },
   processingCard: {
     width: "100%",
-    backgroundColor: Colors.bg.card,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
     alignItems: "center",
@@ -322,14 +322,12 @@ const styles = StyleSheet.create({
   processingTitle: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.sm,
     textAlign: "center",
   },
   processingSubtitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: Spacing.xl,
@@ -337,14 +335,12 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: "100%",
     height: 4,
-    backgroundColor: Colors.bg.glassLight,
     borderRadius: 2,
     overflow: "hidden",
     marginBottom: Spacing.xl,
   },
   progressFill: {
     height: "100%",
-    backgroundColor: Colors.primary[400],
     borderRadius: 2,
   },
   steps: {
@@ -357,12 +353,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: Colors.primary[400],
   },
   stepText: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 0.5,
   },
 
@@ -377,13 +371,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.xs,
   },
   sectionSubtitle: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginBottom: Spacing.md,
   },
   metaRow: {
@@ -399,7 +391,6 @@ const styles = StyleSheet.create({
   processingTime: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
   },
 
   // Thermal thumbs
@@ -412,7 +403,6 @@ const styles = StyleSheet.create({
   thumbLabel: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     letterSpacing: 1.5,
     textAlign: "center",
     marginTop: Spacing.xs,
@@ -436,9 +426,7 @@ const styles = StyleSheet.create({
     alignItems: "center" as const,
   },
   savedBanner: {
-    backgroundColor: "rgba(20,176,142,0.1)",
     borderWidth: 1,
-    borderColor: "rgba(20,176,142,0.3)",
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     alignItems: "center",
@@ -447,6 +435,5 @@ const styles = StyleSheet.create({
   savedText: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.teal[300],
   },
 });

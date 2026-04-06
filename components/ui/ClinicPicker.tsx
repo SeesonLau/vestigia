@@ -18,7 +18,8 @@ import {
   View,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 import Input from "./Input";
 
 interface Clinic {
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export default function ClinicPicker({ selectedId, onSelect }: Props) {
+  const { colors } = useTheme();
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchFailed, setFetchFailed] = useState(false);
@@ -55,8 +57,8 @@ export default function ClinicPicker({ selectedId, onSelect }: Props) {
   if (loading) {
     return (
       <View style={styles.loadingRow}>
-        <ActivityIndicator size="small" color={Colors.primary[400]} />
-        <Text style={styles.loadingText}>Loading clinics…</Text>
+        <ActivityIndicator size="small" color={colors.accent} />
+        <Text style={[styles.loadingText, { color: colors.textSec }]}>Loading clinics…</Text>
       </View>
     );
   }
@@ -64,14 +66,14 @@ export default function ClinicPicker({ selectedId, onSelect }: Props) {
   if (fetchFailed) {
     return (
       <View style={styles.section}>
-        <Text style={styles.label}>Clinic</Text>
+        <Text style={[styles.label, { color: colors.textSec }]}>Clinic</Text>
         <Input
           label=""
           placeholder="Enter your clinic name"
           value={manualName}
           onChangeText={setManualName}
         />
-        <Text style={styles.note}>
+        <Text style={[styles.note, { color: colors.textSec }]}>
           ⚠ Clinic list unavailable. Your clinic assignment will be confirmed by
           an administrator after registration.
         </Text>
@@ -82,8 +84,8 @@ export default function ClinicPicker({ selectedId, onSelect }: Props) {
   if (clinics.length === 0) {
     return (
       <View style={styles.section}>
-        <Text style={styles.label}>Clinic</Text>
-        <Text style={styles.emptyNote}>
+        <Text style={[styles.label, { color: colors.textSec }]}>Clinic</Text>
+        <Text style={[styles.emptyNote, { color: colors.textSec }]}>
           No clinics registered yet. Contact your administrator.
         </Text>
       </View>
@@ -92,41 +94,37 @@ export default function ClinicPicker({ selectedId, onSelect }: Props) {
 
   return (
     <View style={styles.section}>
-      <Text style={styles.label}>Select Clinic</Text>
+      <Text style={[styles.label, { color: colors.textSec }]}>Select Clinic</Text>
       <View style={styles.list}>
-        {clinics.map((clinic) => (
-          <TouchableOpacity
-            key={clinic.id}
-            onPress={() => onSelect(selectedId === clinic.id ? null : clinic.id)}
-            style={[
-              styles.clinicBtn,
-              selectedId === clinic.id ? styles.clinicBtnActive : undefined,
-            ]}
-            activeOpacity={0.75}
-          >
-            <Text
+        {clinics.map((clinic) => {
+          const isSelected = selectedId === clinic.id;
+          return (
+            <TouchableOpacity
+              key={clinic.id}
+              onPress={() => onSelect(isSelected ? null : clinic.id)}
               style={[
-                styles.clinicName,
-                selectedId === clinic.id ? styles.clinicNameActive : undefined,
+                styles.clinicBtn,
+                { borderColor: isSelected ? colors.accent : colors.border },
+                isSelected && { backgroundColor: `${colors.accent}1F` },
               ]}
+              activeOpacity={0.75}
             >
-              {clinic.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={[styles.clinicName, { color: isSelected ? colors.accent : colors.textSec, fontFamily: isSelected ? Typography.fonts.subheading : Typography.fonts.body }]}>
+                {clinic.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    marginBottom: Spacing.lg,
-  },
+  section: { marginBottom: Spacing.lg },
   label: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -140,43 +138,26 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
-  list: {
-    gap: Spacing.sm,
-  },
+  list: { gap: Spacing.sm },
   clinicBtn: {
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border.default,
-    backgroundColor: "transparent",
-  },
-  clinicBtnActive: {
-    borderColor: Colors.primary[400],
-    backgroundColor: "rgba(0, 128, 200, 0.12)",
   },
   clinicName: {
     fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
-  },
-  clinicNameActive: {
-    color: Colors.primary[300],
-    fontFamily: Typography.fonts.subheading,
   },
   note: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginTop: Spacing.sm,
     lineHeight: 18,
   },
   emptyNote: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     lineHeight: 20,
   },
 });

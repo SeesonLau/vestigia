@@ -2,7 +2,8 @@
 import React from "react";
 import { StyleSheet, Text, View, ViewStyle } from "react-native";
 import { AngiosomeLabels, ClinicalThresholds } from "../../constants/clinical";
-import { Colors, Radius, Spacing, Typography } from "../../constants/theme";
+import { useTheme } from "../../constants/ThemeContext";
+import { Radius, Spacing, Typography } from "../../constants/theme";
 
 // ── ClassificationCard ─────────────────────────────────────────
 interface ClassificationCardProps {
@@ -16,6 +17,7 @@ export function ClassificationCard({
   confidence,
   style,
 }: ClassificationCardProps) {
+  const { colors } = useTheme();
   const isPositive = classification === "POSITIVE";
 
   return (
@@ -23,22 +25,17 @@ export function ClassificationCard({
       style={[
         classStyles.container,
         isPositive
-          ? classStyles.positiveContainer
-          : classStyles.negativeContainer,
+          ? { backgroundColor: `${colors.error}1A`, borderColor: `${colors.error}80` }
+          : { backgroundColor: `${colors.success}1A`, borderColor: `${colors.success}80` },
         style,
       ]}
     >
       <Text style={classStyles.icon}>{isPositive ? "⚠" : "✓"}</Text>
       <View style={classStyles.textGroup}>
-        <Text
-          style={[
-            classStyles.label,
-            isPositive ? classStyles.positiveLabel : classStyles.negativeLabel,
-          ]}
-        >
+        <Text style={[classStyles.label, { color: isPositive ? colors.error : colors.success }]}>
           DPN {classification}
         </Text>
-        <Text style={classStyles.confidence}>
+        <Text style={[classStyles.confidence, { color: colors.textSec }]}>
           {(confidence * 100).toFixed(1)}% confidence
         </Text>
       </View>
@@ -65,6 +62,7 @@ export function AngiosomeTable({
   flagged = [],
   style,
 }: AngiosomeTableProps) {
+  const { colors } = useTheme();
   const rows: { key: AngiosomeKey; label: string; abbr: string }[] = [
     { key: "mpa", abbr: "MPA", label: AngiosomeLabels.MPA },
     { key: "lpa", abbr: "LPA", label: AngiosomeLabels.LPA },
@@ -73,38 +71,36 @@ export function AngiosomeTable({
   ];
 
   return (
-    <View style={[tableStyles.container, style]}>
+    <View style={[tableStyles.container, { borderColor: colors.border }, style]}>
       {/* Header */}
-      <View style={tableStyles.header}>
-        <Text style={[tableStyles.headerCell, { flex: 2 }]}>Angiosome</Text>
-        <Text style={[tableStyles.headerCell, { flex: 1, textAlign: "right" }]}>
-          ΔT (°C)
-        </Text>
-        <Text style={[tableStyles.headerCell, { flex: 1, textAlign: "right" }]}>
-          Status
-        </Text>
+      <View style={[tableStyles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[tableStyles.headerCell, { flex: 2, color: colors.textSec }]}>Angiosome</Text>
+        <Text style={[tableStyles.headerCell, { flex: 1, textAlign: "right", color: colors.textSec }]}>ΔT (°C)</Text>
+        <Text style={[tableStyles.headerCell, { flex: 1, textAlign: "right", color: colors.textSec }]}>Status</Text>
       </View>
 
       {rows.map(({ key, abbr, label }) => {
         const val = asymmetries[key];
         const isFlagged = flagged.includes(abbr);
-        const exceeds =
-          val != null && Math.abs(val) > ClinicalThresholds.asymmetry;
+        const exceeds = val != null && Math.abs(val) > ClinicalThresholds.asymmetry;
 
         return (
           <View
             key={key}
-            style={[tableStyles.row, isFlagged && tableStyles.flaggedRow]}
+            style={[
+              tableStyles.row,
+              { borderBottomColor: colors.border },
+              isFlagged && { backgroundColor: `${colors.error}0F` },
+            ]}
           >
             <View style={{ flex: 2 }}>
-              <Text style={tableStyles.abbr}>{abbr}</Text>
-              <Text style={tableStyles.fullLabel}>{label}</Text>
+              <Text style={[tableStyles.abbr, { color: colors.text }]}>{abbr}</Text>
+              <Text style={[tableStyles.fullLabel, { color: colors.textSec }]}>{label}</Text>
             </View>
             <Text
               style={[
                 tableStyles.value,
-                { flex: 1, textAlign: "right" },
-                exceeds && tableStyles.exceeds,
+                { flex: 1, textAlign: "right", color: exceeds ? colors.error : colors.text },
               ]}
             >
               {val != null ? `${val > 0 ? "+" : ""}${val.toFixed(2)}` : "—"}
@@ -114,20 +110,17 @@ export function AngiosomeTable({
                 <View
                   style={[
                     tableStyles.statusPill,
-                    exceeds ? tableStyles.flagPill : tableStyles.okPill,
+                    exceeds
+                      ? { backgroundColor: `${colors.error}26`, borderColor: `${colors.error}66` }
+                      : { backgroundColor: `${colors.success}26`, borderColor: `${colors.success}66` },
                   ]}
                 >
-                  <Text
-                    style={[
-                      tableStyles.statusText,
-                      exceeds ? tableStyles.flagText : tableStyles.okText,
-                    ]}
-                  >
+                  <Text style={[tableStyles.statusText, { color: exceeds ? colors.error : colors.success }]}>
                     {exceeds ? "FLAG" : "OK"}
                   </Text>
                 </View>
               ) : (
-                <Text style={tableStyles.na}>N/A</Text>
+                <Text style={[tableStyles.na, { color: colors.textSec }]}>N/A</Text>
               )}
             </View>
           </View>
@@ -151,15 +144,16 @@ export function TCIDisplay({
   bilateralTci,
   style,
 }: TCIDisplayProps) {
+  const { colors } = useTheme();
   return (
-    <View style={[tciStyles.container, style]}>
-      <Text style={tciStyles.title}>Thermal Change Index (TCI)</Text>
+    <View style={[tciStyles.container, { backgroundColor: colors.surface, borderColor: colors.border }, style]}>
+      <Text style={[tciStyles.title, { color: colors.textSec }]}>Thermal Change Index (TCI)</Text>
       <View style={tciStyles.row}>
-        <TCIItem label="Left Foot" value={leftTci} />
-        <View style={tciStyles.sep} />
-        <TCIItem label="Right Foot" value={rightTci} />
-        <View style={tciStyles.sep} />
-        <TCIItem label="Bilateral" value={bilateralTci} highlight />
+        <TCIItem label="Left Foot" value={leftTci} textColor={colors.text} labelColor={colors.textSec} accentColor={colors.accent} />
+        <View style={[tciStyles.sep, { backgroundColor: colors.border }]} />
+        <TCIItem label="Right Foot" value={rightTci} textColor={colors.text} labelColor={colors.textSec} accentColor={colors.accent} />
+        <View style={[tciStyles.sep, { backgroundColor: colors.border }]} />
+        <TCIItem label="Bilateral" value={bilateralTci} highlight textColor={colors.text} labelColor={colors.textSec} accentColor={colors.accent} />
       </View>
     </View>
   );
@@ -169,15 +163,21 @@ function TCIItem({
   label,
   value,
   highlight,
+  textColor,
+  labelColor,
+  accentColor,
 }: {
   label: string;
   value?: number;
   highlight?: boolean;
+  textColor: string;
+  labelColor: string;
+  accentColor: string;
 }) {
   return (
     <View style={tciStyles.item}>
-      <Text style={tciStyles.itemLabel}>{label}</Text>
-      <Text style={[tciStyles.itemValue, highlight && tciStyles.highlighted]}>
+      <Text style={[tciStyles.itemLabel, { color: labelColor }]}>{label}</Text>
+      <Text style={[tciStyles.itemValue, { color: highlight ? accentColor : textColor }]}>
         {value != null ? value.toFixed(3) : "—"}
       </Text>
     </View>
@@ -193,30 +193,16 @@ const classStyles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.lg,
   },
-  positiveContainer: {
-    backgroundColor: "rgba(239,68,68,0.1)",
-    borderColor: "rgba(239,68,68,0.5)",
-  },
-  negativeContainer: {
-    backgroundColor: "rgba(20,176,142,0.1)",
-    borderColor: "rgba(20,176,142,0.5)",
-  },
-  icon: {
-    fontSize: 32,
-    marginRight: Spacing.md,
-  },
+  icon: { fontSize: 32, marginRight: Spacing.md },
   textGroup: { flex: 1 },
   label: {
     fontSize: Typography.sizes.xl,
     fontFamily: Typography.fonts.heading,
     letterSpacing: 1,
   },
-  positiveLabel: { color: "#f87171" },
-  negativeLabel: { color: Colors.teal[300] },
   confidence: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
     marginTop: 4,
   },
 });
@@ -224,7 +210,6 @@ const classStyles = StyleSheet.create({
 const tableStyles = StyleSheet.create({
   container: {
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     overflow: "hidden",
   },
@@ -234,12 +219,10 @@ const tableStyles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.default,
   },
   headerCell: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
   },
@@ -249,67 +232,45 @@ const tableStyles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
-  },
-  flaggedRow: {
-    backgroundColor: "rgba(239,68,68,0.06)",
   },
   abbr: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
-    color: Colors.text.primary,
   },
   fullLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   value: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.primary,
   },
-  exceeds: { color: "#f87171" },
   statusPill: {
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 1,
   },
-  flagPill: {
-    backgroundColor: "rgba(239,68,68,0.15)",
-    borderColor: "rgba(239,68,68,0.4)",
-  },
-  okPill: {
-    backgroundColor: "rgba(20,176,142,0.15)",
-    borderColor: "rgba(20,176,142,0.4)",
-  },
   statusText: {
     fontSize: 10,
     fontFamily: Typography.fonts.label,
     letterSpacing: 0.5,
   },
-  flagText: { color: "#f87171" },
-  okText: { color: Colors.teal[300] },
   na: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.muted,
   },
 });
 
 const tciStyles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.bg.glass,
     borderWidth: 1,
-    borderColor: Colors.border.default,
     borderRadius: Radius.md,
     padding: Spacing.md,
   },
   title: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
-    color: Colors.text.muted,
     letterSpacing: 1,
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
@@ -320,23 +281,14 @@ const tciStyles = StyleSheet.create({
     alignItems: "center",
   },
   item: { alignItems: "center" },
-  sep: {
-    width: 1,
-    height: 36,
-    backgroundColor: Colors.border.subtle,
-  },
+  sep: { width: 1, height: 36 },
   itemLabel: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
     marginBottom: 4,
   },
   itemValue: {
     fontSize: Typography.sizes.lg,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.primary,
-  },
-  highlighted: {
-    color: Colors.primary[300],
   },
 });
