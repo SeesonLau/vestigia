@@ -282,7 +282,6 @@ export default function PatientDashboardScreen() {
               <SessionCard
                 key={s.id}
                 session={s}
-                onPress={() => router.push(`/(patient)/session/${s.id}` as any)}
               />
             ))}
           </>
