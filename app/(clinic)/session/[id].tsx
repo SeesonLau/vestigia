@@ -15,14 +15,14 @@ import ThermalMap, {
 } from "../../../components/thermal/ThermalMap";
 import { Badge, Card, Disclaimer } from "../../../components/ui/index";
 import { DISCLAIMER_TEXT } from "../../../constants/clinical";
-import { Colors, Spacing, Typography } from "../../../constants/theme";
+import { useTheme } from "../../../constants/ThemeContext";
+import { Spacing, Typography } from "../../../constants/theme";
 import { supabase } from "../../../lib/supabase";
 import { ClassificationResult, PatientVitals, ScreeningSession } from "../../../types";
 
 const { width: W } = Dimensions.get("window");
 const THUMB_W = (W - Spacing.lg * 2 - Spacing.md) / 2;
-const THUMB_H = Math.round(THUMB_W * (62 / 80));
-
+const THUMB_H = Math.round(THUMB_W * (120 / 160));
 
 type SessionDetail = ScreeningSession & {
   classification: ClassificationResult | null;
@@ -32,6 +32,7 @@ type SessionDetail = ScreeningSession & {
 export default function ClinicSessionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors } = useTheme();
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const leftMatrix = useRef(generateMockThermalMatrix()).current;
@@ -70,8 +71,8 @@ export default function ClinicSessionDetailScreen() {
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />} onLeftPress={() => router.back()} />
-        <View style={styles.centered}><ActivityIndicator color={Colors.primary[400]} /></View>
+        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={colors.textSec} />} onLeftPress={() => router.back()} />
+        <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
       </ScreenWrapper>
     );
   }
@@ -79,7 +80,7 @@ export default function ClinicSessionDetailScreen() {
   if (error || !session) {
     return (
       <ScreenWrapper>
-        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />} onLeftPress={() => router.back()} />
+        <Header title="Session Detail" leftIcon={<Ionicons name="arrow-back-outline" size={22} color={colors.textSec} />} onLeftPress={() => router.back()} />
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error ?? "Session not found."}</Text>
         </View>
@@ -96,7 +97,7 @@ export default function ClinicSessionDetailScreen() {
       <Header
         title="Session Detail"
         subtitle={session.id.slice(0, 8)}
-        leftIcon={<Ionicons name="arrow-back-outline" size={22} color={Colors.text.secondary} />}
+        leftIcon={<Ionicons name="arrow-back-outline" size={22} color={colors.textSec} />}
         onLeftPress={() => router.back()}
       />
       <ScrollView
@@ -105,20 +106,20 @@ export default function ClinicSessionDetailScreen() {
       >
         {/* Session meta */}
         <Card style={styles.section}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoKey}>Date</Text>
-            <Text style={styles.infoVal}>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoKey, { color: colors.textSec }]}>Date</Text>
+            <Text style={[styles.infoVal, { color: colors.text }]}>
               {date.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })}
             </Text>
           </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoKey}>Time</Text>
-            <Text style={styles.infoVal}>
+          <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.infoKey, { color: colors.textSec }]}>Time</Text>
+            <Text style={[styles.infoVal, { color: colors.text }]}>
               {date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
             </Text>
           </View>
           <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.infoKey}>Status</Text>
+            <Text style={[styles.infoKey, { color: colors.textSec }]}>Status</Text>
             <Badge
               label={session.status}
               variant={session.status === "completed" ? "negative" : session.status === "failed" ? "positive" : "muted"}
@@ -137,21 +138,21 @@ export default function ClinicSessionDetailScreen() {
             />
 
             <Card style={styles.section}>
-              <Text style={styles.sectionTitle}>Thermal Captures</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Thermal Captures</Text>
               <View style={styles.thumbRow}>
                 <View style={styles.thumbWrap}>
                   <ThermalMap matrix={leftMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
-                  <Text style={styles.thumbLabel}>LEFT FOOT</Text>
+                  <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
                 </View>
                 <View style={styles.thumbWrap}>
                   <ThermalMap matrix={rightMatrix} minTemp={29} maxTemp={37} width={THUMB_W} height={THUMB_H} />
-                  <Text style={styles.thumbLabel}>RIGHT FOOT</Text>
+                  <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
                 </View>
               </View>
             </Card>
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Bilateral Asymmetry</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Bilateral Asymmetry</Text>
               <AngiosomeTable
                 asymmetries={{
                   mpa: result.asymmetry_mpa_c,
@@ -167,14 +168,14 @@ export default function ClinicSessionDetailScreen() {
             <TCIDisplay bilateralTci={result.bilateral_tci} style={styles.section} />
 
             <Card style={styles.section}>
-              <Text style={styles.sectionTitle}>Model Info</Text>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoKey}>Model Version</Text>
-                <Text style={styles.infoVal}>{result.model_version}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Model Info</Text>
+              <View style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.infoKey, { color: colors.textSec }]}>Model Version</Text>
+                <Text style={[styles.infoVal, { color: colors.text }]}>{result.model_version}</Text>
               </View>
               <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.infoKey}>Processing Time</Text>
-                <Text style={styles.infoVal}>{result.processing_time_ms}ms</Text>
+                <Text style={[styles.infoKey, { color: colors.textSec }]}>Processing Time</Text>
+                <Text style={[styles.infoVal, { color: colors.text }]}>{result.processing_time_ms}ms</Text>
               </View>
             </Card>
           </>
@@ -183,7 +184,7 @@ export default function ClinicSessionDetailScreen() {
         {/* Vitals */}
         {vitals && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>Patient Vitals</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Patient Vitals</Text>
             {(
               [
                 ["Blood Glucose", `${vitals.blood_glucose_mgdl} mg/dL`],
@@ -198,9 +199,9 @@ export default function ClinicSessionDetailScreen() {
             )
               .filter((item): item is [string, string] => item !== null)
               .map(([k, v]) => (
-                <View key={k} style={styles.infoRow}>
-                  <Text style={styles.infoKey}>{k}</Text>
-                  <Text style={styles.infoVal}>{v}</Text>
+                <View key={k} style={[styles.infoRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.infoKey, { color: colors.textSec }]}>{k}</Text>
+                  <Text style={[styles.infoVal, { color: colors.text }]}>{v}</Text>
                 </View>
               ))}
           </Card>
@@ -213,7 +214,6 @@ export default function ClinicSessionDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  backIcon: { fontSize: 20, color: Colors.primary[300] },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   errorText: {
     fontSize: Typography.sizes.base,
@@ -229,7 +229,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: Typography.sizes.md,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.primary,
     marginBottom: Spacing.md,
   },
   infoRow: {
@@ -238,24 +237,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border.subtle,
   },
   infoKey: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
-    color: Colors.text.muted,
   },
   infoVal: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.mono,
-    color: Colors.text.primary,
   },
   thumbRow: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
   thumbWrap: { flex: 1 },
   thumbLabel: {
     fontSize: 9,
     fontFamily: Typography.fonts.heading,
-    color: Colors.text.muted,
     textAlign: "center",
     letterSpacing: 1.5,
     marginTop: Spacing.xs,
