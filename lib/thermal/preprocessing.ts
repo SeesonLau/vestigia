@@ -100,6 +100,40 @@ export function getMatrixStats(matrix: ThermalMatrix): { min: number; max: numbe
   return { min, max, mean }
 }
 
+//CSV import
+// Parses a CSV string (comma or tab-separated rows of float values) into a temperature matrix.
+// Skips non-numeric header rows. Supports any dimensions.
+export function parseCsvMatrix(csv: string): ThermalMatrix {
+  const lines = csv.trim().split(/\r?\n/).filter(l => l.trim().length > 0)
+  if (lines.length === 0) throw new Error("Empty CSV file")
+
+  const matrix: ThermalMatrix = []
+  for (const line of lines) {
+    const cells = line.split(/[,\t]/).map(c => c.trim())
+    const row = cells.map(c => parseFloat(c))
+    if (row.some(isNaN) || row.length === 0) continue // skip header or malformed rows
+    matrix.push(row)
+  }
+  if (matrix.length === 0) throw new Error("No numeric temperature data found in CSV")
+  return matrix
+}
+
+// Encodes a matrix as base64 JSON for local SQLite storage (non-Y16 path).
+export function matrixToStorageB64(matrix: ThermalMatrix): string {
+  return btoa(JSON.stringify(matrix))
+}
+
+// Decodes a stored matrix — auto-detects JSON-encoded matrix vs raw Y16 frame.
+export function parseStoredMatrix(b64: string): ThermalMatrix {
+  try {
+    const decoded = atob(b64)
+    if (decoded.trimStart().startsWith('[[')) {
+      return JSON.parse(decoded) as ThermalMatrix
+    }
+  } catch (_) {}
+  return parseY16Frame(b64)
+}
+
 //Payload
 // Packages preprocessed bilateral thermal data into the payload expected by the AI model API.
 // Call this after parseY16Frame + normalizeMatrix + segmentFootRegion for both feet.

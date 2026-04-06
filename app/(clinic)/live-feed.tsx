@@ -1,10 +1,13 @@
 // app/(clinic)/live-feed.tsx
 import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   Dimensions,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,7 +26,7 @@ import Button from "../../components/ui/Button";
 import { StatusIndicator } from "../../components/ui/index";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
-import { getMatrixStats, parseY16Frame } from "../../lib/thermal/preprocessing";
+import { getMatrixStats, parseCsvMatrix, parseY16Frame } from "../../lib/thermal/preprocessing";
 import {
   connectCamera,
   disconnectCamera,
@@ -78,6 +81,12 @@ export default function LiveFeedScreen() {
 
   //Last result panel
   const [lastResult, setLastResult] = useState<LastResult | null>(null);
+
+  //Import
+  const [importImageUri, setImportImageUri] = useState<string | null>(null);
+  const [importImageName, setImportImageName] = useState<string | null>(null);
+  const [importCsvName, setImportCsvName] = useState<string | null>(null);
+  const [importLoading, setImportLoading] = useState(false);
 
   const frameTimestamps = useRef<number[]>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -209,6 +218,55 @@ export default function LiveFeedScreen() {
     setCaptured(false);
     setCapturedMatrix(null);
     thermalStore.discardCapture();
+  };
+
+  //Import handlers
+  const handlePickImage = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["image/jpeg", "image/png"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setImportImageUri(asset.uri);
+    setImportImageName(asset.name);
+  };
+
+  const handlePickCsv = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ["text/csv", "text/plain", "text/comma-separated-values", "*/*"],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    setImportLoading(true);
+    try {
+      const content = await fetch(asset.uri).then((r) => r.text());
+      const parsed = parseCsvMatrix(content);
+      const stats = getMatrixStats(parsed);
+      setMatrix(parsed);
+      setMinTemp(stats.min);
+      setMaxTemp(stats.max);
+      setMeanTemp(stats.mean);
+      setImportCsvName(asset.name);
+    } catch {
+      Alert.alert("CSV Error", "Could not read temperature data. Ensure the file contains comma-separated °C values.");
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleUseImport = () => {
+    if (!matrix) return;
+    Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1.08, duration: 80, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+    setCapturedMatrix(matrix);
+    capturedRef.current = true;
+    setCaptured(true);
+    thermalStore.setLiveFrame(matrix, minTemp, maxTemp, meanTemp);
+    thermalStore.capture(selectedFoot);
   };
 
   const statusLabel =
@@ -372,6 +430,83 @@ export default function LiveFeedScreen() {
           </Text>
         )}
 
+        {/* Import from files */}
+        {!captured && (
+          <View style={[styles.importSection, { borderColor: colors.border }]}>
+            <View style={styles.importDivider}>
+              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.importDividerText, { color: colors.textSec }]}>or import from files</Text>
+              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
+            </View>
+
+            <View style={styles.importRow}>
+              {/* Image picker */}
+              <TouchableOpacity
+                onPress={handlePickImage}
+                style={[styles.importCard, { backgroundColor: colors.surface, borderColor: importImageName ? colors.accent : colors.border }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="image-outline" size={22} color={importImageName ? colors.accent : colors.textSec} />
+                <Text style={[styles.importCardTitle, { color: importImageName ? colors.accent : colors.text }]}>
+                  Thermal Image
+                </Text>
+                {importImageUri && (
+                  <Image source={{ uri: importImageUri }} style={styles.importThumb} resizeMode="cover" />
+                )}
+                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
+                  {importImageName ?? "JPG / PNG"}
+                </Text>
+                {importImageName && (
+                  <TouchableOpacity
+                    onPress={() => { setImportImageUri(null); setImportImageName(null); }}
+                    style={styles.importClear}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color={colors.textSec} />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+
+              {/* CSV picker */}
+              <TouchableOpacity
+                onPress={handlePickCsv}
+                style={[styles.importCard, { backgroundColor: colors.surface, borderColor: importCsvName ? colors.success : colors.border }]}
+                activeOpacity={0.7}
+                disabled={importLoading}
+              >
+                <Ionicons name="document-text-outline" size={22} color={importCsvName ? colors.success : colors.textSec} />
+                <Text style={[styles.importCardTitle, { color: importCsvName ? colors.success : colors.text }]}>
+                  Temperature CSV
+                </Text>
+                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
+                  {importLoading ? "Parsing…" : (importCsvName ?? "Comma-separated °C")}
+                </Text>
+                {importCsvName && (
+                  <TouchableOpacity
+                    onPress={() => { setImportCsvName(null); setMatrix(null); }}
+                    style={styles.importClear}
+                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                  >
+                    <Ionicons name="close-circle" size={16} color={colors.textSec} />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Use imported data CTA */}
+            {importCsvName && matrix && (
+              <TouchableOpacity
+                onPress={handleUseImport}
+                style={[styles.importCta, { backgroundColor: colors.accent }]}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                <Text style={styles.importCtaText}>Use Imported Data</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Last session result panel */}
         {lastResult && (
           <View style={[styles.resultPanel, isPositive ? styles.resultPositive : styles.resultNegative]}>
@@ -492,6 +627,34 @@ const styles = StyleSheet.create({
   postCaptureRow: { flexDirection: "row", gap: Spacing.md, width: "100%" },
   halfBtn: { flex: 1 },
   hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 18, marginBottom: Spacing.md },
+  //Import section
+  importSection: { marginBottom: Spacing.lg },
+  importDivider: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
+  importLine: { flex: 1, height: 1 },
+  importDividerText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+  importRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.sm },
+  importCard: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    alignItems: "center",
+    gap: 6,
+    position: "relative",
+  },
+  importCardTitle: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading, textAlign: "center" },
+  importCardFile: { fontSize: 10, fontFamily: Typography.fonts.mono, textAlign: "center" },
+  importThumb: { width: "100%", height: 56, borderRadius: Radius.sm, marginTop: 2 },
+  importClear: { position: "absolute", top: 6, right: 6 },
+  importCta: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.md,
+  },
+  importCtaText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading, color: "#fff" },
   //Last result panel
   resultPanel: {
     marginTop: Spacing.lg,
