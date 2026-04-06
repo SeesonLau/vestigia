@@ -3,6 +3,34 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.8.0] — 2026-04-06
+
+### Added — Dual Camera Support (FLIR + ESP32 Wi-Fi)
+- `lib/thermal/bleCamera.ts` — Real BLE scanning via `react-native-ble-plx`; filters `ESP32-Thermal*` devices; connects and reads WiFi IP from BLE characteristic (`0000ffe1-...`); exports `requestBlePermissions`, `scanBle`, `connectBle`, `disconnectBle`, `destroyBleManager`
+- `lib/thermal/wifiCamera.ts` — WebSocket stream client for Waveshare ESP32 MIO802M5S; binary frame protocol: `TM` magic + uint16 width/height + pixel data (uint16 LE, value = temp × 100); exports `connectWifi`, `disconnectWifi`, `onWifiFrame`, `pingWifi`
+- `store/sessionStore.ts` / `useDeviceStore` — Added `cameraSource: CameraSource`, `wifiIp`, `wifiPort`, `setCameraSource`, `setWifiIp`, `setWifiPort`; `disconnect()` now resets camera source to `"uvc"`
+- `types/index.ts` — Added `CameraSource = "uvc" | "wifi"` union type
+- `constants/strings.ts` — Added all WiFi/FLIR/BLE pairing strings to `S.pairing`: sections, labels, states, error messages
+- `android/app/src/main/AndroidManifest.xml` — Added Android BLE permissions: `BLUETOOTH_SCAN` (neverForLocation), `BLUETOOTH_CONNECT`, `BLUETOOTH`/`BLUETOOTH_ADMIN` (maxSdkVersion 30), `ACCESS_FINE_LOCATION`, `bluetooth_le` feature declaration
+
+### Changed
+- `app/(clinic)/pairing.tsx` — Full rewrite: Active Camera Source card (FLIR vs ESP32), FLIR info section, ESP32 WiFi section (IP + port inputs, Test / Connect / Disconnect), BLE Discovery section (real scan + device list + connect), USB Device Registration retained; all backed by real BLE + WiFi libs
+- `app/(clinic)/live-feed.tsx` — Camera setup `useEffect` now branches on `cameraSource`: `"wifi"` uses `onWifiFrame` + `connectWifi`; `"uvc"` uses existing UVC bridge; FPS badge shows `"FLIR · N fps"` or `"ESP32 · N fps"`
+
+### Removed
+- `app/(clinic)/session/[id].tsx` — Removed unused drill-down screen (no UI entry point)
+- `app/(patient)/session/[id].tsx` — Removed unused drill-down screen (no UI entry point)
+- `app/(clinic)/_layout.tsx` — Removed `session` Tabs.Screen entry that was rendering a blank 5th tab beside Settings
+- `app/(clinic)/history.tsx` — Removed session detail `onPress` from session cards
+- `app/(patient)/index.tsx` — Removed session detail `onPress` from session cards
+- Mock BLE code (`MOCK_BLE_DEVICES`, fake setTimeout pairing) from `pairing.tsx`
+
+### Pending Manual Steps (not automated)
+- `npx expo run:android` — required to rebuild with `react-native-ble-plx` native module
+- ESP32 firmware must advertise as `ESP32-Thermal*`, expose BLE service `0000ffe0-...` with IP char `0000ffe1-...`, run WebSocket server on port 8080 with TM binary frame protocol
+
+---
+
 ## [0.7.0] — 2026-04-06
 
 ### Added

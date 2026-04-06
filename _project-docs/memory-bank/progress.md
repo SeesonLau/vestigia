@@ -1,5 +1,5 @@
 # Progress — Lumenai (formerly Vestigia)
-**Current version:** 0.7.0
+**Current version:** 0.8.0
 **Last verified:** 2026-04-06
 
 > Detailed checklists: `_project-docs/progress/`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.8.0 | 2026-04-06 | Real BLE + Wi-Fi dual camera support (FLIR + ESP32 MIO802M5S); session detail screens removed |
 | 0.7.0 | 2026-04-06 | Full Arctic Mint theme migration (Phase 7+8), legacy Colors removed, app renamed to Lumenai, BUG-06 fixed in 4 files |
 | 0.6.0 | 2026-04-04 | UVC camera, offline-first feature, FR-506 preprocessing, FR-508 risk scoring, GAP-18 admin alerts |
 | 0.5.3 | 2026-03-30 | QA sweep: 12 bugs fixed (UX-17, GAP-15/16/17, UX-15/16, CODE-16/14, A11Y-05, NAV-03, PERF-09/10/11). 9 open issues remain |
@@ -70,6 +71,8 @@
 - **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
 - **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
 - **Arctic Mint theme** — full light/dark mode system with `ThemeProvider` + `useTheme()` hook; all 24 screens and all shared components migrated; legacy `Colors` export removed from `constants/theme.ts`
+- **Dual camera support** — `lib/thermal/bleCamera.ts` (real BLE via react-native-ble-plx) + `lib/thermal/wifiCamera.ts` (WebSocket stream for ESP32 MIO802M5S); `pairing.tsx` full rewrite with real BLE scan + WiFi IP config; `live-feed.tsx` branches on `cameraSource`; `CameraSource` type added; BLE Android permissions added
+- **Session detail screens removed** — `app/(clinic)/session/[id].tsx` and `app/(patient)/session/[id].tsx` deleted; blank 5th tab removed from clinic nav
 - **App renamed Lumenai** — `app.json` display name updated; `constants/strings.ts` app name set to "Lumenai"
 - **BUG-06 fixed** — `THUMB_H` ratio corrected to `(120/160)` in 4 files: `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx`
 - **UVC camera** — Android native module (saki4510t/UVCCamera), JS bridge, live-feed wired to real frames
@@ -94,8 +97,6 @@
 - `npm install` to clear WatermelonDB from node_modules
 
 ### Deferred
-- BLE device scanning and pairing (hardware not finalized)
-- Wi-Fi WebSocket to thermal device (hardware not finalized)
 - Push notifications
 
 ## Known Issues

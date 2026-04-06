@@ -3,7 +3,28 @@
 
 ---
 
-## What Was Done This Session (2026-04-06)
+## What Was Done This Session (2026-04-06) — v0.8.0
+
+### Dual Camera Support — FLIR Lepton 3.5 + Waveshare ESP32 MIO802M5S
+- `lib/thermal/bleCamera.ts` (NEW) — Real BLE scanning via `react-native-ble-plx`; filters `ESP32-Thermal*` devices; reads WiFi IP from BLE char `0000ffe1-...`; exports `requestBlePermissions`, `scanBle`, `connectBle`, `disconnectBle`, `destroyBleManager`
+- `lib/thermal/wifiCamera.ts` (NEW) — WebSocket stream for ESP32; binary protocol: `TM` magic + uint16 w/h + pixels (uint16 LE, value = temp×100); exports `connectWifi`, `disconnectWifi`, `onWifiFrame`, `pingWifi`
+- `store/sessionStore.ts` — `useDeviceStore` extended with `cameraSource`, `wifiIp`, `wifiPort`; `disconnect()` resets source to `"uvc"` and `wifiIp` to null; unused `get` removed from `useThermalStore`
+- `types/index.ts` — `CameraSource = "uvc" | "wifi"` added
+- `constants/strings.ts` — All WiFi/FLIR/BLE UI strings added to `S.pairing`
+- `android/app/src/main/AndroidManifest.xml` — BLE permissions block added (Android 12+ + legacy)
+- `app/(clinic)/pairing.tsx` (REWRITE) — Active Camera Source card, FLIR info section, ESP32 WiFi section (IP + port + test + connect), BLE Discovery section (real scan), USB registration retained
+- `app/(clinic)/live-feed.tsx` — Camera `useEffect` branches on `cameraSource`; WiFi: `onWifiFrame` + `connectWifi`; UVC: existing bridge; FPS badge shows camera source label
+
+### Session Detail Screens Removed
+- `app/(clinic)/session/[id].tsx` — DELETED (no UI entry point; was causing blank 5th tab in clinic nav)
+- `app/(patient)/session/[id].tsx` — DELETED (same)
+- `app/(clinic)/_layout.tsx` — `session` Tabs.Screen entry removed
+- `app/(clinic)/history.tsx` — `onPress` on session cards removed
+- `app/(patient)/index.tsx` — `onPress` on session cards removed
+
+---
+
+## What Was Done Previous Session (2026-04-06) — v0.7.0
 
 ### Phase 7 — Patient / Admin / Offline screen migration to useTheme()
 - `app/(patient)/_layout.tsx`, `app/(admin)/_layout.tsx`, `app/(offline)/_layout.tsx` — bg from useTheme()
@@ -69,6 +90,12 @@
 
 ## Current State
 
+### Camera
+- ✅ FLIR Lepton 3.5 (UVC) — native UVC bridge exists; UVCModule.kt is a stub (real AAR not linked); live-feed shows "Camera Disconnected" for UVC until AAR is added
+- ✅ ESP32 Waveshare MIO802M5S (WiFi) — WebSocket stream fully implemented; BLE auto-discovery implemented; `pairing.tsx` allows manual IP entry + BLE scan → IP auto-fill
+- ⚠️ BLE native module requires `npx expo run:android` rebuild (react-native-ble-plx added)
+- ⚠️ ESP32 firmware requirements: advertise as `ESP32-Thermal*`, BLE service `0000ffe0-...`, IP char `0000ffe1-...`, WebSocket on port 8080 with TM binary frame protocol
+
 ### Auth
 - ✅ Login, register, logout, session restore all working
 - ✅ Password reset + email confirmation deep links working
@@ -96,17 +123,21 @@
 - Edge Function not yet deployed
 
 ### Pending Manual Steps
+- `npx expo run:android` — rebuild required for `react-native-ble-plx` native module
 - `npm install` — to remove WatermelonDB from node_modules
 - `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
+- ESP32 firmware configuration (BLE + WebSocket per protocol spec in `lib/thermal/wifiCamera.ts`)
 
 ---
 
 ## Next Steps (priority order)
-1. **FR-507** — AI model API client — waiting on AI team to confirm endpoint URL, request format, response schema, auth method
-2. **GAP-08** — Thermal map angiosome overlay — depends on FR-507 response shape
-3. **CODE-09** — Replace `MOCK_ANGIOSOMES` in clinical-data.tsx with real preprocessing output
-4. **Edge Function deploy** — manual step, run when ready
-5. **npm install** — remove WatermelonDB from node_modules
+1. **`npx expo run:android`** — rebuild for BLE native module (must be done before BLE can be tested)
+2. **UVCModule.kt real implementation** — link real `libuvccamera-release.aar` to `android/app/libs/` to enable FLIR UVC path
+3. **ESP32 firmware** — implement BLE advertising + WebSocket server per protocol spec
+4. **FR-507** — AI model API client — waiting on AI team to confirm endpoint URL, request format, response schema, auth method
+5. **GAP-08** — Thermal map angiosome overlay — depends on FR-507 response shape
+6. **Edge Function deploy** — manual step, run when ready
+7. **npm install** — remove WatermelonDB from node_modules
 
 ---
 
