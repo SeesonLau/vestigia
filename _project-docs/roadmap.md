@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-05
+**Last updated:** 2026-04-06
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -13,7 +13,6 @@
 | 1 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint URL, request format, and response schema are confirmed by AI team. |
 | 2 | GAP-08 | Add abnormal region overlay on thermal map | 3–4 hrs | Depends on FR-507 response shape (flagged angiosome zones). Visual highlight on ThermalMap. |
 | 3 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506 done) to compute real angiosome temps. Still needs FR-507 to validate output. |
-| 4 | BUG-06 | Fix `THUMB_H` ratio in patient dashboard | 5 min | `app/(patient)/index.tsx` line 22: `(62 / 80)` → `(120 / 160)` for FLIR Lepton 3.5. |
 
 ---
 
@@ -126,6 +125,16 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
 | Add search/filter to session history screen | Useful once sessions accumulate; filter by date range, result type | 1–2 hrs |
 | Add `Clinic`, `Device`, `SystemConfig` types to `types/index.ts` | Currently only local interfaces in admin screens | 30 min |
+
+---
+
+## Completed — Shipped Items
+
+| Item | Version | Date |
+|---|---|---|
+| BUG-06 — `THUMB_H` ratio fix (4 files, 62/80 → 120/160) | v0.7.0 | 2026-04-06 |
+| Phase 7+8 — Full Arctic Mint theme migration (all 24 screens + components) | v0.7.0 | 2026-04-06 |
+| App renamed Lumenai in `app.json` | v0.7.0 | 2026-04-06 |
 
 ---
 

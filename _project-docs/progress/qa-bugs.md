@@ -70,7 +70,7 @@
 | ~~UX-15~~ | `app/(clinic)/index.tsx` | 67–95 | No `ActivityIndicator` while `fetchData()` runs — stats display as 0 while loading | Low | ✅ Fixed 2026-03-30 |
 | ~~UX-16~~ | `app/(clinic)/index.tsx` | 82–90 | `clinicResult.error` and `sessionsResult.error` checked but silently ignored | Medium | ✅ Fixed 2026-03-30 |
 | ~~UX-17~~ | Multiple screens | various | Debug UI ID strings visible in production: `"UI-02"` through `"UI-08"` | Medium | ✅ Fixed 2026-03-30 |
-| BUG-06 | `app/(patient)/index.tsx` | 22 | `THUMB_H` ratio uses `(62 / 80)` — wrong for Lepton 3.5 (160×120); should be `(120 / 160)` | Low | Open |
+| ~~BUG-06~~ | `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx` | 22 | `THUMB_H` ratio used `(62 / 80)` — wrong for Lepton 3.5 (160×120); fixed to `(120 / 160)` in all 4 affected files | Low | ✅ Fixed 2026-04-06 |
 
 ---
 

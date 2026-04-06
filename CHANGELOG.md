@@ -1,7 +1,29 @@
-# Changelog — Vestigia
+# Changelog — Lumenai (formerly Vestigia)
 
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
+
+## [0.7.0] — 2026-04-06
+
+### Added
+- Full light/dark theme system (`ThemeProvider` + `useTheme()` hook) with Arctic Mint color palette
+- `constants/ThemeContext.tsx` — `ThemeProvider`, `useTheme()`, `lightColors`, `darkColors`, `ThemeColors` interface
+- `constants/strings.ts` — `S` object for all static UI text; `app.name = "Lumenai"`, `app.version = "v0.6.0"`
+
+### Changed
+- App display name: `"vestigia"` → `"Lumenai"` in `app.json`
+- All 24 screens and all shared components migrated from static `Colors.*` imports to `useTheme()` hook
+- `components/session/index.tsx` — `statusConfig` color values changed from static strings to functions `(colors) => string` for dynamic theming
+- `components/assessment/index.tsx` — `TCIItem` and `AnnotItem` receive color props from parent component
+- `components/thermal/index.tsx` — `AnnotItem` receives `textSecColor` as prop
+
+### Removed
+- Legacy `Colors` export from `constants/theme.ts` (all consumers migrated)
+
+### Fixed
+- **BUG-06** — `THUMB_H` ratio corrected from `(62 / 80)` to `(120 / 160)` in 4 files: `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx` — was showing thermal thumbnails too short for FLIR Lepton 3.5 (160×120 resolution)
+
+---
 
 ## [0.6.0] — 2026-04-05
 
