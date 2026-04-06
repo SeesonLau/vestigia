@@ -152,6 +152,8 @@ export type ConnectionStatus =
   | "connected"
   | "error";
 
+export type CameraSource = "uvc" | "wifi";
+
 export interface BLEDevice {
   id: string;
   name: string;
