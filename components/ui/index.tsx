@@ -87,7 +87,7 @@ export function Badge({
     muted: {
       bg:   `${colors.textSec}26`,
       dot:  colors.textSec,
-      text: colors.textSec,
+      text: colors.text,
     },
   };
 

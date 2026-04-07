@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
-import ClinicPicker from "../../components/ui/ClinicPicker";
 import Input from "../../components/ui/Input";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
@@ -31,7 +30,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<Role>("patient");
-  const [selectedClinicId, setSelectedClinicId] = useState<string | null>(null);
+  const [clinicName, setClinicName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -41,6 +40,7 @@ export default function RegisterScreen() {
     const e: Record<string, string> = {};
     if (!fullName.trim()) e.fullName = "Full name is required";
     if (!email.includes("@")) e.email = "Enter a valid email address";
+    if (role === "clinic" && !clinicName.trim()) e.clinicName = "Clinic name is required";
     const missing: string[] = [];
     if (password.length < 8) missing.push("8+ characters");
     if (!/[A-Z]/.test(password)) missing.push("uppercase letter");
@@ -54,7 +54,7 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
-    const result = await register(email, password, fullName, role, selectedClinicId ?? undefined);
+    const result = await register(email, password, fullName, role, role === "clinic" ? clinicName.trim() : undefined);
     setLoading(false);
     if (result.success) {
       if (result.needsConfirmation) {
@@ -142,7 +142,7 @@ export default function RegisterScreen() {
                 {(["patient", "clinic"] as Role[]).map((r) => (
                   <TouchableOpacity
                     key={r}
-                    onPress={() => { setRole(r); setSelectedClinicId(null); }}
+                    onPress={() => { setRole(r); setClinicName(""); }}
                     style={[
                       styles.roleBtn,
                       {
@@ -170,10 +170,18 @@ export default function RegisterScreen() {
               </View>
 
               {role === "clinic" && (
-                <ClinicPicker
-                  selectedId={selectedClinicId}
-                  onSelect={setSelectedClinicId}
-                />
+                <View style={{ marginBottom: Spacing.xl }}>
+                  <Text style={[styles.sectionLabel, { color: colors.textSec }]}>
+                    Clinic Name
+                  </Text>
+                  <Input
+                    placeholder="e.g. Cebu City Health Center"
+                    value={clinicName}
+                    onChangeText={(v) => { setClinicName(v); clearError(); }}
+                    autoCapitalize="words"
+                    error={errors.clinicName}
+                  />
+                </View>
               )}
 
               <View style={styles.form}>

@@ -51,7 +51,6 @@ interface AuthState {
   initialized: boolean;
   isLoading: boolean;
   error: string | null;
-  pendingClinicId: string | null;
 
   login: (
     email: string,
@@ -62,16 +61,15 @@ interface AuthState {
     password: string,
     fullName: string,
     role: UserRole,
-    clinicId?: string,
+    clinicName?: string,
   ) => Promise<{ success: boolean; needsConfirmation?: boolean; role?: UserRole; error?: string }>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
-  setPendingClinicId: (id: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => {
-    // AUTH-13: Clean up any existing listener before registering (guards against HMR double-subscribe)
+  // AUTH-13: Clean up any existing listener before registering (guards against HMR double-subscribe)
   _authSubscription?.unsubscribe();
   dbg("authStore", "registering onAuthStateChange");
   const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -111,7 +109,6 @@ export const useAuthStore = create<AuthState>((set, get) => {
     initialized: false,
     isLoading: false,
     error: null,
-    pendingClinicId: null,
 
     login: async (email: string, password: string) => {
       // AUTH-06: Enforce client-side lockout before hitting Supabase
@@ -142,18 +139,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
         dbg("login", `profile fetch done — error=${profileError?.message ?? "none"}`);
         if (profileError) throw profileError;
 
-        let profile = profileData as AuthUser;
-
-        //Apply pending clinic_id if set during registration (email confirmation flow)
-        const { pendingClinicId } = get();
-        if (profile.role === "clinic" && !profile.clinic_id && pendingClinicId) {
-          await supabase
-            .from("profiles")
-            .update({ clinic_id: pendingClinicId })
-            .eq("id", profile.id);
-          profile = { ...profile, clinic_id: pendingClinicId };
-          set({ pendingClinicId: null });
-        }
+        const profile = profileData as AuthUser;
 
         // AUTH-06: Reset counter on success
         _loginAttempts = 0;
@@ -179,18 +165,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
       password: string,
       fullName: string,
       role: UserRole,
-      clinicId?: string,
+      clinicName?: string,
     ) => {
       set({ isLoading: true, error: null });
       try {
+        // handle_new_user() trigger reads these to create the profile row.
+        // For clinic role, clinic_name is used by the trigger to create a new
+        // clinic record and assign its id to the profile automatically.
+        const metadata: Record<string, string> = { full_name: fullName, role };
+        if (role === "clinic" && clinicName) metadata.clinic_name = clinicName;
+
         const { data, error } = await supabase.auth.signUp({
           email: email.toLowerCase().trim(),
           password,
           options: {
-            // handle_new_user() trigger reads these to create the profile row
-            data: { full_name: fullName, role },
-            // Routes through the Edge Function redirect page first.
-            // On mobile it opens the app; on desktop it shows a "use your phone" message.
+            data: metadata,
             emailRedirectTo: `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/auth-redirect`,
           },
         });
@@ -200,14 +189,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (!data.session) {
           // AUTH-16: When email confirmation is enabled, Supabase silently returns
           // identities: [] instead of a user_already_exists error for duplicate emails.
-          // This would otherwise send the user to "Check your inbox" with no feedback.
           if ((data.user?.identities?.length ?? 1) === 0) {
             const err = "An account with this email already exists. Please sign in instead.";
             set({ isLoading: false, error: err });
             return { success: false, error: err };
           }
-          // AUTH-14: Only store clinicId when the registering role is actually clinic
-          if (role === "clinic" && clinicId) set({ pendingClinicId: clinicId });
           set({ isLoading: false });
           return { success: true, needsConfirmation: true };
         }
@@ -220,16 +206,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           .single();
         if (profileError) throw profileError;
 
-        let profile = profileData as AuthUser;
-
-        if (profile.role === "clinic" && clinicId) {
-          await supabase
-            .from("profiles")
-            .update({ clinic_id: clinicId })
-            .eq("id", profile.id);
-          profile = { ...profile, clinic_id: clinicId };
-        }
-
+        const profile = profileData as AuthUser;
         set({ user: profile, isLoading: false, error: null });
         return { success: true, role: profile.role };
       } catch (e: any) {
@@ -244,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         await supabase.auth.signOut();
       } finally {
-        set({ user: null, error: null, pendingClinicId: null });
+        set({ user: null, error: null });
       }
     },
 
@@ -262,7 +239,5 @@ export const useAuthStore = create<AuthState>((set, get) => {
     },
 
     clearError: () => set({ error: null }),
-
-    setPendingClinicId: (id: string | null) => set({ pendingClinicId: id }),
   };
 });
