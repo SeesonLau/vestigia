@@ -1,6 +1,51 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-04-07 — v0.9.2] — Avatar Support: profiles.avatar_url + avatars Storage bucket
+
+**Type:** Schema Change + Storage Bucket + RLS Policies
+**Table(s) affected:** `profiles`, `storage.buckets`, `storage.objects`
+
+### What was done
+Added avatar photo support for clinic and patient profiles.
+
+### SQL executed
+```sql
+-- 1. Add avatar_url column
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+-- 2. Create public Storage bucket
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. Storage RLS policies
+CREATE POLICY "Avatars are publicly readable"
+ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+
+CREATE POLICY "Users can upload their own avatar"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can update their own avatar"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Users can delete their own avatar"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
+```
+
+### Why
+Profile screens for clinic and patient operators needed avatar photo support. Avatars stored at `avatars/{user_id}/avatar.jpg` — the folder name is the user's UUID, which the RLS policies use to enforce owner-only write access while allowing public read (URLs are safe to embed in the app).
+
+### Result
+- ✅ `profiles.avatar_url TEXT` column confirmed present (MCP verified)
+- ✅ `avatars` bucket confirmed (public=true, MCP verified)
+- ✅ All 4 RLS policies confirmed (MCP verified via pg_policies)
+- Requires `npx expo run:android` rebuild for `expo-image-picker` native module to function
+
+---
 ## [2026-04-05 — v0.6.0] — Offline Sync: data_requests + screening_sessions writes from clinic sync screen
 
 **Type:** Application Query Wiring (new table: `data_requests`; new writes to `screening_sessions`, `thermal_captures`, `patient_vitals`)

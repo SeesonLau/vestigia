@@ -1,4 +1,5 @@
 // app/(clinic)/clinical-data.tsx
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -155,7 +156,11 @@ export default function ClinicalDataScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title={S.clinicalData.title} />
+      <Header
+        title={S.clinicalData.title}
+        leftIcon={<Ionicons name="chevron-back" size={24} color={colors.text} />}
+        onLeftPress={() => router.back()}
+      />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
           style={styles.scroll}

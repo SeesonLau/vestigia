@@ -29,6 +29,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Vestigia to access your photo library to set a profile picture.",
+          "cameraPermission": "Allow Vestigia to use your camera to take a profile photo."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/icon.png",

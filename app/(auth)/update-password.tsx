@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
@@ -64,6 +65,16 @@ export default function UpdatePasswordScreen() {
 
   return (
     <ScreenWrapper>
+      {!done && (
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
@@ -158,6 +169,12 @@ export default function UpdatePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  backBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xs,
+    alignSelf: "flex-start",
+  },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: Spacing.xl,

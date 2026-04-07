@@ -16,7 +16,6 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
 import { getUnsyncedCaptures } from "../../lib/db/offlineCaptures";
-import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useDeviceStore } from "../../store/sessionStore";
 
@@ -93,21 +92,13 @@ const soon = (feature: string) =>
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
-  const { logout, user } = useAuthStore();
+  const { logout } = useAuthStore();
   const pairedDevice = useDeviceStore((s) => s.pairedDevice);
-  const [haptics, setHaptics] = useState(true);
   const [autoUpload, setAutoUpload] = useState(true);
   const [autoReconnect, setAutoReconnect] = useState(true);
-  const [aiModel, setAiModel] = useState("dpn-v1.2.0");
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    supabase
-      .from("system_config")
-      .select("key, value")
-      .eq("key", "ai_model_version")
-      .single()
-      .then(({ data }) => { if (data?.value) setAiModel(String(data.value)); });
     getUnsyncedCaptures().then((captures) => setPendingCount(captures.length));
   }, []);
 
@@ -118,23 +109,6 @@ export default function SettingsScreen() {
         text: S.auth.signOut,
         style: "destructive",
         onPress: async () => { await logout(); router.replace("/(auth)/login"); },
-      },
-    ]);
-  };
-
-  const handleDeactivateAccount = () => {
-    Alert.alert(S.settings.deactivateConfirmTitle, S.settings.deactivateConfirmBody, [
-      { text: S.actions.cancel, style: "cancel" },
-      {
-        text: S.actions.deactivate,
-        style: "destructive",
-        onPress: async () => {
-          if (user?.id) {
-            await supabase.from("profiles").update({ is_active: false }).eq("id", user.id);
-          }
-          await logout();
-          router.replace("/(auth)/login");
-        },
       },
     ]);
   };
@@ -154,68 +128,118 @@ export default function SettingsScreen() {
         {/* Account */}
         <SectionHeader label={S.settings.sectionAccount} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="person-outline" label={S.settings.profile} subtitle={S.settings.profileSubtitle} onPress={() => soon("Profile management")} />
+          <SettingRow
+            icon="person-outline"
+            label={S.settings.profile}
+            subtitle={S.settings.profileSubtitle}
+            onPress={() => router.push("/(clinic)/profile" as any)}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="lock-closed-outline" label={S.auth.changePassword} onPress={() => router.push("/(auth)/update-password" as any)} />
+          <SettingRow
+            icon="lock-closed-outline"
+            label={S.auth.changePassword}
+            onPress={() => router.push("/(auth)/update-password" as any)}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="notifications-outline" label={S.settings.notifications} onPress={() => soon("Notification settings")} />
+          <SettingRow
+            icon="color-palette-outline"
+            label="Dark Mode"
+            toggle
+            toggleValue={isDark}
+            onToggle={() => toggleTheme()}
+          />
         </View>
 
         {/* Device */}
         <SectionHeader label={S.settings.sectionDevice} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="hardware-chip-outline" label={S.settings.pairedDevice} subtitle={pairedDevice?.name ?? S.settings.noPairedDevice} value={S.settings.connected} onPress={() => router.push("/(clinic)/pairing")} />
+          <SettingRow
+            icon="hardware-chip-outline"
+            label={S.settings.pairedDevice}
+            subtitle={pairedDevice?.name ?? S.settings.noPairedDevice}
+            value={pairedDevice ? S.settings.connected : undefined}
+            onPress={() => router.push("/(clinic)/pairing")}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="laptop-outline" label={S.settings.registerUsbDevice} onPress={() => router.push("/(clinic)/pairing")} />
+          <SettingRow
+            icon="laptop-outline"
+            label={S.settings.registerUsbDevice}
+            onPress={() => router.push("/(clinic)/pairing")}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="refresh-outline" label={S.settings.autoReconnect} toggle toggleValue={autoReconnect} onToggle={setAutoReconnect} />
+          <SettingRow
+            icon="refresh-outline"
+            label={S.settings.autoReconnect}
+            toggle
+            toggleValue={autoReconnect}
+            onToggle={setAutoReconnect}
+          />
         </View>
 
         {/* Data & Sync */}
         <SectionHeader label={S.settings.sectionDataSync} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="cloud-upload-outline" label={S.settings.autoUpload} subtitle={S.settings.autoUploadSubtitle} toggle toggleValue={autoUpload} onToggle={setAutoUpload} />
+          <SettingRow
+            icon="cloud-upload-outline"
+            label={S.settings.autoUpload}
+            subtitle={S.settings.autoUploadSubtitle}
+            toggle
+            toggleValue={autoUpload}
+            onToggle={setAutoUpload}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="time-outline" label={S.settings.pendingUploads} value={String(pendingCount)} onPress={() => soon("Pending uploads view")} />
+          <SettingRow
+            icon="time-outline"
+            label={S.settings.pendingUploads}
+            value={String(pendingCount)}
+            onPress={() => soon("Pending uploads view")}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="trash-outline" label={S.settings.clearCache} onPress={handleClearCache} />
-        </View>
-
-        {/* Application */}
-        <SectionHeader label={S.settings.sectionApplication} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="phone-portrait-outline" label={S.settings.hapticFeedback} toggle toggleValue={haptics} onToggle={setHaptics} />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="color-palette-outline" label="Dark Mode" toggle toggleValue={isDark} onToggle={() => toggleTheme()} />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="language-outline" label={S.settings.language} value={S.settings.languageValue} onPress={() => soon("Language selection")} />
+          <SettingRow
+            icon="trash-outline"
+            label={S.settings.clearCache}
+            onPress={handleClearCache}
+          />
         </View>
 
         {/* About */}
         <SectionHeader label={S.settings.sectionAbout} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="information-circle-outline" label={S.settings.appVersion} value={S.app.version} />
+          <SettingRow
+            icon="information-circle-outline"
+            label={S.settings.appVersion}
+            value={S.app.version}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="hardware-chip-outline" label={S.settings.aiModel} value={aiModel} />
+          <SettingRow
+            icon="document-text-outline"
+            label={S.settings.privacyPolicy}
+            onPress={() => router.push("/(clinic)/privacy-policy" as any)}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="document-text-outline" label={S.settings.privacyPolicy} onPress={() => soon("Privacy Policy")} />
+          <SettingRow
+            icon="reader-outline"
+            label={S.settings.termsOfService}
+            onPress={() => router.push("/(clinic)/terms-of-service" as any)}
+          />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="reader-outline" label={S.settings.termsOfService} onPress={() => soon("Terms of Service")} />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="mail-outline" label={S.settings.contactSupport} onPress={() => soon("Contact Support")} />
+          <SettingRow
+            icon="mail-outline"
+            label={S.settings.contactSupport}
+            onPress={() => router.push("/(clinic)/contact-support" as any)}
+          />
         </View>
 
-        {/* Danger zone */}
+        {/* Danger Zone */}
         <SectionHeader label={S.settings.sectionDanger} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow icon="log-out-outline" label={S.settings.signOut} danger onPress={handleSignOut} />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="close-circle-outline" label={S.settings.deactivateAccount} subtitle={S.settings.deactivateAccountSubtitle} danger onPress={handleDeactivateAccount} />
+          <SettingRow
+            icon="log-out-outline"
+            label={S.settings.signOut}
+            danger
+            onPress={handleSignOut}
+          />
         </View>
-
-        <Text style={[styles.versionFooter, { color: colors.textSec }]}>
-          {S.app.versionFooter}
-        </Text>
       </View>
     </ScreenWrapper>
   );
@@ -225,6 +249,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing["2xl"],
   },
   sectionHeader: {
     fontSize: Typography.sizes.xs,
@@ -271,13 +296,5 @@ const styles = StyleSheet.create({
   rowDivider: {
     height: 1,
     marginLeft: Spacing.lg + 32 + Spacing.md,
-  },
-  versionFooter: {
-    textAlign: "center",
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.mono,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing["2xl"],
-    letterSpacing: 0.5,
   },
 });

@@ -1,5 +1,5 @@
 # Progress — Lumenai (formerly Vestigia)
-**Current version:** 0.9.1
+**Current version:** 0.9.3
 **Last verified:** 2026-04-07
 
 > Detailed checklists: `_project-docs/progress/`
@@ -10,6 +10,8 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.3 | 2026-04-07 | Admin settings cleanup (match clinic/patient style), patient registration form in clinic flow |
+| 0.9.2 | 2026-04-07 | Settings redesign (clinic + patient), profile screens with avatar upload, back navigation on 5 screens, Privacy Policy/ToS/Contact screens |
 | 0.9.1 | 2026-04-07 | Thermal image + CSV file import on clinic, offline, and patient screens |
 | 0.9.0 | 2026-04-06 | DPN Classification API integration (FR-507) — bilateral capture flow, pure-JS PNG encoder, real API client + store, wired assessment + result screen |
 | 0.8.0 | 2026-04-06 | Real BLE + Wi-Fi dual camera support (FLIR + ESP32 MIO802M5S); session detail screens removed |
@@ -73,6 +75,15 @@
 - **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
 - **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
 - **Arctic Mint theme** — full light/dark mode system with `ThemeProvider` + `useTheme()` hook; all 24 screens and all shared components migrated; legacy `Colors` export removed from `constants/theme.ts`
+- **Settings redesign (clinic + patient)** — removed Notifications, Haptic Feedback, AI Model, version footer; Deactivate Account moved to Profile; Privacy Policy/ToS/Contact now navigate to real screens; proper section layout with dividers
+- **Profile screens (clinic + patient)** — avatar upload via Supabase Storage (`avatars` bucket), editable display name (saved to DB + local store), read-only account info, Deactivate Account in Danger Zone
+- **History avatar** — operator avatar shown in Cloud tab header of clinic history; Local tab unchanged
+- **Legal/support screens** — Privacy Policy (8 sections), Terms of Service (10 sections + warning banner), Contact Support (channels + FAQ accordion + response times) for both clinic and patient route groups
+- **Back navigation** — `chevron-back` added to update-password, patient-select, clinical-data, pairing, dpn-result
+- **`profiles.avatar_url`** — new column in Supabase; `avatars` Storage bucket with 4 RLS policies; `AuthUser` type updated
+- **`expo-image-picker`** — installed + plugin in app.json; dynamic import pattern to prevent native crash before rebuild; native rebuild completed (`npx expo run:android` ✅)
+- **Admin settings cleanup** — Notifications row removed; version footer removed; matches clinic/patient style
+- **Patient registration form** — `app/(clinic)/register-patient.tsx`: Patient Code, DOB, Sex, Diabetes Type, Duration, Notes; inserts to `patients` table; auto-selects new patient and routes to live-feed; accessible via header icon + empty state button in patient-select
 - **Thermal image + CSV import** — `expo-document-picker` + `expo-file-system` added; `parseCsvMatrix`, `matrixToStorageB64`, `parseStoredMatrix` added to `preprocessing.ts`; import UI on clinic/offline live-feed (image + CSV) and patient dashboard (image + left/right CSV); `sync.tsx` uses `parseStoredMatrix` to handle both Y16 and CSV-imported matrices
 - **FR-507 — DPN API integration** — `lib/dpnApi.ts` (typed client, 60s timeout, error mapping), `store/dpnStore.ts` (server-waking retry logic), `lib/thermal/thermalPng.ts` (pure-JS PNG encoder), `app/(clinic)/dpn-result.tsx` (result + save-to-cloud); `live-feed.tsx` bilateral capture flow; `assessment.tsx` wired to real API
 - **Dual camera support** — `lib/thermal/bleCamera.ts` (real BLE via react-native-ble-plx) + `lib/thermal/wifiCamera.ts` (WebSocket stream for ESP32 MIO802M5S); `pairing.tsx` full rewrite with real BLE scan + WiFi IP config; `live-feed.tsx` branches on `cameraSource`; `CameraSource` type added; BLE Android permissions added

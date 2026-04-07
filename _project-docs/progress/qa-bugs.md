@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-04-07 (v0.9.1)
+**Last verified:** 2026-04-07 (v0.9.2)
 
 ---
 
@@ -41,7 +41,7 @@
 | CODE-15 | `app/(auth)/update-password.tsx` | 4 | `useEffect` in a second separate `import from "react"` statement — should be consolidated | Low | Open |
 | ~~CODE-16~~ | `lib/debug.ts` | 8 | `dbg()` calls `console.log` unconditionally with no `__DEV__` guard | Medium | ✅ Fixed 2026-03-30 |
 | CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files — misleading | Low | Open (by design) |
-| CODE-18 | `app/(clinic)/_layout.tsx` | 14 | `label: string` prop declared in `TabIcon` TypeScript type but never used in function | Low | Open |
+| ~~CODE-18~~ | `app/(clinic)/_layout.tsx` | 14 | `label: string` prop declared in `TabIcon` TypeScript type but never used in function | Low | ✅ Fixed 2026-04-07 |
 
 ---
 
@@ -120,7 +120,7 @@
 | ~~A11Y-01~~ | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle has no `accessibilityLabel` | Low | ✅ Fixed 2026-03-21 |
 | ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron in action card has no accessibility role | Low | ✅ Fixed 2026-03-21 |
 | ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` = 3.64:1 — fails WCAG AA | Medium | ✅ Fixed 2026-03-21 |
-| A11Y-04 | `components/ui/index.tsx` | 193–201 | Muted badge text on badge bg ≈ 4.4:1 — borderline below WCAG AA 4.5:1 for xs text | Low | Open |
+| ~~A11Y-04~~ | `components/ui/index.tsx` | 193–201 | Muted badge text on badge bg ≈ 4.4:1 — borderline below WCAG AA 4.5:1 for xs text | Low | ✅ Fixed 2026-04-07 |
 | ~~A11Y-05~~ | `app/(clinic)/_layout.tsx` | 32–71 | No `tabBarAccessibilityLabel` on any `Tabs.Screen` after text labels removed | Medium | ✅ Fixed 2026-03-30 |
 
 ---
@@ -142,6 +142,7 @@
 | NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation — intentional but worth flagging for UX review | Low | Open (by design) |
 | ~~NAV-02~~ | `app/index.tsx` | 20 | `router.replace()` in `useEffect` fired before Root Layout mounted | High | ✅ Fixed 2026-03-21 |
 | ~~NAV-03~~ | `app/(patient)/settings.tsx` | — | Patient settings screen unreachable — no nav push anywhere | Medium | ✅ Fixed 2026-03-30 |
+| ~~NAV-04~~ | `update-password.tsx`, `patient-select.tsx`, `clinical-data.tsx`, `pairing.tsx`, `dpn-result.tsx` | — | No back button on 5 screens — users had no way to exit without completing the flow | Medium | ✅ Fixed 2026-04-07 |
 
 ---
 
@@ -187,15 +188,15 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 18 | 3 | 14 | 1 |
+| Code Quality | 18 | 2 | 15 | 1 |
 | UI / UX | 22 | 1 | 20 | 1 (UX-11) |
 | Supabase / Data | 14 | 0 | 12 | 2 (GAP-04, GAP-08) |
 | Performance | 11 | 0 | 11 | 0 |
-| Accessibility | 5 | 1 | 4 | 0 |
+| Accessibility | 5 | 0 | 5 | 0 |
 | Security | 3 | 0 | 3 | 0 |
-| Navigation | 3 | 1 | 2 | 0 |
+| Navigation | 4 | 1 | 3 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 8 | 1 | 5 | 2 |
-| **Total** | **100** | **6** | **87** | **6** |
+| **Total** | **101** | **4** | **90** | **6** |
 
-**Overall QA Status: 94% Complete** — 6 open items (3 cosmetic code quality, 1 a11y contrast, 1 nav by-design, 1 hardware stub). 6 deferred (all hardware/API dependent).
+**Overall QA Status: 96% Complete** — 4 open items (2 cosmetic code quality, 1 nav by-design, 1 hardware stub). 6 deferred (all hardware/API dependent).

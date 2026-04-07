@@ -9,6 +9,7 @@ export interface AuthUser {
   role: UserRole;
   clinic_id?: string;
   phone?: string;
+  avatar_url?: string;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
