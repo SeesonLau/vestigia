@@ -15,7 +15,16 @@
       "Bash(ls \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/\")",
       "Bash(cat \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/assessment.tsx\")",
       "mcp__postgres__query",
-      "Bash(cat \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/pairing.tsx\")"
+      "Bash(cat \"c:/Users/PotatoIV/Desktop/SD3/vestigia/app/\\(clinic\\)/pairing.tsx\")",
+      "WebFetch(domain:www.sparkfun.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.pureengineering.com)",
+      "WebFetch(domain:groupgets.com)",
+      "Read(//c/Users/PotatoIV/Desktop/UVCCamera/**)",
+      "Read(//c/Users/PotatoIV/Desktop/UVCCamera/libuvccamera/**)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\PotatoIV\\Desktop\\UVCCamera"
     ]
   },
   "enabledMcpjsonServers": [
