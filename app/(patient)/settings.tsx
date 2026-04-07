@@ -2,7 +2,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
@@ -12,13 +12,16 @@ import { useAuthStore } from "../../store/authStore";
 type SettingsItem = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  onPress: () => void;
+  onPress?: () => void;
+  toggle?: boolean;
+  toggleValue?: boolean;
+  onToggle?: () => void;
   destructive?: boolean;
 };
 
 export default function PatientSettingsScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { logout } = useAuthStore();
 
   const handleLogout = async () => {
@@ -43,6 +46,13 @@ export default function PatientSettingsScreen() {
       onPress: () => Alert.alert("Coming Soon", "Notification settings are not yet available."),
     },
     {
+      icon: "color-palette-outline",
+      label: "Dark Mode",
+      toggle: true,
+      toggleValue: isDark,
+      onToggle: toggleTheme,
+    },
+    {
       icon: "log-out-outline",
       label: "Sign Out",
       onPress: handleLogout,
@@ -59,8 +69,8 @@ export default function PatientSettingsScreen() {
             <TouchableOpacity
               key={item.label}
               style={[styles.row, i < items.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border }]}
-              onPress={item.onPress}
-              activeOpacity={0.7}
+              onPress={item.toggle ? item.onToggle : item.onPress}
+              activeOpacity={item.toggle ? 1 : 0.7}
             >
               <Ionicons
                 name={item.icon}
@@ -71,9 +81,16 @@ export default function PatientSettingsScreen() {
               <Text style={[styles.rowLabel, { color: item.destructive ? colors.error : colors.text }]}>
                 {item.label}
               </Text>
-              {!item.destructive && (
+              {item.toggle ? (
+                <Switch
+                  value={item.toggleValue}
+                  onValueChange={item.onToggle}
+                  trackColor={{ false: colors.border, true: `${colors.accent}80` }}
+                  thumbColor={item.toggleValue ? colors.accent : colors.textSec}
+                />
+              ) : !item.destructive ? (
                 <Ionicons name="chevron-forward" size={16} color={colors.textSec} />
-              )}
+              ) : null}
             </TouchableOpacity>
           ))}
         </View>

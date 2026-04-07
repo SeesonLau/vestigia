@@ -92,7 +92,7 @@ const soon = (feature: string) =>
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { logout, user } = useAuthStore();
   const pairedDevice = useDeviceStore((s) => s.pairedDevice);
   const [haptics, setHaptics] = useState(true);
@@ -186,7 +186,7 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow icon="phone-portrait-outline" label={S.settings.hapticFeedback} toggle toggleValue={haptics} onToggle={setHaptics} />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow icon="color-palette-outline" label={S.settings.theme} value={S.settings.themeValue} onPress={() => soon("Theme selection")} />
+          <SettingRow icon="color-palette-outline" label="Dark Mode" toggle toggleValue={isDark} onToggle={() => toggleTheme()} />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingRow icon="language-outline" label={S.settings.language} value={S.settings.languageValue} onPress={() => soon("Language selection")} />
         </View>
