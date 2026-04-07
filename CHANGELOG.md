@@ -3,6 +3,20 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.9.1] — 2026-04-06
+
+### Added — Thermal Image + CSV File Import
+- `expo-document-picker` + `expo-file-system` installed (SDK 54 compatible)
+- `lib/thermal/preprocessing.ts` — Added `parseCsvMatrix(csv)`: parses comma/tab-separated rows of °C floats into a `ThermalMatrix`; skips non-numeric header rows; any dimensions
+- `lib/thermal/preprocessing.ts` — Added `matrixToStorageB64(matrix)`: encodes a `number[][]` as base64 JSON for local SQLite storage (non-Y16 path)
+- `lib/thermal/preprocessing.ts` — Added `parseStoredMatrix(b64)`: auto-detects JSON-encoded matrix vs raw Y16 frame and decodes accordingly
+- `app/(clinic)/live-feed.tsx` — "or import from files" section below capture controls: image card (JPG/PNG, shows thumbnail preview) + CSV card (parses to matrix, drives ThermalMap); "Use Imported Data" CTA captures and routes to clinical-data
+- `app/(offline)/live-feed.tsx` — Same import section; imported CSV matrix encoded via `matrixToStorageB64` for local SQLite; routes to offline save screen
+- `app/(patient)/index.tsx` — Import controls inside "Latest Thermal Scans" card: Thermal Image + Left CSV + Right CSV picker cards; imported matrices replace mock thumbnails in real time; reference image shown as full-width strip
+
+### Changed
+- `app/(clinic)/sync.tsx` — `parseY16Frame` replaced with `parseStoredMatrix` to support both Y16 frames and CSV-imported matrices during sync upload
+
 ## [0.9.0] — 2026-04-06
 
 ### Added — DPN Classification API Integration (FR-507)
