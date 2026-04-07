@@ -1,16 +1,109 @@
 // app/(patient)/_layout.tsx
-import { Stack } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import React from "react";
+import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../constants/ThemeContext";
+import { Spacing } from "../../constants/theme";
+
+function TabIcon({
+  icon,
+  focused,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  focused: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        tabStyles.iconWrap,
+        focused && { backgroundColor: `${colors.accent}1F` },
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={focused ? colors.navActive : colors.navInactive}
+      />
+    </View>
+  );
+}
 
 export default function PatientLayout() {
   const { colors } = useTheme();
+
   return (
-    <Stack
+    <Tabs
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.bg },
-        animation: "slide_from_right",
+        tabBarStyle: {
+          backgroundColor: colors.navBg,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          height: 64,
+          paddingBottom: Spacing.sm,
+          paddingTop: Spacing.sm,
+        },
+        tabBarShowLabel: false,
       }}
-    />
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          tabBarAccessibilityLabel: "Dashboard",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="home-outline" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="live-feed"
+        options={{
+          tabBarAccessibilityLabel: "Thermal Capture",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="camera-outline" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="history"
+        options={{
+          tabBarAccessibilityLabel: "My History",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="time-outline" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="sync"
+        options={{
+          tabBarAccessibilityLabel: "Data Requests",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="notifications-outline" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          tabBarAccessibilityLabel: "Settings",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="settings-outline" focused={focused} />
+          ),
+        }}
+      />
+      {/* Hidden screens (navigated to programmatically) */}
+      <Tabs.Screen name="save" options={{ href: null as any }} />
+    </Tabs>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  iconWrap: {
+    alignItems: "center",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    borderRadius: 10,
+  },
+});
