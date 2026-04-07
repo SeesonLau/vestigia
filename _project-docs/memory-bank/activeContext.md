@@ -1,11 +1,26 @@
 # Active Context — Lumenai (formerly Vestigia)
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-07
 
 ---
 
-## What Was Done This Session (2026-04-06) — v0.9.0
+## What Was Done This Session (2026-04-07) — v0.9.1
 
-### DPN Classification API Integration (FR-507 — complete)
+### Thermal Image + CSV File Import
+- `expo-document-picker` + `expo-file-system` installed via `npx expo install`
+- `lib/thermal/preprocessing.ts` — Added 3 functions:
+  - `parseCsvMatrix(csv)` — parses comma/tab-separated °C float rows into `ThermalMatrix`; skips non-numeric headers; any dimensions
+  - `matrixToStorageB64(matrix)` — encodes `number[][]` as base64 JSON for SQLite (non-Y16 path)
+  - `parseStoredMatrix(b64)` — auto-detects JSON matrix vs raw Y16 frame and decodes accordingly
+- `app/(clinic)/live-feed.tsx` — "or import from files" section below capture controls; image card (JPG/PNG thumbnail preview) + CSV card (drives ThermalMap live); "Use Imported Data" CTA captures into thermal store and routes to clinical-data
+- `app/(offline)/live-feed.tsx` — Same two-card import section; CSV matrix encoded via `matrixToStorageB64` for SQLite; routes to offline save screen
+- `app/(patient)/index.tsx` — Three picker cards inside "Latest Thermal Scans" card: Thermal Image + Left CSV + Right CSV; imported matrices replace mock thumbnails; reference image shown as full-width strip
+- `app/(clinic)/sync.tsx` — `parseY16Frame` replaced with `parseStoredMatrix` (handles both Y16 and CSV-imported matrices during sync upload)
+
+---
+
+## What Was Done Previous Session (2026-04-06) — v0.9.0
+
+### DPN Classification API Integration (FR-507 — complete) [prior conversation]
 
 **Four gaps closed:**
 

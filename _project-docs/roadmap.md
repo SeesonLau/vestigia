@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-06 (v0.8.0)
+**Last updated:** 2026-04-07 (v0.9.1)
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,11 +10,11 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub — rejects all calls. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
-| 2 | — | `npx expo run:android` rebuild | 15 min | **Must be done now** — `react-native-ble-plx` native module won't load until native app is rebuilt. BLE scan will crash on Expo Go. |
-| 3 | FR-507 | AI model API integration — send thermal data, receive classification result | 4–5 hrs | New module `lib/api/aiClient.ts`. **AI model lives in a separate repo** — blocked until AI API endpoint URL, request format, and response schema are confirmed by AI team. |
-| 4 | GAP-08 | Add abnormal region overlay on thermal map | 3–4 hrs | Depends on FR-507 response shape (flagged angiosome zones). Visual highlight on ThermalMap. |
-| 5 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use preprocessing output (FR-506 done) to compute real angiosome temps. Still needs FR-507 to validate output. |
+| 1 | — | `npx expo run:android` rebuild | 15 min | **Required** — `react-native-ble-plx` native module won't load until native app is rebuilt. BLE scan will not work on Expo Go. |
+| 2 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
+| 3 | — | End-to-end test: bilateral capture → DPN API → result → save | 1–2 hrs | Test full clinic flow on physical device. Verify PNG encoding accepted by server. |
+| 4 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
+| 5 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
 
 ---
 
@@ -127,6 +127,8 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
 | Add search/filter to session history screen | Useful once sessions accumulate; filter by date range, result type | 1–2 hrs |
 | Add `Clinic`, `Device`, `SystemConfig` types to `types/index.ts` | Currently only local interfaces in admin screens | 30 min |
+| Add in-app CSV format guide or sample download | Users need to know the expected CSV structure (rows of comma-separated °C floats); a help tooltip or sample file link would reduce confusion | Low |
+| Validate CSV dimensions match FLIR Lepton 3.5 (160×120) | Currently any NxM CSV is accepted — warn if not 160×120 to prevent mismatched preprocessing | Low |
 
 ---
 
@@ -147,8 +149,7 @@ If the AI API already returns a `risk_level`, use that directly instead.
 
 | Item | Reason | Resume When |
 |---|---|---|
-| AI model API integration (GAP-04 / FR-507) | External AI model API not yet deployed — lives in a **separate repo**. This app will call it via HTTP. | AI model API endpoint confirmed + accessible |
-| Angiosome computation from matrix (CODE-09) | FR-506 done; still needs FR-507 response format to validate output | FR-507 done |
+| GAP-08 — Angiosome overlay | DPN API returns summary text (`diagnosis_factors`), not per-angiosome spatial data — no coordinates to render overlay | If API is extended with spatial output |
 | Push notifications | Not in core thesis scope | Post-defense |
 
 ---
@@ -206,3 +207,5 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.8.0 | Live-feed dual camera path: UVC (FLIR) vs WiFi (ESP32); CameraSource type; FPS badge shows source (GAP-03) | 2026-04-06 |
 | v0.8.0 | pairing.tsx full rewrite — Active Source card, FLIR section, ESP32 WiFi section, BLE Discovery | 2026-04-06 |
 | v0.8.0 | Session detail screens removed (clinic + patient) — blank 5th tab eliminated from clinic nav | 2026-04-06 |
+| v0.9.0 | FR-507 — DPN API integration (lib/dpnApi.ts, store/dpnStore.ts, thermalPng.ts, dpn-result.tsx, bilateral capture flow) | 2026-04-06 |
+| v0.9.1 | Thermal image + CSV import on clinic/offline/patient screens (expo-document-picker, parseCsvMatrix, matrixToStorageB64, parseStoredMatrix) | 2026-04-07 |

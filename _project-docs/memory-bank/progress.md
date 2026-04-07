@@ -1,6 +1,6 @@
 # Progress — Lumenai (formerly Vestigia)
-**Current version:** 0.9.0
-**Last verified:** 2026-04-06
+**Current version:** 0.9.1
+**Last verified:** 2026-04-07
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.1 | 2026-04-07 | Thermal image + CSV file import on clinic, offline, and patient screens |
 | 0.9.0 | 2026-04-06 | DPN Classification API integration (FR-507) — bilateral capture flow, pure-JS PNG encoder, real API client + store, wired assessment + result screen |
 | 0.8.0 | 2026-04-06 | Real BLE + Wi-Fi dual camera support (FLIR + ESP32 MIO802M5S); session detail screens removed |
 | 0.7.0 | 2026-04-06 | Full Arctic Mint theme migration (Phase 7+8), legacy Colors removed, app renamed to Lumenai, BUG-06 fixed in 4 files |
@@ -72,6 +73,8 @@
 - **FlatList perf** — `renderItem` extracted to `useCallback` in history, admin users, admin clinics (PERF-09/10/11)
 - **Version string** — `login.tsx` updated to `v0.5.2` (CODE-14)
 - **Arctic Mint theme** — full light/dark mode system with `ThemeProvider` + `useTheme()` hook; all 24 screens and all shared components migrated; legacy `Colors` export removed from `constants/theme.ts`
+- **Thermal image + CSV import** — `expo-document-picker` + `expo-file-system` added; `parseCsvMatrix`, `matrixToStorageB64`, `parseStoredMatrix` added to `preprocessing.ts`; import UI on clinic/offline live-feed (image + CSV) and patient dashboard (image + left/right CSV); `sync.tsx` uses `parseStoredMatrix` to handle both Y16 and CSV-imported matrices
+- **FR-507 — DPN API integration** — `lib/dpnApi.ts` (typed client, 60s timeout, error mapping), `store/dpnStore.ts` (server-waking retry logic), `lib/thermal/thermalPng.ts` (pure-JS PNG encoder), `app/(clinic)/dpn-result.tsx` (result + save-to-cloud); `live-feed.tsx` bilateral capture flow; `assessment.tsx` wired to real API
 - **Dual camera support** — `lib/thermal/bleCamera.ts` (real BLE via react-native-ble-plx) + `lib/thermal/wifiCamera.ts` (WebSocket stream for ESP32 MIO802M5S); `pairing.tsx` full rewrite with real BLE scan + WiFi IP config; `live-feed.tsx` branches on `cameraSource`; `CameraSource` type added; BLE Android permissions added
 - **Session detail screens removed** — `app/(clinic)/session/[id].tsx` and `app/(patient)/session/[id].tsx` deleted; blank 5th tab removed from clinic nav
 - **App renamed Lumenai** — `app.json` display name updated; `constants/strings.ts` app name set to "Lumenai"
