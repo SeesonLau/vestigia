@@ -84,7 +84,7 @@ const soon = (feature: string) =>
 
 export default function AdminSettingsScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuthStore();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [auditLog, setAuditLog] = useState(true);
@@ -230,6 +230,14 @@ export default function AdminSettingsScreen() {
             icon="notifications-outline"
             label="Notifications"
             onPress={() => soon("Notification settings")}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <SettingRow
+            icon="color-palette-outline"
+            label="Dark Mode"
+            toggle
+            toggleValue={isDark}
+            onToggle={() => toggleTheme()}
           />
         </Card>
 
