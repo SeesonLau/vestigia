@@ -11,7 +11,6 @@ function TabIcon({
   focused,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
-  label: string;
   focused: boolean;
 }) {
   const { colors } = useTheme();
@@ -54,7 +53,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Home",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="home-outline" label="Home" focused={focused} />
+            <TabIcon icon="home-outline"focused={focused} />
           ),
         }}
       />
@@ -63,7 +62,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Thermal Scan",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="camera-outline" label="Scan" focused={focused} />
+            <TabIcon icon="camera-outline"focused={focused} />
           ),
         }}
       />
@@ -72,7 +71,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Session History",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="time-outline" label="History" focused={focused} />
+            <TabIcon icon="time-outline"focused={focused} />
           ),
         }}
       />
@@ -81,7 +80,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Settings",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="settings-outline" label="Settings" focused={focused} />
+            <TabIcon icon="settings-outline"focused={focused} />
           ),
         }}
       />
