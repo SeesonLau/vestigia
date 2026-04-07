@@ -169,6 +169,18 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Offline shortcut */}
+          <TouchableOpacity
+            style={styles.offlineLink}
+            activeOpacity={0.7}
+            onPress={() => router.replace("/mode-select" as any)}
+          >
+            <Ionicons name="camera-outline" size={14} color={colors.textSec} />
+            <Text style={[styles.offlineLinkText, { color: colors.textSec }]}>
+              Work Offline instead
+            </Text>
+          </TouchableOpacity>
+
           <Text style={[styles.version, { color: colors.textSec }]}>
             {S.auth.loginFooter} · {S.app.version}
           </Text>
@@ -258,6 +270,17 @@ const styles = StyleSheet.create({
   registerLink: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
+  },
+  offlineLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: Spacing.lg,
+  },
+  offlineLinkText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
   },
   version: {
     textAlign: "center",
