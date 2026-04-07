@@ -1,7 +1,31 @@
-# Changelog — Lumenai (formerly Vestigia)
+# Changelog — Lumen AI (formerly Vestigia)
 
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
+
+## [0.9.4] — 2026-04-08
+
+### Added — Real UVC Camera + App Rename
+
+#### HW-01 — libuvccamera-release.aar (FLIR Lepton 3.5 via PureThermal Mini Pro)
+- Built `libuvccamera-release.aar` from saki4510t/UVCCamera after fixing incompatibilities with modern toolchain:
+  - `build.gradle` — AGP `3.1.4` → `7.4.2`; dead `jcenter()` → `mavenCentral()`/`google()`; SDK 27 → 33
+  - `gradle-wrapper.properties` — Gradle `8.5` → `7.6.3`
+  - `gradle.properties` — removed `-XX:MaxPermSize=512m` (incompatible with Java 17+)
+  - `Application.mk` — removed deprecated ABIs (`armeabi`, `mips`); kept `arm64-v8a`, `armeabi-v7a`, `x86_64`; platform `android-14` → `android-21`
+  - `USBMonitor.java` — Added `PendingIntent.FLAG_IMMUTABLE` for Android 12+ (API 31+); was causing runtime crash on modern devices
+- `android/app/libs/libuvccamera-release.aar` — AAR placed in Vestigia libs directory
+- `android/app/build.gradle` — Added `fileTree(libs)`, `support-v4:27.1.1`, `support-annotations:27.1.1`, `com.serenegiant:common:2.12.4` (excludes `support-v4` to prevent duplicates)
+- `android/gradle.properties` — Added `android.enableJetifier=true` (migrates AAR's `android.support.*` bytecode to AndroidX)
+- `android/build.gradle` — Added `maven { url 'https://raw.github.com/saki4510t/libcommon/master/repository/' }` for `serenegiant:common` runtime dep
+- `android/app/src/main/java/com/anonymous/vestigia/UVCModule.kt` — Full implementation: `USBMonitor` device lifecycle, `UVCCamera` open + preview (160×120 YUYV), `IFrameCallback` encodes raw bytes as Base64 and emits `UVCFrame` event to JS; handles connect/disconnect/permission; auto-requests permission for already-plugged-in devices on `connect()`
+
+#### App Rename
+- `app.json` — `"name": "Lumenai"` → `"name": "Lumen AI"`
+- `constants/strings.ts` — `app.name`, `app.versionFooter`, `auth.loginFooter` updated to "Lumen AI"
+- `android/app/src/main/res/values/strings.xml` — `app_name` updated to "Lumen AI"
+
+---
 
 ## [0.9.3] — 2026-04-07
 
