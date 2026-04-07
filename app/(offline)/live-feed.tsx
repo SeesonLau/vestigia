@@ -42,7 +42,7 @@ type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export default function OfflineLiveFeedScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const thermalStore = useThermalStore();
 
   //Camera
@@ -230,6 +230,18 @@ export default function OfflineLiveFeedScreen() {
         }
         rightIcon={
           <View style={styles.headerRight}>
+            <TouchableOpacity
+              onPress={toggleTheme}
+              accessibilityLabel={isDark ? "Switch to light mode" : "Switch to dark mode"}
+              accessibilityRole="button"
+              style={[styles.themeToggle, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            >
+              <Ionicons
+                name={isDark ? "sunny-outline" : "moon-outline"}
+                size={16}
+                color={isDark ? colors.warning : colors.accent}
+              />
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={() => router.push("/(offline)/history" as any)}
               accessibilityLabel="Saved captures"
@@ -465,6 +477,14 @@ export default function OfflineLiveFeedScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   headerRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  themeToggle: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   fpsTag: {
     borderRadius: Radius.full,
     paddingHorizontal: 8,
