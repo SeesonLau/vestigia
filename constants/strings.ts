@@ -6,11 +6,11 @@
 export const S = {
   // ── App ──────────────────────────────────────────────────────
   app: {
-    name: "Lumenai",
+    name: "Lumen AI",
     tagline: "DPN Thermal Screening",
     version: "v0.8.0",
     build: "800",
-    versionFooter: "Lumenai · v0.8.0 · Build 800",
+    versionFooter: "Lumen AI · v0.8.0 · Build 800",
   },
 
   // ── Auth ─────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export const S = {
     accountActivated: "Account Activated",
     emailConfirmed: "Your email has been confirmed. You can now sign in.",
     loginButton: "Login",
-    loginFooter: "Lumenai · DPN Thermal Screening",
+    loginFooter: "Lumen AI · DPN Thermal Screening",
   },
 
   // ── Common actions ────────────────────────────────────────────
