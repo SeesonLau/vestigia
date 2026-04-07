@@ -347,9 +347,11 @@ export default function LiveFeedScreen() {
         title="Live Thermal Feed"
         rightIcon={
           <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.fpsSource, { color: colors.textSec }]}>
-              {cameraSource === "wifi" ? "ESP32" : "FLIR"}
-            </Text>
+            <Ionicons
+              name={cameraSource === "wifi" ? "wifi-outline" : "hardware-chip-outline"}
+              size={12}
+              color={colors.textSec}
+            />
             <Text style={[styles.fpsText, { color: colors.success }]}>
               {cameraStatus === "connected" ? `${fps} fps` : "--"}
             </Text>
@@ -686,8 +688,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
   },
-  fpsSource: { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 0.5, textTransform: "uppercase" },
-  fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono, letterSpacing: 0.5 },
+fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono, letterSpacing: 0.5 },
   statusBar: { flexDirection: "row", alignItems: "center", gap: Spacing.lg, marginBottom: Spacing.md },
   guideToggle: {
     marginLeft: "auto",
