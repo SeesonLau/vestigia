@@ -1,7 +1,6 @@
 // app/(patient)/index.tsx
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
-import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import Header from "../../components/layout/Header";
@@ -25,15 +24,8 @@ const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
 const THUMB_H = Math.round(THUMB_W * (120 / 160));
 
 export default function PatientDashboardScreen() {
-  const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
-  const logout = useAuthStore((s) => s.logout);
-
-  const handleLogout = async () => {
-    await logout();
-    router.replace("/(auth)/login");
-  };
   const [patient, setPatient] = useState<Patient | null>(null);
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,29 +143,13 @@ export default function PatientDashboardScreen() {
 
   const firstName = user?.full_name?.split(" ")[0] ?? "there";
 
-  const headerRight = (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-      <TouchableOpacity
-        onPress={() => router.push("/(patient)/sync" as any)}
-        accessibilityLabel="Data requests"
-        accessibilityRole="button"
-        style={{ position: "relative" }}
-      >
-        <Ionicons name="notifications-outline" size={20} color={pendingRequests > 0 ? colors.accent : colors.textSec} />
-        {pendingRequests > 0 && (
-          <View style={[styles.notifBadge, { backgroundColor: colors.accent }]}>
-            <Text style={styles.notifBadgeText}>{pendingRequests}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => router.push("/(patient)/settings")} accessibilityLabel="Settings" accessibilityRole="button">
-        <Ionicons name="settings-outline" size={20} color={colors.textSec} />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={handleLogout} accessibilityLabel="Sign out" accessibilityRole="button">
-        <Ionicons name="log-out-outline" size={20} color={colors.textSec} />
-      </TouchableOpacity>
+  const headerRight = pendingRequests > 0 ? (
+    <View style={{ position: "relative" }}>
+      <View style={[styles.notifBadge, { backgroundColor: colors.accent }]}>
+        <Text style={styles.notifBadgeText}>{pendingRequests}</Text>
+      </View>
     </View>
-  );
+  ) : null;
 
   if (loading) {
     return (

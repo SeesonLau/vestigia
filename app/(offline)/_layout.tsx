@@ -8,6 +8,7 @@ export default function OfflineLayout() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
       <Stack.Screen name="live-feed" />
       <Stack.Screen name="save" />
+      <Stack.Screen name="history" />
     </Stack>
   );
 }

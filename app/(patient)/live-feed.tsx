@@ -1,4 +1,4 @@
-// app/(offline)/live-feed.tsx
+// app/(patient)/live-feed.tsx
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { useRouter } from "expo-router";
@@ -40,7 +40,7 @@ const MAP_H = Math.round(MAP_W * (120 / 160));
 
 type CameraStatus = "disconnected" | "connecting" | "connected" | "error";
 
-export default function OfflineLiveFeedScreen() {
+export default function PatientLiveFeedScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const thermalStore = useThermalStore();
@@ -146,7 +146,6 @@ export default function OfflineLiveFeedScreen() {
     setCapturedB64(null);
   };
 
-  //Import handlers
   const handlePickImage = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       type: ["image/jpeg", "image/png"],
@@ -194,10 +193,10 @@ export default function OfflineLiveFeedScreen() {
     setCapturedB64(matrixToStorageB64(matrix));
   };
 
-  const handleUseFrame = () => {
+  const handleSave = () => {
     thermalStore.setLiveFrame(capturedMatrix!, minTemp, maxTemp, meanTemp);
     router.push({
-      pathname: "/(offline)/save",
+      pathname: "/(patient)/save",
       params: {
         b64: capturedB64!,
         foot: selectedFoot,
@@ -222,26 +221,12 @@ export default function OfflineLiveFeedScreen() {
   return (
     <ScreenWrapper>
       <Header
-        title="Offline Capture"
-        leftIcon={
-          <TouchableOpacity onPress={() => router.replace("/mode-select" as any)}>
-            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
-          </TouchableOpacity>
-        }
+        title="Thermal Capture"
         rightIcon={
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              onPress={() => router.push("/(offline)/history" as any)}
-              accessibilityLabel="Saved captures"
-              accessibilityRole="button"
-            >
-              <Ionicons name="albums-outline" size={22} color={colors.text} />
-            </TouchableOpacity>
-            <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.fpsText, { color: colors.success }]}>
-                {cameraStatus === "connected" ? `${fps} fps` : "--"}
-              </Text>
-            </View>
+          <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.fpsText, { color: colors.success }]}>
+              {cameraStatus === "connected" ? `${fps} fps` : "--"}
+            </Text>
           </View>
         }
       />
@@ -269,10 +254,10 @@ export default function OfflineLiveFeedScreen() {
             <Ionicons name="camera-outline" size={48} color={colors.textSec} style={{ marginBottom: Spacing.md }} />
             <Text style={[styles.noCameraText, { color: colors.textSec }]}>
               {cameraStatus === "connecting"
-                ? "Waiting for PureThermal camera…\nPlug in via JST-SH → USB-C"
+                ? "Waiting for thermal camera…\nPlug in via USB"
                 : cameraStatus === "error"
-                ? `${cameraError}\n\nPlug in the PureThermal and reopen this screen.`
-                : "Camera disconnected.\nPlug in the PureThermal to begin."}
+                ? `${cameraError}\n\nPlug in the camera and reopen this screen.`
+                : "Camera disconnected.\nPlug in the thermal camera to begin, or import a CSV below."}
             </Text>
           </View>
         )}
@@ -368,11 +353,11 @@ export default function OfflineLiveFeedScreen() {
                 <Text style={[styles.discardText, { color: colors.textSec }]}>Discard</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleUseFrame}
+                onPress={handleSave}
                 style={[styles.saveBtn, { backgroundColor: colors.success }]}
                 activeOpacity={0.8}
               >
-                <Text style={styles.saveText}>Save Offline</Text>
+                <Text style={styles.saveText}>Save to Device</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -464,7 +449,6 @@ export default function OfflineLiveFeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
   fpsTag: {
     borderRadius: Radius.full,
     paddingHorizontal: 8,
@@ -546,7 +530,6 @@ const styles = StyleSheet.create({
   },
   saveText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.label, color: "#fff" },
   hint: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 18 },
-  //Import section
   importSection: { marginTop: Spacing.md, paddingBottom: Spacing.xl },
   importDivider: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.md },
   importLine: { flex: 1, height: 1 },
