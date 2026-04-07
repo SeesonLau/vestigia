@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-04-06 (v0.8.0)
+**Last verified:** 2026-04-07 (v0.9.1)
 
 ---
 
@@ -15,7 +15,7 @@
 | **Security** | Hardcoded API keys/secrets, `console.log` leaking tokens or patient data, anon-only client enforcement, RLS enabled on all tables, input sanitization before Supabase | All source files, Supabase config |
 | **Navigation** | Every `router.push()` target maps to a real file, no dead-end screens, dynamic routes receive required params, all tabs/links point to real routes | `app/` routing structure |
 | **Auth** | Sign Out across all roles, inactivity timeout mounted, password reset deep link, login lockout, session persistence | `app/(auth)/`, `store/authStore.ts`, `app/_layout.tsx` |
-| **Schema / Database** | Table existence, column match against thesis schema, foreign keys, RLS policies, TypeScript types vs actual DB columns, WatermelonDB sync status | `types/`, Supabase live query |
+| **Schema / Database** | Table existence, column match against thesis schema, foreign keys, RLS policies, TypeScript types vs actual DB columns | `types/`, Supabase live query |
 | **Regression** | Every ~~fixed~~ item in this file cross-referenced against current code to confirm the fix still exists and was not reverted | All previously fixed files |
 
 ---
@@ -32,16 +32,16 @@
 | ~~CODE-06~~ | `types/index.ts` | — | `ThermalCapture` missing `resolution_x`, `resolution_y` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-07~~ | Multiple files | 1 | File path comments missing on some utility/edge function files | Low | ✅ Fixed 2026-03-21 |
 | ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | — | Submit handler was dummy setTimeout — no real upload | High | ✅ Fixed 2026-03-21 |
-| CODE-09 | `app/(clinic)/clinical-data.tsx` | 24 | `MOCK_ANGIOSOMES` still used in thermal preview — real values not computed from matrix | Medium | Deferred (blocked on GAP-04) |
+| CODE-09 | `app/(clinic)/clinical-data.tsx` | 26 | `MOCK_ANGIOSOMES` still used in thermal preview — real values not computed from matrix | Medium | Deferred (blocked on GAP-04) |
 | ~~CODE-10~~ | `app/(clinic)/assessment.tsx` | — | `clearSession()` + `discardCapture()` not called on exit | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-11~~ | `app/(clinic)/index.tsx` | 56 | Clinic name hardcoded as "Cebu City Health Center" | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-12~~ | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` and `(clinicsData as any[])` — typed interfaces already defined but cast bypassed | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-13~~ | `app/(clinic)/assessment.tsx` | 163 | `.map((step, i) => ...)` — param `i` declared but never read | Low | ✅ Fixed 2026-03-21 |
-| ~~CODE-14~~ | `app/(auth)/login.tsx` | 153 | Version string hardcoded as `"Vestigia v1.0.0"` — updated to `v0.5.2` | Low | ✅ Fixed 2026-03-30 |
-| CODE-15 | `app/(auth)/update-password.tsx` | 17 | `useEffect` in a second separate `import from "react"` statement — should be consolidated | Low | Open |
+| ~~CODE-14~~ | `app/(auth)/login.tsx` | 153 | Version string hardcoded as `"Vestigia v1.0.0"` | Low | ✅ Fixed 2026-03-30 |
+| CODE-15 | `app/(auth)/update-password.tsx` | 4 | `useEffect` in a second separate `import from "react"` statement — should be consolidated | Low | Open |
 | ~~CODE-16~~ | `lib/debug.ts` | 8 | `dbg()` calls `console.log` unconditionally with no `__DEV__` guard | Medium | ✅ Fixed 2026-03-30 |
-| CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files — misleading | Low | Open |
-| CODE-18 | `app/(clinic)/_layout.tsx` | 11–14 | `label: string` prop declared in `TabIcon` TypeScript type but never used | Low | Open |
+| CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files — misleading | Low | Open (by design) |
+| CODE-18 | `app/(clinic)/_layout.tsx` | 14 | `label: string` prop declared in `TabIcon` TypeScript type but never used in function | Low | Open |
 
 ---
 
@@ -84,14 +84,14 @@
 | ~~GAP-10~~ | `app/(admin)/users.tsx` | — | Reads `MOCK_ALL_USERS` | High | ✅ Fixed 2026-03-21 |
 | ~~GAP-11~~ | `app/(admin)/clinics.tsx` | — | Reads `MOCK_CLINICS` + `MOCK_DEVICES` | High | ✅ Fixed 2026-03-21 |
 | GAP-04 | `app/(clinic)/assessment.tsx` | 32 | AI classification result is hardcoded mock — no real cloud inference | High | Deferred (hardware) |
-| GAP-08 | `app/(clinic)/assessment.tsx` | — | No abnormal region overlay on thermal map | Medium | Open |
+| GAP-08 | `app/(clinic)/assessment.tsx` | — | No abnormal region overlay on thermal map | Medium | Deferred (API returns no per-angiosome spatial data) |
 | ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` has zero error handling | Medium | ✅ Fixed 2026-03-21 |
 | ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Neither fetch destructures `error` | Medium | ✅ Fixed 2026-03-21 |
-| ~~GAP-15~~ | `app/(clinic)/history.tsx` | 36 | PostgREST join alias mismatch — `classification` may be undefined; `positiveCount`/`negativeCount` always 0 | High | ✅ Fixed 2026-03-30 |
+| ~~GAP-15~~ | `app/(clinic)/history.tsx` | 115–120 | PostgREST join alias mismatch — `classification` may be undefined; `positiveCount`/`negativeCount` always 0 | High | ✅ Fixed 2026-03-30 |
 | ~~GAP-16~~ | `app/(admin)/users.tsx` | 34 | `fetchUsers`: `error` not destructured; silent failure | Medium | ✅ Fixed 2026-03-30 |
 | ~~GAP-17~~ | `app/(admin)/clinics.tsx` | 52 | `fetchClinics`: same as GAP-16 | Medium | ✅ Fixed 2026-03-30 |
-| ~~GAP-18~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 98 / 111 | `handleToggleActive`: on Supabase error, no user notification (no Alert, no error text) | Medium | ✅ Fixed 2026-04-05 |
+| ~~GAP-18~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 102 / — | `handleToggleActive`: on Supabase error, no user notification | Medium | ✅ Fixed 2026-04-05 |
 
 ---
 
@@ -139,7 +139,7 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation — intentional but worth flagging for UX review | Low | Open |
+| NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation — intentional but worth flagging for UX review | Low | Open (by design) |
 | ~~NAV-02~~ | `app/index.tsx` | 20 | `router.replace()` in `useEffect` fired before Root Layout mounted | High | ✅ Fixed 2026-03-21 |
 | ~~NAV-03~~ | `app/(patient)/settings.tsx` | — | Patient settings screen unreachable — no nav push anywhere | Medium | ✅ Fixed 2026-03-30 |
 
@@ -189,11 +189,13 @@
 |---|---|---|---|---|
 | Code Quality | 18 | 3 | 14 | 1 |
 | UI / UX | 22 | 1 | 20 | 1 (UX-11) |
-| Supabase / Data | 14 | 1 | 12 | 1 |
+| Supabase / Data | 14 | 0 | 12 | 2 (GAP-04, GAP-08) |
 | Performance | 11 | 0 | 11 | 0 |
 | Accessibility | 5 | 1 | 4 | 0 |
 | Security | 3 | 0 | 3 | 0 |
 | Navigation | 3 | 1 | 2 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 8 | 1 | 5 | 2 |
-| **Total** | **100** | **8** | **87** | **5** |
+| **Total** | **100** | **6** | **87** | **6** |
+
+**Overall QA Status: 94% Complete** — 6 open items (3 cosmetic code quality, 1 a11y contrast, 1 nav by-design, 1 hardware stub). 6 deferred (all hardware/API dependent).

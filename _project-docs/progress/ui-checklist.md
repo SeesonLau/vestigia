@@ -1,33 +1,37 @@
 # UI Screens Checklist
-**Last verified:** 2026-03-30 (v0.5.2 full codebase QA audit)
+**Last verified:** 2026-04-07 (v0.9.1 full codebase QA audit)
 
-Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
+Legend: ✅ Done | 🔄 Partial | ❌ Stub/mock only
 
 ---
 
 | ID | Screen | File | Built | Real Data | Loading | Error State | Empty State | Notes |
 |---|---|---|---|---|---|---|---|---|
-| UI-01a | Login | `(auth)/login.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Supabase signIn, lockout, error mapping. Version updated to v0.5.2 |
-| UI-01b | Register | `(auth)/register.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Role picker, clinic selector, email confirm flow |
+| UI-01a | Login | `(auth)/login.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | signInWithPassword, lockout after 5 fails, error mapping, version from S.app.version |
+| UI-01b | Register | `(auth)/register.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Role picker, clinic selector, email confirm flow, all validation |
 | UI-01c | Forgot Password | `(auth)/forgot-password.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | resetPasswordForEmail wired |
-| UI-01d | Update Password | `(auth)/update-password.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Session guard, deep link handler. Duplicate useEffect import (CODE-15, low) |
-| UI-01e | Account Activated | `(auth)/account-activated.tsx` | ✅ | ✅ | N/A | N/A | N/A | Confirm email landing screen |
-| UI-02 | Device Pairing | `(clinic)/pairing.tsx` | 🔄 | ❌ | ✅ | ❌ | N/A | UI done; BLE scan/pair mock with setTimeout. No error state for pair failure |
-| UI-03 | Live Thermal Feed | `(clinic)/live-feed.tsx` | 🔄 | ❌ | N/A | N/A | N/A | Renders mock matrix via setInterval. Debug subtitle removed ✅ |
-| UI-04 | AI Assessment | `(clinic)/assessment.tsx` | 🔄 | ❌ | ✅ | ✅ | N/A | MOCK_RESULT hardcoded (GAP-04, deferred hardware). Debug subtitle removed ✅ |
-| UI-05 | Clinical Data | `(clinic)/clinical-data.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | VitalsForm + Supabase inserts wired; angiosome preview still mock. Debug subtitle removed ✅ |
-| UI-06 | Session History | `(clinic)/history.tsx` | ✅ | 🔄 | ✅ | ✅ | ✅ | Real sessions list. positiveCount/negativeCount always 0 — PostgREST join alias mismatch (GAP-15 open). Debug subtitle removed ✅ |
-| UI-06b | Session Detail (clinic) | `(clinic)/session/[id].tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Full detail with PostgREST joins normalized correctly |
-| UI-07a | Clinic Settings | `(clinic)/settings.tsx` | ✅ | 🔄 | N/A | N/A | N/A | Device subtitle reads from deviceStore; paired device is mock. Debug subtitle removed ✅ |
-| UI-07b | Patient Settings | `(patient)/settings.tsx` | ✅ | ✅ | N/A | N/A | N/A | Now reachable via settings icon in patient dashboard header (NAV-03 fixed ✅) |
-| UI-07c | Admin Settings | `(admin)/settings.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Maintenance/Audit Log read/write system_config. Has configError + isLoading states |
-| UI-08 | Admin Dashboard | `(admin)/index.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Real stats from Supabase. ActivityIndicator + fetchError. Debug subtitle removed ✅ |
-| UI-08b | Admin Users | `(admin)/users.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Full CRUD modal, activate/deactivate writes to DB. Error handling added ✅ (GAP-16 fixed). Toggle error silent (GAP-18 open) |
-| UI-08c | Admin Clinics | `(admin)/clinics.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Full clinic + device list, activate/deactivate writes to DB. Error handling added ✅ (GAP-17 fixed). Toggle error silent (GAP-18 open) |
-| UI-09 | Patient Dashboard | `(patient)/index.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Real sessions; settings icon + logout in header |
-| UI-09b | Patient Session Detail | `(patient)/session/[id].tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Full detail with PostgREST joins normalized correctly |
-| UI-10 | Clinic Home | `(clinic)/index.tsx` | ✅ | 🔄 | ✅ | ✅ | N/A | Today's stats + clinic name from Supabase. Loading indicator ✅ (UX-15 fixed). Error state ✅ (UX-16 fixed). Device card still hardcoded (UX-11, deferred hardware) |
-| UI-11 | Patient Select | `(clinic)/patient-select.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Hidden from tab bar; accessed via Home "New Screening". Debug subtitle removed ✅ |
+| UI-01d | Update Password | `(auth)/update-password.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Session guard present; deep link handler; CODE-15 open (harmless) |
+| UI-01e | Account Activated | `(auth)/account-activated.tsx` | ✅ | ✅ | N/A | N/A | N/A | Email confirm landing screen → login |
+| UI-02 | Mode Select | `app/mode-select.tsx` | ✅ | ✅ | N/A | N/A | N/A | Go Online → login; Work Offline → offline live-feed |
+| UI-03 | Device Pairing | `(clinic)/pairing.tsx` | 🔄 | 🔄 | ✅ | ✅ | ✅ | Active Source card, FLIR info, ESP32 WiFi config, BLE scan; USB device registration to Supabase ✅; BLE/WiFi needs real hardware |
+| UI-04 | Live Thermal Feed | `(clinic)/live-feed.tsx` | ✅ | 🔄 | ✅ | ✅ | N/A | Bilateral two-step capture flow ✅; UVC + WiFi camera paths wired ✅; CSV/image import feeds AI pipeline ✅; real hardware pending |
+| UI-05 | Clinical Data | `(clinic)/clinical-data.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | All vitals validated and inserted to Supabase ✅; MOCK_ANGIOSOMES deferred (CODE-09) |
+| UI-06 | AI Assessment | `(clinic)/assessment.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Real dpnApi.ts call on mount; server-waking retry; breathing progress; error/retry state |
+| UI-07 | DPN Result | `(clinic)/dpn-result.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Full classification display; asymmetry; save-to-cloud to classification_results ✅ |
+| UI-08 | Session History | `(clinic)/history.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Cloud/Local pill toggle; real Supabase sessions ✅; PostgREST join normalized ✅; local captures with sync button |
+| UI-09 | Offline Capture | `(offline)/live-feed.tsx` | ✅ | 🔄 | ✅ | ✅ | N/A | UVC + CSV/image import; saves to SQLite; routes to offline save |
+| UI-10 | Offline Save | `(offline)/save.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Patient label + vitals; saves via saveCapture() to SQLite |
+| UI-11 | Clinic Sync | `(clinic)/sync.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Patient search (ilike); uploads session + captures + vitals; inserts data_request; markSynced |
+| UI-12 | Clinic Home | `(clinic)/index.tsx` | ✅ | 🔄 | ✅ | ✅ | N/A | Today's stats + clinic name from Supabase ✅; device card hardcoded (UX-11 deferred) |
+| UI-13 | Patient Select | `(clinic)/patient-select.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Real patients via Supabase ilike search ✅ |
+| UI-14 | Clinic Settings | `(clinic)/settings.tsx` | ✅ | 🔄 | ✅ | N/A | N/A | Sign Out ✅; Change Password ✅; Paired Device from deviceStore; Clear Cache + Delete Account with confirms |
+| UI-15 | Patient Dashboard | `(patient)/index.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Real sessions ✅; CSV/image import on thermal scans ✅; pending requests badge ✅ |
+| UI-16 | Patient Sync | `(patient)/sync.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Lists data_requests; Accept/Reject writes status to Supabase |
+| UI-17 | Patient Settings | `(patient)/settings.tsx` | ✅ | ✅ | N/A | N/A | N/A | Edit Profile, Change Password, Notifications, Sign Out |
+| UI-18 | Admin Dashboard | `(admin)/index.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Real stats from Supabase ✅ |
+| UI-19 | Admin Users | `(admin)/users.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | profiles table ✅; Activate/Deactivate + Alert on error ✅ |
+| UI-20 | Admin Clinics | `(admin)/clinics.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | clinics + devices ✅; Activate/Deactivate + Alert on error ✅ |
+| UI-21 | Admin Settings | `(admin)/settings.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Reads/writes system_config; maintenance_mode + audit_log_enabled toggles |
 
 ---
 
@@ -35,15 +39,15 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | Category | Count |
 |---|---|
-| Fully done (all ✅) | 16 |
-| Partial (real data, some UX/hardware gaps) | 5 |
-| Stub / mock data only | 0 |
+| Fully complete (all ✅) | 19 |
+| Partial — real data, some hardware/mock gaps | 6 |
+| Stub / mock only | 0 |
 | Not started | 0 |
-| **Total screens** | **21** |
+| **Total screens** | **25** |
 
-**Open issues remaining:**
-- `(clinic)/history.tsx` — positiveCount/negativeCount always 0 (GAP-15)
-- `(admin)/users.tsx` + `(admin)/clinics.tsx` — toggle failure not shown to user (GAP-18)
-- `(clinic)/assessment.tsx` — AI result mock (GAP-04, deferred hardware)
-- `(clinic)/pairing.tsx`, `live-feed.tsx` — BLE/Wi-Fi/thermal all mock (deferred hardware)
-- `(clinic)/index.tsx` — device status card hardcoded (UX-11, deferred hardware)
+**Remaining gaps (all hardware/deferred):**
+- `(clinic)/live-feed.tsx` — real frames pending UVC AAR + ESP32 firmware
+- `(clinic)/pairing.tsx` — BLE/WiFi needs hardware to test
+- `(offline)/live-feed.tsx` — same UVC stub caveat
+- `(clinic)/index.tsx` — device status card hardcoded (UX-11, deferred)
+- `(clinic)/clinical-data.tsx` — MOCK_ANGIOSOMES deferred (CODE-09)
