@@ -3,6 +3,48 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.9.3] — 2026-04-07
+
+### Added — Patient Registration + Admin Cleanup
+- `app/(clinic)/register-patient.tsx` — new patient registration screen: Patient Code (required), Date of Birth (YYYY-MM-DD, validated), Sex (segmented: Male/Female/Other), Diabetes Type (segmented: Type 1/2/Gestational/Unknown), Diabetes Duration in years (numeric, 0–100 validated), Notes (optional multiline); inserts to `patients` table with `clinic_id` from auth user; handles `23505` duplicate code with friendly message; on success auto-selects new patient and navigates directly to `/(clinic)/live-feed`
+
+### Changed
+- `app/(admin)/settings.tsx` — removed Notifications row (and divider) from Account section; removed version footer (`{S.app.name} Admin · {S.app.version}`); now matches clinic/patient settings style
+- `app/(clinic)/patient-select.tsx` — added `person-add-outline` icon in Header navigating to `/(clinic)/register-patient`; empty state (when no search active) shows "Register First Patient" button; added `Button` import
+- `app/(clinic)/_layout.tsx` — registered `register-patient` as hidden `Tabs.Screen`
+
+---
+
+## [0.9.2] — 2026-04-07
+
+### Added — Settings Redesign + Profile Screens
+- `app/(clinic)/profile.tsx` — new profile screen: avatar (photo or initials fallback), "Change Photo" button, editable display name (saves to `profiles` table + updates Zustand store immediately), read-only account info (email, clinic name from `clinics` table, member since, account status), Deactivate Account in Danger Zone
+- `app/(patient)/profile.tsx` — same structure as clinic profile; role badge says "Patient"; no clinic field; Deactivate message references clinic instead of admin
+- `app/(clinic)/privacy-policy.tsx` — 8-section privacy policy: overview, data collected, how we use it, storage & security (RLS/TLS/AES-256), data sharing, retention, user rights (RA 10173), changes
+- `app/(clinic)/terms-of-service.tsx` — 10-section ToS: acceptance, authorized use, clinical disclaimer (warning banner), account responsibilities, data handling obligations, IP, liability, termination, changes, governing law
+- `app/(clinic)/contact-support.tsx` — 3 contact channel cards, app info table, expandable FAQ accordion (5 questions), response times table
+- `app/(patient)/privacy-policy.tsx`, `app/(patient)/terms-of-service.tsx`, `app/(patient)/contact-support.tsx` — patient route group versions (same content)
+- `supabase/migrations/20260407_avatar_support.sql` — migration: `ALTER TABLE profiles ADD COLUMN avatar_url TEXT`, create `avatars` Storage bucket (public), 4 Storage RLS policies (public SELECT, owner-only INSERT/UPDATE/DELETE)
+- `expo-image-picker` — installed (SDK 54 compatible); plugin added to `app.json` with camera + photo library permission strings
+
+### Changed
+- `app/(clinic)/settings.tsx` — removed Notifications, Haptic Feedback, AI Model rows; removed version footer; removed Deactivate Account (moved to Profile); Profile row now pushes to `/(clinic)/profile`; Privacy Policy, Terms of Service, Contact Support now navigate to real screens; Danger Zone contains only Sign Out
+- `app/(patient)/settings.tsx` — full rewrite: proper sectioned layout (Account, Application, About, Danger Zone) matching clinic style; removed Notifications, old flat list; Profile → `/(patient)/profile`; Privacy Policy, ToS, Contact Support navigate to patient screens
+- `app/(clinic)/history.tsx` — Cloud tab header now shows operator avatar (`rightIcon`): profile photo if set, initials fallback if not; Local tab header unchanged
+- `app/(clinic)/_layout.tsx` — registered `profile`, `privacy-policy`, `terms-of-service`, `contact-support` as hidden `Tabs.Screen` entries
+- `app/(patient)/_layout.tsx` — registered `profile`, `privacy-policy`, `terms-of-service`, `contact-support` as hidden `Tabs.Screen` entries
+- `types/index.ts` — `AuthUser` interface: added `avatar_url?: string`
+- `app/(clinic)/patient-select.tsx` — back button (`chevron-back`) added to Header
+- `app/(clinic)/clinical-data.tsx` — back button added to Header; Ionicons import added
+- `app/(clinic)/pairing.tsx` — back button added to Header; `useRouter` import added
+- `app/(clinic)/dpn-result.tsx` — back button added to main result view Header
+- `app/(auth)/update-password.tsx` — floating back arrow above the form in non-done state; hidden once password is updated (done state already has "Back to Sign In")
+
+### Pending
+- `npx expo run:android` rebuild required to activate `expo-image-picker` native module (also required for `react-native-ble-plx`)
+
+---
+
 ## [0.9.1] — 2026-04-06
 
 ### Added — Thermal Image + CSV File Import

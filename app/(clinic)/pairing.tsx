@@ -1,5 +1,6 @@
 // app/(clinic)/pairing.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -55,6 +56,7 @@ function SignalBars({ bars, activeColor, inactiveColor }: { bars: number; active
 }
 
 export default function PairingScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const {
@@ -243,7 +245,11 @@ export default function PairingScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header title={S.pairing.title} />
+      <Header
+        title={S.pairing.title}
+        leftIcon={<Ionicons name="chevron-back" size={24} color={colors.text} />}
+        onLeftPress={() => router.back()}
+      />
 
       <View style={styles.container}>
 

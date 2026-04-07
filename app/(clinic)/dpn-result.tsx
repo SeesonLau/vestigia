@@ -167,7 +167,12 @@ export default function DPNResultScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="AI Assessment" subtitle="DPN Classification Result" />
+      <Header
+        title="AI Assessment"
+        subtitle="DPN Classification Result"
+        leftIcon={<Ionicons name="chevron-back" size={24} color={colors.text} />}
+        onLeftPress={() => router.back()}
+      />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}

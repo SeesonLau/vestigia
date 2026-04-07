@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-07 (v0.9.1)
+**Last updated:** 2026-04-07 (v0.9.3)
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,11 +10,10 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | — | `npx expo run:android` rebuild | 15 min | **Required** — `react-native-ble-plx` native module won't load until native app is rebuilt. BLE scan will not work on Expo Go. |
-| 2 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
-| 3 | — | End-to-end test: bilateral capture → DPN API → result → save | 1–2 hrs | Test full clinic flow on physical device. Verify PNG encoding accepted by server. |
-| 4 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
-| 5 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
+| 1 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
+| 2 | — | End-to-end test: bilateral capture → DPN API → result → save | 1–2 hrs | Test full clinic flow on physical device. Verify PNG encoding accepted by server. |
+| 3 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
+| 4 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
 
 ---
 
@@ -120,7 +119,7 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Idea | Rationale | Effort |
 |---|---|---|
 | Replace hardcoded `leftTci={0.038}` + `rightTci={0.046}` in assessment + session detail | TCI values should come from real computation, not magic numbers | Medium |
-| Add "delete local capture" option in History Local tab | Allow clinic to remove captures that were synced or no longer needed; `deleteCapture()` already implemented | Low |
+| Add "delete local capture" option in History Local tab | Allow clinic to remove captures that were synced or no longer needed; `deleteCapture()` already implemented in `lib/db/offlineCaptures.ts` | Low |
 | Show sync history per local capture (synced date + linked session ID) | LocalCapture already stores `synced_at` and `supabase_session_id` — worth surfacing in the Local tab card | Low |
 | Add Supabase real-time subscription to session detail screen | Live updates when classification result arrives from cloud | 2 hrs |
 | Add patient registration form in clinic flow | Currently patients must be pre-loaded in DB; clinic staff should be able to register new patients | 3–4 hrs |
@@ -209,3 +208,15 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.8.0 | Session detail screens removed (clinic + patient) — blank 5th tab eliminated from clinic nav | 2026-04-06 |
 | v0.9.0 | FR-507 — DPN API integration (lib/dpnApi.ts, store/dpnStore.ts, thermalPng.ts, dpn-result.tsx, bilateral capture flow) | 2026-04-06 |
 | v0.9.1 | Thermal image + CSV import on clinic/offline/patient screens (expo-document-picker, parseCsvMatrix, matrixToStorageB64, parseStoredMatrix) | 2026-04-07 |
+| v0.9.3 | Admin settings cleanup — Notifications row removed, version footer removed, matches clinic/patient style | 2026-04-07 |
+| v0.9.3 | Patient registration form — `register-patient.tsx` with full field set; accessible from patient-select header + empty state; auto-selects patient and routes to live-feed | 2026-04-07 |
+| v0.9.3 | Native rebuild complete — `react-native-ble-plx` + `expo-image-picker` both active | 2026-04-07 |
+| v0.9.2 | NAV-04 — Back navigation added to 5 screens (update-password, patient-select, clinical-data, pairing, dpn-result) | 2026-04-07 |
+| v0.9.2 | Clinic settings redesign — removed Notifications/Haptic/AI Model/version footer; Deactivate Account moved to Profile; Privacy/ToS/Contact navigate to real screens | 2026-04-07 |
+| v0.9.2 | Patient settings redesign — same treatment as clinic settings | 2026-04-07 |
+| v0.9.2 | Clinic profile screen — avatar upload (Supabase Storage), editable display name, read-only account info, Deactivate Account | 2026-04-07 |
+| v0.9.2 | Patient profile screen — same structure as clinic, "Patient" role badge | 2026-04-07 |
+| v0.9.2 | Privacy Policy, Terms of Service, Contact Support screens for both clinic and patient route groups | 2026-04-07 |
+| v0.9.2 | Operator avatar in History Cloud tab header (Image or initials fallback) | 2026-04-07 |
+| v0.9.2 | Supabase: profiles.avatar_url column + avatars Storage bucket (public=true) + 4 RLS policies | 2026-04-07 |
+| v0.9.2 | expo-image-picker installed with dynamic import pattern (prevents native crash before rebuild) | 2026-04-07 |

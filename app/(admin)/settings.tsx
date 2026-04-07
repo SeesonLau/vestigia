@@ -227,12 +227,6 @@ export default function AdminSettingsScreen() {
           />
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingRow
-            icon="notifications-outline"
-            label="Notifications"
-            onPress={() => soon("Notification settings")}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SettingRow
             icon="color-palette-outline"
             label="Dark Mode"
             toggle
@@ -264,9 +258,6 @@ export default function AdminSettingsScreen() {
           />
         </Card>
 
-        <Text style={[styles.version, { color: colors.textSec }]}>
-          {S.app.name} Admin · {S.app.version}
-        </Text>
       </View>
     </ScreenWrapper>
   );
@@ -359,13 +350,5 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginLeft: Spacing.lg + 32 + Spacing.md,
-  },
-  version: {
-    textAlign: "center",
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.mono,
-    marginTop: Spacing.xl,
-    marginBottom: Spacing["2xl"],
-    letterSpacing: 0.5,
   },
 });

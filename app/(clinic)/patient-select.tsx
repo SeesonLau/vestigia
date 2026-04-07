@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
+import Button from "../../components/ui/Button";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
@@ -39,6 +40,7 @@ function diabetesLabel(type?: string): string {
 export default function PatientSelectScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+
   const user = useAuthStore((s) => s.user);
   const setSelectedPatient = useSessionStore((s) => s.setSelectedPatient);
 
@@ -74,7 +76,13 @@ export default function PatientSelectScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="Select Patient" />
+      <Header
+        title="Select Patient"
+        leftIcon={<Ionicons name="chevron-back" size={24} color={colors.text} />}
+        onLeftPress={() => router.back()}
+        rightIcon={<Ionicons name="person-add-outline" size={22} color={colors.accent} />}
+        onRightPress={() => router.push("/(clinic)/register-patient" as any)}
+      />
 
       <View style={styles.container}>
         {/* Search */}
@@ -111,6 +119,15 @@ export default function PatientSelectScreen() {
             <Text style={[styles.emptySubtitle, { color: colors.textSec }]}>
               {search ? "Try a different search term." : "No patients are registered for your clinic yet."}
             </Text>
+            {!search && (
+              <Button
+                label="Register First Patient"
+                onPress={() => router.push("/(clinic)/register-patient" as any)}
+                variant="primary"
+                size="md"
+                style={styles.registerBtn}
+              />
+            )}
           </View>
         )}
 
@@ -182,6 +199,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 4,
   },
+  registerBtn: { marginTop: Spacing.lg, minWidth: 200 },
   card: {
     flexDirection: "row",
     alignItems: "center",

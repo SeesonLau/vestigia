@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -122,7 +123,25 @@ export default function HistoryScreen() {
 
   return (
     <ScreenWrapper>
-      <Header title="Session History" />
+      <Header
+        title="Session History"
+        rightIcon={
+          activeView === "cloud" ? (
+            user?.avatar_url ? (
+              <Image
+                source={{ uri: user.avatar_url }}
+                style={styles.headerAvatar}
+              />
+            ) : (
+              <View style={[styles.headerAvatarFallback, { backgroundColor: `${colors.accent}26`, borderColor: `${colors.accent}66` }]}>
+                <Text style={[styles.headerAvatarText, { color: colors.accent }]}>
+                  {(user?.full_name ?? "U").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
+                </Text>
+              </View>
+            )
+          ) : undefined
+        }
+      />
 
       <View style={styles.container}>
         {/* Cloud | Local toggle */}
@@ -345,4 +364,21 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
   emptyHint: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", marginTop: Spacing.sm, lineHeight: 20 },
   errorText: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
+  headerAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  headerAvatarFallback: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerAvatarText: {
+    fontSize: 11,
+    fontFamily: Typography.fonts.heading,
+  },
 });

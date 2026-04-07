@@ -85,12 +85,17 @@ export default function ClinicLayout() {
         }}
       />
       {/* Hidden screens (navigated to programmatically) */}
-      <Tabs.Screen name="pairing"        options={{ href: null as any }} />
-      <Tabs.Screen name="patient-select" options={{ href: null as any }} />
-      <Tabs.Screen name="clinical-data"  options={{ href: null as any }} />
-      <Tabs.Screen name="assessment"     options={{ href: null as any }} />
-      <Tabs.Screen name="sync"           options={{ href: null as any }} />
-      <Tabs.Screen name="dpn-result"     options={{ href: null as any }} />
+      <Tabs.Screen name="pairing"          options={{ href: null as any }} />
+      <Tabs.Screen name="patient-select"   options={{ href: null as any }} />
+      <Tabs.Screen name="clinical-data"    options={{ href: null as any }} />
+      <Tabs.Screen name="assessment"       options={{ href: null as any }} />
+      <Tabs.Screen name="sync"             options={{ href: null as any }} />
+      <Tabs.Screen name="dpn-result"       options={{ href: null as any }} />
+      <Tabs.Screen name="profile"          options={{ href: null as any }} />
+      <Tabs.Screen name="privacy-policy"   options={{ href: null as any }} />
+      <Tabs.Screen name="terms-of-service" options={{ href: null as any }} />
+      <Tabs.Screen name="contact-support"    options={{ href: null as any }} />
+      <Tabs.Screen name="register-patient"  options={{ href: null as any }} />
     </Tabs>
   );
 }
