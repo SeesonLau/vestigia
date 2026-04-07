@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-07 (v0.9.3)
+**Last updated:** 2026-04-08 (v0.9.4)
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,8 +10,8 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | HW-01 | Link real `libuvccamera-release.aar` to enable FLIR Lepton 3.5 UVC path | 2–3 hrs | UVCModule.kt is a stub. Add AAR to `android/app/libs/`. Requires `npx expo run:android` after. |
-| 2 | — | End-to-end test: bilateral capture → DPN API → result → save | 1–2 hrs | Test full clinic flow on physical device. Verify PNG encoding accepted by server. |
+| 1 | — | End-to-end test on physical device: bilateral FLIR capture → DPN API → result → save to cloud | 1–2 hrs | Install release APK. Connect PureThermal Mini Pro via USB OTG. Verify Y16 frames render in live-feed → assessment → DPN result → save. |
+| 2 | PLAN | Offline history + patient live-feed + patient history screens | 3–4 hrs | See plan file `fluttering-scribbling-floyd.md`. Four new screens + two modified layouts. |
 | 3 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
 | 4 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
 
@@ -122,7 +122,6 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | Add "delete local capture" option in History Local tab | Allow clinic to remove captures that were synced or no longer needed; `deleteCapture()` already implemented in `lib/db/offlineCaptures.ts` | Low |
 | Show sync history per local capture (synced date + linked session ID) | LocalCapture already stores `synced_at` and `supabase_session_id` — worth surfacing in the Local tab card | Low |
 | Add Supabase real-time subscription to session detail screen | Live updates when classification result arrives from cloud | 2 hrs |
-| Add patient registration form in clinic flow | Currently patients must be pre-loaded in DB; clinic staff should be able to register new patients | 3–4 hrs |
 | Paginate admin users + clinics FlatList | Current query loads all rows; will degrade with large datasets | 2 hrs |
 | Add search/filter to session history screen | Useful once sessions accumulate; filter by date range, result type | 1–2 hrs |
 | Add `Clinic`, `Device`, `SystemConfig` types to `types/index.ts` | Currently only local interfaces in admin screens | 30 min |
@@ -208,6 +207,8 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.8.0 | Session detail screens removed (clinic + patient) — blank 5th tab eliminated from clinic nav | 2026-04-06 |
 | v0.9.0 | FR-507 — DPN API integration (lib/dpnApi.ts, store/dpnStore.ts, thermalPng.ts, dpn-result.tsx, bilateral capture flow) | 2026-04-06 |
 | v0.9.1 | Thermal image + CSV import on clinic/offline/patient screens (expo-document-picker, parseCsvMatrix, matrixToStorageB64, parseStoredMatrix) | 2026-04-07 |
+| v0.9.4 | HW-01 — `libuvccamera-release.aar` built (fixed AGP/Gradle/ABIs/FLAG_IMMUTABLE) and linked; `UVCModule.kt` fully implemented; Jetifier + serenegiant:common added | 2026-04-08 |
+| v0.9.4 | App renamed "Lumen AI" — app.json, constants/strings.ts, android strings.xml all updated | 2026-04-08 |
 | v0.9.3 | Admin settings cleanup — Notifications row removed, version footer removed, matches clinic/patient style | 2026-04-07 |
 | v0.9.3 | Patient registration form — `register-patient.tsx` with full field set; accessible from patient-select header + empty state; auto-selects patient and routes to live-feed | 2026-04-07 |
 | v0.9.3 | Native rebuild complete — `react-native-ble-plx` + `expo-image-picker` both active | 2026-04-07 |

@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-04-07 (v0.9.2)
+**Last verified:** 2026-04-08 (v0.9.4)
 
 ---
 
@@ -180,7 +180,7 @@
 | ~~GAP-01~~ | `lib/thermal/bleCamera.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | ✅ Fixed 2026-04-06 |
 | ~~GAP-02~~ | `lib/thermal/wifiCamera.ts` | — | Wi-Fi WebSocket to ESP32 not implemented | High | ✅ Fixed 2026-04-06 |
 | ~~GAP-03~~ | `app/(clinic)/live-feed.tsx` | — | Thermal frames from mock `setInterval`, not real hardware | High | ✅ Fixed 2026-04-06 (WiFi WebSocket + UVC paths) |
-| HW-01 | `android/app/.../UVCModule.kt` | — | UVCModule.kt is a stub — rejects all calls; real libuvccamera-release.aar not linked | High | Open (needs AAR) |
+| ~~HW-01~~ | `android/app/.../UVCModule.kt` | — | UVCModule.kt is a stub — rejects all calls; real libuvccamera-release.aar not linked | High | ✅ Fixed 2026-04-08 |
 
 ---
 
@@ -196,7 +196,7 @@
 | Security | 3 | 0 | 3 | 0 |
 | Navigation | 4 | 1 | 3 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
-| Schema / DB | 8 | 1 | 5 | 2 |
-| **Total** | **101** | **4** | **90** | **6** |
+| Schema / DB | 8 | 0 | 6 | 2 |
+| **Total** | **101** | **3** | **91** | **6** |
 
-**Overall QA Status: 96% Complete** — 4 open items (2 cosmetic code quality, 1 nav by-design, 1 hardware stub). 6 deferred (all hardware/API dependent).
+**Overall QA Status: 97% Complete** — 3 open items (2 cosmetic code quality, 1 nav by-design). 6 deferred (all hardware/API dependent).
