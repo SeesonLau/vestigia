@@ -25,23 +25,44 @@ import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
 type AngiosomeData = { mpa: number; lpa: number; mca: number; lca: number };
 
-function computeAngiosomes(matrix: number[][] | null): AngiosomeData | null {
+/**
+ * Computes mean temperatures for the 4 plantar angiosome regions from a thermal matrix.
+ *
+ * Anatomical split (plantar view, toes at top of image):
+ *   - Anterior (forefoot) = top 60% of rows  → MPA + LPA
+ *   - Posterior (heel)    = bottom 40% of rows → MCA + LCA
+ *   - Medial/lateral column split is mirrored between left and right feet:
+ *       Left foot  (plantar view): left cols = lateral, right cols = medial
+ *       Right foot (plantar view): left cols = medial,  right cols = lateral
+ */
+function computeAngiosomes(matrix: number[][] | null, side: "left" | "right"): AngiosomeData | null {
   if (!matrix || matrix.length === 0) return null;
   const rows = matrix.length;
   const cols = matrix[0].length;
-  const midR = Math.floor(rows / 2);
-  const midC = Math.floor(cols / 2);
+  const splitR = Math.floor(rows * 0.60); // forefoot / heel boundary
+  const midC   = Math.floor(cols / 2);
   const avg = (r0: number, r1: number, c0: number, c1: number) => {
     let sum = 0, n = 0;
     for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) { sum += matrix[r][c]; n++; }
     return n > 0 ? sum / n : 0;
   };
-  return {
-    mpa: avg(0, midR, 0, midC),
-    lpa: avg(0, midR, midC, cols),
-    mca: avg(midR, rows, 0, midC),
-    lca: avg(midR, rows, midC, cols),
-  };
+  // In plantar view the medial side of the left foot appears on the RIGHT half of the image,
+  // and the medial side of the right foot appears on the LEFT half.
+  if (side === "left") {
+    return {
+      mpa: avg(0, splitR, midC, cols),   // forefoot medial  (right cols)
+      lpa: avg(0, splitR, 0, midC),      // forefoot lateral (left cols)
+      mca: avg(splitR, rows, midC, cols), // heel medial     (right cols)
+      lca: avg(splitR, rows, 0, midC),   // heel lateral    (left cols)
+    };
+  } else {
+    return {
+      mpa: avg(0, splitR, 0, midC),      // forefoot medial  (left cols)
+      lpa: avg(0, splitR, midC, cols),   // forefoot lateral (right cols)
+      mca: avg(splitR, rows, 0, midC),   // heel medial     (left cols)
+      lca: avg(splitR, rows, midC, cols), // heel lateral    (right cols)
+    };
+  }
 }
 
 function AngiosomePreview({
@@ -73,8 +94,8 @@ export default function ClinicalDataScreen() {
   const user = useAuthStore((s) => s.user);
   const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
   const { capturedMatrix, capturedFoot, minTemp, maxTemp, meanTemp, leftMatrix, rightMatrix } = useThermalStore();
-  const leftAngiosomes  = computeAngiosomes(leftMatrix);
-  const rightAngiosomes = computeAngiosomes(rightMatrix);
+  const leftAngiosomes  = computeAngiosomes(leftMatrix, "left");
+  const rightAngiosomes = computeAngiosomes(rightMatrix, "right");
 
   const [vitals, setVitals] = useState({
     blood_glucose: "",
