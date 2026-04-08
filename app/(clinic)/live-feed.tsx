@@ -571,8 +571,8 @@ export default function LiveFeedScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Use imported data CTA (visible when CSV loaded) */}
-            {importCsvName && matrix && (
+            {/* Use imported data CTA (visible when image or CSV is loaded and matrix is available) */}
+            {(importImageName || importCsvName) && matrix && (
               <TouchableOpacity
                 onPress={handleUseImport}
                 style={[styles.importCta, { backgroundColor: captureStep === "left" ? colors.accent : colors.warning }]}
