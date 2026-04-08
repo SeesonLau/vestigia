@@ -3,6 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing } from "../../constants/theme";
 
@@ -32,6 +33,7 @@ function TabIcon({
 
 export default function ClinicLayout() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
@@ -41,8 +43,8 @@ export default function ClinicLayout() {
           backgroundColor: colors.navBg,
           borderTopWidth: 1,
           borderTopColor: colors.border,
-          height: 64,
-          paddingBottom: Spacing.sm,
+          height: 64 + insets.bottom,
+          paddingBottom: insets.bottom + Spacing.sm,
           paddingTop: Spacing.sm,
         },
         tabBarShowLabel: false,

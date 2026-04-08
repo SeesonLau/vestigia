@@ -23,11 +23,26 @@ import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useSessionStore, useThermalStore } from "../../store/sessionStore";
 
-// Mock angiosome temps from capture
-const MOCK_ANGIOSOMES = {
-  left:  { mpa: 32.4, lpa: 31.8, mca: 30.9, lca: 31.2 },
-  right: { mpa: 32.1, lpa: 31.5, mca: 30.6, lca: 31.4 },
-};
+type AngiosomeData = { mpa: number; lpa: number; mca: number; lca: number };
+
+function computeAngiosomes(matrix: number[][] | null): AngiosomeData | null {
+  if (!matrix || matrix.length === 0) return null;
+  const rows = matrix.length;
+  const cols = matrix[0].length;
+  const midR = Math.floor(rows / 2);
+  const midC = Math.floor(cols / 2);
+  const avg = (r0: number, r1: number, c0: number, c1: number) => {
+    let sum = 0, n = 0;
+    for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) { sum += matrix[r][c]; n++; }
+    return n > 0 ? sum / n : 0;
+  };
+  return {
+    mpa: avg(0, midR, 0, midC),
+    lpa: avg(0, midR, midC, cols),
+    mca: avg(midR, rows, 0, midC),
+    lca: avg(midR, rows, midC, cols),
+  };
+}
 
 function AngiosomePreview({
   side,
@@ -57,7 +72,9 @@ export default function ClinicalDataScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
-  const { capturedMatrix, capturedFoot, minTemp, maxTemp, meanTemp } = useThermalStore();
+  const { capturedMatrix, capturedFoot, minTemp, maxTemp, meanTemp, leftMatrix, rightMatrix } = useThermalStore();
+  const leftAngiosomes  = computeAngiosomes(leftMatrix);
+  const rightAngiosomes = computeAngiosomes(rightMatrix);
 
   const [vitals, setVitals] = useState({
     blood_glucose: "",
@@ -168,17 +185,21 @@ export default function ClinicalDataScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Captured Thermal Data</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
-              Pre-computed angiosome temperatures from the captured frame
-            </Text>
-            <View style={styles.angiosomeRow}>
-              <AngiosomePreview side="left"  data={MOCK_ANGIOSOMES.left} />
-              <View style={[styles.angiosomeDivider, { backgroundColor: colors.border }]} />
-              <AngiosomePreview side="right" data={MOCK_ANGIOSOMES.right} />
-            </View>
-          </Card>
+          {(leftAngiosomes || rightAngiosomes) && (
+            <Card style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Captured Thermal Data</Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
+                Angiosome region temperatures from the bilateral capture
+              </Text>
+              <View style={styles.angiosomeRow}>
+                {leftAngiosomes && <AngiosomePreview side="left"  data={leftAngiosomes} />}
+                {leftAngiosomes && rightAngiosomes && (
+                  <View style={[styles.angiosomeDivider, { backgroundColor: colors.border }]} />
+                )}
+                {rightAngiosomes && <AngiosomePreview side="right" data={rightAngiosomes} />}
+              </View>
+            </Card>
+          )}
 
           <Card style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Patient Vitals</Text>
