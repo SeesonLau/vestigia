@@ -58,6 +58,7 @@ export interface ThermalCapture extends AngiosomeTemps {
   mean_temp_c: number;
   resolution_x?: number;
   resolution_y?: number;
+  image_url?: string;
   captured_at: string;
 }
 

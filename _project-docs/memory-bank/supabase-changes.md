@@ -1,6 +1,41 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-04-08 — v0.9.5] — Thermal Image Storage: thermal_captures.image_url + thermal-images bucket
+
+**Type:** Schema Change + Storage Bucket + RLS Policies
+**Table(s) affected:** `thermal_captures`, `storage.buckets`, `storage.objects`
+
+### What was done
+Added support for saving thermal PNG images to Supabase Storage alongside the matrix data.
+- Added `image_url TEXT` (nullable) column to `thermal_captures`
+- Created `thermal-images` private Storage bucket
+- Added RLS policies: authenticated users can upload and read objects in the bucket
+
+### SQL executed
+```sql
+ALTER TABLE thermal_captures ADD COLUMN IF NOT EXISTS image_url TEXT;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('thermal-images', 'thermal-images', false)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Authenticated users can upload thermal images"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'thermal-images');
+
+CREATE POLICY "Authenticated users can read thermal images"
+ON storage.objects FOR SELECT TO authenticated
+USING (bucket_id = 'thermal-images');
+```
+
+### Why
+The DPN API already receives Base64 PNG images per foot. This change archives those same PNGs in Supabase Storage so each `thermal_captures` row has a retrievable image reference. Path format: `{session_id}/{foot}.png`.
+
+### Result
+Column and bucket confirmed via MCP query. `image_url` is nullable — upload failure is non-fatal and will not block session creation.
+
+---
 ## [2026-04-07 — v0.9.2] — Avatar Support: profiles.avatar_url + avatars Storage bucket
 
 **Type:** Schema Change + Storage Bucket + RLS Policies
