@@ -19,6 +19,7 @@ import { ClinicalThresholds } from "../../constants/clinical";
 import { S } from "../../constants/strings";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
+import { getMatrixStats } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { useSessionStore, useThermalStore } from "../../store/sessionStore";
@@ -94,7 +95,7 @@ export default function ClinicalDataScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
-  const { capturedMatrix, capturedFoot, minTemp, maxTemp, meanTemp, leftMatrix, rightMatrix } = useThermalStore();
+  const { leftMatrix, rightMatrix, leftImageB64, rightImageB64 } = useThermalStore();
   const leftAngiosomes  = computeAngiosomes(leftMatrix, "left");
   const rightAngiosomes = computeAngiosomes(rightMatrix, "right");
 
@@ -173,13 +174,42 @@ export default function ClinicalDataScreen() {
       });
       if (vitalsErr) throw new Error("Failed to save vitals.");
 
-      if (capturedMatrix) {
+      const captureEntries: Array<{ foot: "left" | "right"; matrix: number[][]; imageB64: string | null; angiosomes: AngiosomeData | null }> = [];
+      if (leftMatrix)  captureEntries.push({ foot: "left",  matrix: leftMatrix,  imageB64: leftImageB64,  angiosomes: leftAngiosomes });
+      if (rightMatrix) captureEntries.push({ foot: "right", matrix: rightMatrix, imageB64: rightImageB64, angiosomes: rightAngiosomes });
+
+      for (const entry of captureEntries) {
+        const stats = getMatrixStats(entry.matrix);
+
+        let imageUrl: string | null = null;
+        if (entry.imageB64) {
+          const path = `${session.id}/${entry.foot}.png`;
+          const raw = atob(entry.imageB64);
+          const bytes = new Uint8Array(raw.length);
+          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+          const { error: uploadErr } = await supabase.storage
+            .from("thermal-images")
+            .upload(path, bytes, { contentType: "image/png", upsert: true });
+          if (!uploadErr) imageUrl = path;
+        }
+
         const { error: captureErr } = await supabase.from("thermal_captures").insert({
-          session_id: session.id, foot: capturedFoot ?? "bilateral",
-          thermal_matrix: capturedMatrix, min_temp_c: minTemp, max_temp_c: maxTemp,
-          mean_temp_c: meanTemp, captured_at: new Date().toISOString(),
+          session_id: session.id,
+          foot: entry.foot,
+          thermal_matrix: entry.matrix,
+          min_temp_c: stats.min,
+          max_temp_c: stats.max,
+          mean_temp_c: stats.mean,
+          resolution_x: entry.matrix[0]?.length ?? 160,
+          resolution_y: entry.matrix.length,
+          mpa_mean_c: entry.angiosomes?.mpa ?? null,
+          lpa_mean_c: entry.angiosomes?.lpa ?? null,
+          mca_mean_c: entry.angiosomes?.mca ?? null,
+          lca_mean_c: entry.angiosomes?.lca ?? null,
+          image_url: imageUrl,
+          captured_at: new Date().toISOString(),
         });
-        if (captureErr) throw new Error("Failed to save thermal capture.");
+        if (captureErr) throw new Error(`Failed to save ${entry.foot} thermal capture.`);
       }
 
       setActiveSession({ id: session.id, patient_id: selectedPatient.id, operator_id: user.id, device_id: device.id, clinic_id: user.clinic_id, status: "uploading", started_at: new Date().toISOString() });
