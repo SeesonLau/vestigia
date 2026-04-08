@@ -28,39 +28,40 @@ type AngiosomeData = { mpa: number; lpa: number; mca: number; lca: number };
 /**
  * Computes mean temperatures for the 4 plantar angiosome regions from a thermal matrix.
  *
- * Anatomical split (plantar view, toes at top of image):
- *   - Anterior (forefoot) = top 60% of rows  → MPA + LPA
- *   - Posterior (heel)    = bottom 40% of rows → MCA + LCA
- *   - Medial/lateral column split is mirrored between left and right feet:
- *       Left foot  (plantar view): left cols = lateral, right cols = medial
- *       Right foot (plantar view): left cols = medial,  right cols = lateral
+ * Source: Thesis — Proportional Foot Division into Plantar Angiosomes
+ * See: _project-docs/angiosome-division.md
+ *
+ * Height split: top 60% = forefoot (MPA/LPA), bottom 40% = heel (MCA/LCA)
+ * Width split:  internal 35%, lateral 65% — mirrored between feet:
+ *   Left foot  (plantar view): left 65% = lateral, right 35% = internal
+ *   Right foot (plantar view): left 35% = internal, right 65% = lateral
  */
 function computeAngiosomes(matrix: number[][] | null, side: "left" | "right"): AngiosomeData | null {
   if (!matrix || matrix.length === 0) return null;
   const rows = matrix.length;
   const cols = matrix[0].length;
-  const splitR = Math.floor(rows * 0.60); // forefoot / heel boundary
-  const midC   = Math.floor(cols / 2);
+  const splitR = Math.floor(rows * 0.60); // forefoot / heel boundary (60/40)
+  const splitC = Math.floor(cols * 0.35); // internal / lateral boundary (35/65)
   const avg = (r0: number, r1: number, c0: number, c1: number) => {
     let sum = 0, n = 0;
     for (let r = r0; r < r1; r++) for (let c = c0; c < c1; c++) { sum += matrix[r][c]; n++; }
     return n > 0 ? sum / n : 0;
   };
-  // In plantar view the medial side of the left foot appears on the RIGHT half of the image,
-  // and the medial side of the right foot appears on the LEFT half.
   if (side === "left") {
+    // Left plantar view: internal (medial) = right 35% of cols, lateral = left 65% of cols
     return {
-      mpa: avg(0, splitR, midC, cols),   // forefoot medial  (right cols)
-      lpa: avg(0, splitR, 0, midC),      // forefoot lateral (left cols)
-      mca: avg(splitR, rows, midC, cols), // heel medial     (right cols)
-      lca: avg(splitR, rows, 0, midC),   // heel lateral    (left cols)
+      mpa: avg(0, splitR, splitC, cols),    // forefoot internal
+      lpa: avg(0, splitR, 0, splitC),       // forefoot lateral
+      mca: avg(splitR, rows, splitC, cols), // heel internal
+      lca: avg(splitR, rows, 0, splitC),    // heel lateral
     };
   } else {
+    // Right plantar view: internal (medial) = left 35% of cols, lateral = right 65% of cols
     return {
-      mpa: avg(0, splitR, 0, midC),      // forefoot medial  (left cols)
-      lpa: avg(0, splitR, midC, cols),   // forefoot lateral (right cols)
-      mca: avg(splitR, rows, 0, midC),   // heel medial     (left cols)
-      lca: avg(splitR, rows, midC, cols), // heel lateral    (right cols)
+      mpa: avg(0, splitR, 0, splitC),       // forefoot internal
+      lpa: avg(0, splitR, splitC, cols),    // forefoot lateral
+      mca: avg(splitR, rows, 0, splitC),    // heel internal
+      lca: avg(splitR, rows, splitC, cols), // heel lateral
     };
   }
 }
