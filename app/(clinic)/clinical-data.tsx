@@ -96,9 +96,7 @@ export default function ClinicalDataScreen() {
   const validate = () => {
     const e: Record<string, string> = {};
     const { glucose, systolic, diastolic, heartRate, hba1c } = ClinicalThresholds;
-    if (!vitals.blood_glucose) {
-      e.blood_glucose = "Blood glucose is required";
-    } else {
+    if (vitals.blood_glucose) {
       const v = parseFloat(vitals.blood_glucose);
       if (isNaN(v) || v < glucose.min || v > glucose.max)
         e.blood_glucose = `Must be between ${glucose.min}–${glucose.max} mg/dL`;
@@ -145,7 +143,7 @@ export default function ClinicalDataScreen() {
 
       const { error: vitalsErr } = await supabase.from("patient_vitals").insert({
         session_id: session.id,
-        blood_glucose_mgdl: parseFloat(vitals.blood_glucose),
+        blood_glucose_mgdl: vitals.blood_glucose ? parseFloat(vitals.blood_glucose) : null,
         systolic_bp_mmhg:   vitals.systolic_bp  ? parseInt(vitals.systolic_bp)  : null,
         diastolic_bp_mmhg:  vitals.diastolic_bp ? parseInt(vitals.diastolic_bp) : null,
         heart_rate_bpm:     vitals.heart_rate   ? parseInt(vitals.heart_rate)   : null,
@@ -204,7 +202,7 @@ export default function ClinicalDataScreen() {
           <Card style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Patient Vitals</Text>
             <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
-              Enter measured vitals for this session. Blood glucose is required.
+              All fields are optional. Enter any available vitals for this session.
             </Text>
             <VitalsForm values={vitals} onChange={handleChange} errors={errors} />
           </Card>
