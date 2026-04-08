@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
+import ProcessedThermalView, { ViewMode } from "../../components/thermal/ProcessedThermalView";
 import ThermalMap from "../../components/thermal/ThermalMap";
 import {
   FootGuidanceOverlay,
@@ -78,6 +79,7 @@ export default function LiveFeedScreen() {
 
   //UI
   const [showGuide, setShowGuide] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("original");
 
   //Bilateral capture steps
   const [captureStep, setCaptureStep] = useState<CaptureStep>("left");
@@ -218,7 +220,7 @@ export default function LiveFeedScreen() {
     if (importImageUri) {
       try {
         return await FileSystem.readAsStringAsync(importImageUri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: "base64" as any,
         });
       } catch {
         // fall through to generated PNG
@@ -422,16 +424,47 @@ export default function LiveFeedScreen() {
               { transform: [{ scale: pulseAnim }] },
             ]}
           >
+            {/* View mode selector */}
+            <View style={[styles.modeRow, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+              {(["original", "otsu", "chanvese", "canny"] as ViewMode[]).map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  onPress={() => setViewMode(m)}
+                  style={[
+                    styles.modeBtn,
+                    viewMode === m && { backgroundColor: colors.accent },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.modeBtnText,
+                    { color: viewMode === m ? "#fff" : colors.textSec },
+                  ]}>
+                    {m === "original" ? "Original" : m === "otsu" ? "Otsu" : m === "chanvese" ? "Chan-Vese" : "Canny"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <View style={styles.thermalRow}>
               <View style={styles.mapWrapper}>
-                <ThermalMap
-                  matrix={matrix}
-                  minTemp={minTemp}
-                  maxTemp={maxTemp}
-                  width={MAP_W}
-                  height={MAP_H}
-                />
-                {showGuide && !bothCaptured && (
+                {viewMode === "original" ? (
+                  <ThermalMap
+                    matrix={matrix}
+                    minTemp={minTemp}
+                    maxTemp={maxTemp}
+                    width={MAP_W}
+                    height={MAP_H}
+                  />
+                ) : (
+                  <ProcessedThermalView
+                    matrix={matrix}
+                    mode={viewMode}
+                    width={MAP_W}
+                    height={MAP_H}
+                  />
+                )}
+                {viewMode === "original" && showGuide && !bothCaptured && (
                   <FootGuidanceOverlay width={MAP_W} height={MAP_H} />
                 )}
                 {/* Capture status overlay */}
@@ -446,9 +479,13 @@ export default function LiveFeedScreen() {
                   </View>
                 )}
               </View>
-              <ThermalScale minTemp={minTemp} maxTemp={maxTemp} height={MAP_H} />
+              {viewMode === "original" && (
+                <ThermalScale minTemp={minTemp} maxTemp={maxTemp} height={MAP_H} />
+              )}
             </View>
-            <ThermalAnnotation minTemp={minTemp} maxTemp={maxTemp} meanTemp={meanTemp} />
+            {viewMode === "original" && (
+              <ThermalAnnotation minTemp={minTemp} maxTemp={maxTemp} meanTemp={meanTemp} />
+            )}
           </Animated.View>
         )}
 
@@ -798,4 +835,24 @@ fpsText: { fontSize: 10, fontFamily: Typography.fonts.mono, letterSpacing: 0.5 }
   resultMetaText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono },
   resultMetaDot: {},
   resultDate: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
+
+  //View mode selector
+  modeRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  modeBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 5,
+    borderRadius: Radius.sm,
+  },
+  modeBtnText: {
+    fontSize: 10,
+    fontFamily: Typography.fonts.heading,
+    letterSpacing: 0.3,
+  },
 });
