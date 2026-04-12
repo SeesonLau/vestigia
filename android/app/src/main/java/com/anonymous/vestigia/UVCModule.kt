@@ -56,6 +56,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 connected = true
                 connectPromise?.resolve(true)
                 connectPromise = null
+                sendEvent("onCameraConnected", null)
             } catch (e: Exception) {
                 connectPromise?.reject("UVC_OPEN_FAILED", e.message ?: "Failed to open UVC camera")
                 connectPromise = null
@@ -82,7 +83,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val bytes = ByteArray(frame.remaining())
         frame.get(bytes)
         val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        sendEvent("UVCFrame", b64)
+        sendEvent("onFrame", b64)
     }
 
     @ReactMethod
@@ -115,7 +116,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     private fun handleDisconnect() {
         cleanup()
-        sendEvent("UVCDisconnected", null)
+        sendEvent("onCameraDisconnected", null)
     }
 
     private fun cleanup() {
