@@ -12,10 +12,8 @@ import {
 } from "react-native";
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { VitalsForm } from "../../components/session/index";
 import Button from "../../components/ui/Button";
 import { Card, Disclaimer } from "../../components/ui/index";
-import { ClinicalThresholds } from "../../constants/clinical";
 import { S } from "../../constants/strings";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
@@ -99,57 +97,10 @@ export default function ClinicalDataScreen() {
   const leftAngiosomes  = computeAngiosomes(leftMatrix, "left");
   const rightAngiosomes = computeAngiosomes(rightMatrix, "right");
 
-  const [vitals, setVitals] = useState({
-    blood_glucose: "",
-    systolic_bp: "",
-    diastolic_bp: "",
-    heart_rate: "",
-    hba1c: "",
-  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (key: keyof typeof vitals, value: string) => {
-    setVitals((v) => ({ ...v, [key]: value }));
-    if (errors[key]) {
-      setErrors((e) => { const next = { ...e }; delete next[key]; return next; });
-    }
-  };
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    const { glucose, systolic, diastolic, heartRate, hba1c } = ClinicalThresholds;
-    if (vitals.blood_glucose) {
-      const v = parseFloat(vitals.blood_glucose);
-      if (isNaN(v) || v < glucose.min || v > glucose.max)
-        e.blood_glucose = `Must be between ${glucose.min}–${glucose.max} mg/dL`;
-    }
-    if (vitals.systolic_bp || vitals.diastolic_bp) {
-      const s = parseInt(vitals.systolic_bp);
-      const d = parseInt(vitals.diastolic_bp);
-      if (vitals.systolic_bp && (isNaN(s) || s < systolic.min || s > systolic.max))
-        e.systolic_bp = `${systolic.min}–${systolic.max} mmHg`;
-      if (vitals.diastolic_bp && (isNaN(d) || d < diastolic.min || d > diastolic.max))
-        e.diastolic_bp = `${diastolic.min}–${diastolic.max} mmHg`;
-      if (!isNaN(s) && !isNaN(d) && d >= s)
-        e.diastolic_bp = "Diastolic must be less than systolic";
-    }
-    if (vitals.heart_rate) {
-      const hr = parseInt(vitals.heart_rate);
-      if (isNaN(hr) || hr < heartRate.min || hr > heartRate.max)
-        e.heart_rate = `Must be between ${heartRate.min}–${heartRate.max} bpm`;
-    }
-    if (vitals.hba1c) {
-      const h = parseFloat(vitals.hba1c);
-      if (isNaN(h) || h < hba1c.min || h > hba1c.max)
-        e.hba1c = `Must be between ${hba1c.min}–${hba1c.max}%`;
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
   const handleSubmit = async () => {
-    if (!validate()) return;
     if (!selectedPatient) { setErrors({ _form: "No patient selected. Go back and select a patient." }); return; }
     if (!user?.clinic_id) { setErrors({ _form: "Your account is not linked to a clinic." }); return; }
     setLoading(true);
@@ -163,16 +114,6 @@ export default function ClinicalDataScreen() {
         .insert({ patient_id: selectedPatient.id, operator_id: user.id, device_id: device.id, clinic_id: user.clinic_id, status: "uploading", started_at: new Date().toISOString() })
         .select("id").single();
       if (sessErr || !session) throw new Error("Failed to create session.");
-
-      const { error: vitalsErr } = await supabase.from("patient_vitals").insert({
-        session_id: session.id,
-        blood_glucose_mgdl: vitals.blood_glucose ? parseFloat(vitals.blood_glucose) : null,
-        systolic_bp_mmhg:   vitals.systolic_bp  ? parseInt(vitals.systolic_bp)  : null,
-        diastolic_bp_mmhg:  vitals.diastolic_bp ? parseInt(vitals.diastolic_bp) : null,
-        heart_rate_bpm:     vitals.heart_rate   ? parseInt(vitals.heart_rate)   : null,
-        hba1c_pct:          vitals.hba1c        ? parseFloat(vitals.hba1c)       : null,
-      });
-      if (vitalsErr) throw new Error("Failed to save vitals.");
 
       const captureEntries: Array<{ foot: "left" | "right"; matrix: number[][]; imageB64: string | null; angiosomes: AngiosomeData | null }> = [];
       if (leftMatrix)  captureEntries.push({ foot: "left",  matrix: leftMatrix,  imageB64: leftImageB64,  angiosomes: leftAngiosomes });
@@ -250,14 +191,6 @@ export default function ClinicalDataScreen() {
               </View>
             </Card>
           )}
-
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Patient Vitals</Text>
-            <Text style={[styles.sectionSubtitle, { color: colors.textSec }]}>
-              All fields are optional. Enter any available vitals for this session.
-            </Text>
-            <VitalsForm values={vitals} onChange={handleChange} errors={errors} />
-          </Card>
 
           <Disclaimer text={S.disclaimer} style={styles.disclaimer} />
 

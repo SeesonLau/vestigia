@@ -1,6 +1,6 @@
 # Progress — Lumen AI (formerly Vestigia)
-**Current version:** 0.9.4
-**Last verified:** 2026-04-08
+**Current version:** 0.9.6
+**Last verified:** 2026-04-25
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,8 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.6 | 2026-04-25 | FIX: live-feed crash (UVC mode 6 + Animated.loop cleanup); CameraStatusPanel with Y16 sanity check + FPS + retry; UVC event name fix; hardware reference doc |
+| 0.9.5 | 2026-04-25 | Bilateral thermal PNG upload to Supabase Storage (`thermal-images` bucket); `image_url` column in `thermal_captures`; per-foot stats on bilateral captures |
 | 0.9.4 | 2026-04-08 | HW-01 — real libuvccamera-release.aar linked; UVCModule.kt fully implemented; app renamed "Lumen AI" |
 | 0.9.3 | 2026-04-07 | Admin settings cleanup (match clinic/patient style), patient registration form in clinic flow |
 | 0.9.2 | 2026-04-07 | Settings redesign (clinic + patient), profile screens with avatar upload, back navigation on 5 screens, Privacy Policy/ToS/Contact screens |
@@ -90,6 +92,11 @@
 - **Dual camera support** — `lib/thermal/bleCamera.ts` (real BLE via react-native-ble-plx) + `lib/thermal/wifiCamera.ts` (WebSocket stream for ESP32 MIO802M5S); `pairing.tsx` full rewrite with real BLE scan + WiFi IP config; `live-feed.tsx` branches on `cameraSource`; `CameraSource` type added; BLE Android permissions added
 - **Session detail screens removed** — `app/(clinic)/session/[id].tsx` and `app/(patient)/session/[id].tsx` deleted; blank 5th tab removed from clinic nav
 - **App renamed "Lumen AI"** — `app.json`, `constants/strings.ts` (name, versionFooter, loginFooter), `android/app/src/main/res/values/strings.xml` all updated
+- **UVC event names fixed** — `UVCModule.kt` event strings aligned with JS listeners (`onFrame`, `onCameraConnected`, `onCameraDisconnected`, `onCameraFormats`)
+- **CameraStatusPanel** — animated pulsing dot, live FPS, Y16 sanity check banner, retry button, format debug row
+- **Live-feed crash fixed** — removed invalid mode 6 from `setPreviewSize` loop; added `Animated.loop` cleanup to prevent Hermes crash on unmount
+- **Thermal image Storage** — bilateral PNG upload to `thermal-images` Supabase bucket; `image_url` saved per foot in `thermal_captures`; per-foot `getMatrixStats()` stats on bilateral insert
+- **`_project-docs/hardware-references.md`** — hardware stack, UVC format descriptors, Y16 format, libuvccamera constants, known Y16 gap, PureThermal + Lepton specs
 - **HW-01 — UVC camera fully linked** — `libuvccamera-release.aar` built from saki4510t/UVCCamera with all fixes applied (AGP 7.4.2, Gradle 7.6.3, modern ABIs, `PendingIntent.FLAG_IMMUTABLE` for Android 12+); `UVCModule.kt` fully implemented with USBMonitor + UVCCamera + IFrameCallback; Jetifier enabled; `com.serenegiant:common:2.12.4` added as runtime dep; `libcommon` Maven repo added
 - **BUG-06 fixed** — `THUMB_H` ratio corrected to `(120/160)` in 4 files: `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx`
 - **FR-506** — `lib/thermal/preprocessing.ts`: `parseY16Frame`, `normalizeMatrix`, `segmentFootRegion`, `buildApiPayload`
@@ -99,7 +106,8 @@
 - WatermelonDB removed from project
 
 ## In Progress 🔄
-- Release APK build (`npx expo run:android --variant release`) — started this session, in progress
+- Physical device end-to-end test: bilateral FLIR capture → DPN API → classification → save to cloud
+- Y16 JNI bridge — libuvc C API call to select Y16 by GUID (get real temperature data)
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
 
 ## Not Started ❌
