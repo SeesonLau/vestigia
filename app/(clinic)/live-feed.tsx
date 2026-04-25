@@ -685,17 +685,20 @@ function CameraStatusPanel({
   const pulseAnim = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
+    let loop: Animated.CompositeAnimation | null = null;
     if (status === "connecting") {
-      Animated.loop(
+      loop = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, { toValue: 0.15, duration: 600, useNativeDriver: true }),
           Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      loop.start();
     } else {
       pulseAnim.stopAnimation();
       Animated.timing(pulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
     }
+    return () => { loop?.stop(); pulseAnim.stopAnimation(); };
   }, [status]);
 
   const dotColor =
