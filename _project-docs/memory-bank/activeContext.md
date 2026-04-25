@@ -3,7 +3,30 @@
 
 ---
 
-## What Was Done This Session (2026-04-25) — v0.9.6
+## What Was Done This Session (2026-04-25) — v0.9.7
+
+### Y16 JNI Bridge — Full Implementation (AAR rebuild)
+- `UVCCamera.java` — added `FRAME_FORMAT_Y16 = 2` constant
+- `libuvc.h` — added `UVC_FRAME_FORMAT_GRAY16` to the uvc_frame_format enum (between GRAY8 and BY8)
+- `stream.c` — registered Y16 GUID `{'Y','1','6',' ', 0x00,...}` as `UVC_FRAME_FORMAT_GRAY16`; added GRAY16 as a child of UNCOMPRESSED in the ancestor table
+- `UVCPreview.cpp` — changed both `setPreviewSize` and `prepare_preview` ternaries from 2-way (`!requestMode`) to 3-way (`mode==2` → GRAY16, `mode==1` → MJPEG, else → YUYV); changed `do_preview` from `if (frameMode)` to `if (frameMode == 1)` / `else if (frameMode == 2)` (Y16: raw frames go directly to `addCaptureFrame`, no conversion) / `else` (YUYV); fixed `frameBytes` to `w*h*(requestMode==1 ? 4 : 2)`
+- Rebuilt AAR (`./gradlew :libuvccamera:assembleRelease` → BUILD SUCCESSFUL)
+- Copied new AAR → `android/app/libs/libuvccamera-release.aar`
+- `UVCModule.kt` — updated mode fallback list to `[FRAME_FORMAT_Y16, FRAME_FORMAT_YUYV, DEFAULT_PREVIEW_MODE]`
+- APK rebuild started
+
+### Vitals Removal (v0.9.6)
+(carried forward from previous context)
+- Removed `PatientVitals` interface from `types/index.ts`
+- Removed `VitalsForm` component from `components/session/index.tsx`
+- Removed vitals from `app/(clinic)/clinical-data.tsx`, `app/(clinic)/sync.tsx`, `app/(offline)/save.tsx`, `app/(patient)/save.tsx`, `app/(offline)/history.tsx`, `lib/db/offlineCaptures.ts`
+
+### Nav Bar Fix (v0.9.6)
+- `components/layout/ScreenWrapper.tsx` — `edges` prop defaults to `['top', 'left', 'right']`, preventing double-application of bottom inset in tab screens
+
+---
+
+## What Was Done Previous Session (2026-04-25) — v0.9.6
 
 ### UVC Event Name Fix
 - `UVCModule.kt` — fixed all event name mismatches: `"UVCFrame"` → `"onFrame"`, `"UVCDisconnected"` → `"onCameraDisconnected"`, added `sendEvent("onCameraConnected", null)` after connect resolves
@@ -107,8 +130,8 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 - ✅ `UVCModule.kt` fully implemented — emits Base64 frames to JS; event names match JS listeners
 - ✅ `CameraStatusPanel` — live connection status, FPS counter, Y16 sanity check, retry button, format debug row
 - ✅ Crash fix — removed invalid mode 6 from setPreviewSize; Animated.loop cleanup added
-- ⚠️ Y16 format gap — libuvccamera Java API has no Y16 constant; camera connects via YUYV (AGC visual data, not temperature). Temperatures will be wrong until JNI bridge to libuvc C API is written.
-- ⚠️ Physical device end-to-end test still pending
+- ✅ Y16 JNI bridge complete — `UVC_FRAME_FORMAT_GRAY16` added to libuvc; Y16 GUID registered; `UVCPreview.cpp` routes mode=2 frames raw to capture callback; `UVCModule.kt` tries Y16 first
+- ⚠️ Physical device end-to-end test still pending (APK rebuilding)
 
 ### Settings / Profile
 - ✅ Clinic, patient, admin settings all cleaned up

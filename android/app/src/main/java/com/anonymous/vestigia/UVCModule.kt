@@ -48,10 +48,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
                     sendEvent("onCameraFormats", supported)
                 } catch (_: Exception) {}
 
-                //Request YUYV (mode=0) — the only safe constant in the AAR's Java API.
-                //Falls back to DEFAULT_PREVIEW_MODE if YUYV is rejected.
+                //Try Y16 (mode=2) first for radiometric temperature data from FLIR Lepton.
+                //Fall back to YUYV (mode=0) for standard cameras, then DEFAULT_PREVIEW_MODE.
                 var formatAcquired = false
-                for (mode in listOf(UVCCamera.FRAME_FORMAT_YUYV, UVCCamera.DEFAULT_PREVIEW_MODE)) {
+                for (mode in listOf(UVCCamera.FRAME_FORMAT_Y16, UVCCamera.FRAME_FORMAT_YUYV, UVCCamera.DEFAULT_PREVIEW_MODE)) {
                     try {
                         camera.setPreviewSize(160, 120, mode)
                         android.util.Log.i("UVCModule", "setPreviewSize succeeded with mode=$mode")
