@@ -121,20 +121,7 @@ export default function SyncScreen() {
       });
       if (capErr) throw new Error("Failed to save thermal capture.");
 
-      // 5. Save vitals if present
-      const hasVitals = capture.blood_glucose_mgdl || capture.systolic_bp_mmhg || capture.diastolic_bp_mmhg;
-      if (hasVitals) {
-        const { error: vitalsErr } = await supabase.from("patient_vitals").insert({
-          session_id: session.id,
-          blood_glucose_mgdl: capture.blood_glucose_mgdl ?? null,
-          systolic_bp_mmhg: capture.systolic_bp_mmhg ?? null,
-          diastolic_bp_mmhg: capture.diastolic_bp_mmhg ?? null,
-          recorded_at: capture.captured_at,
-        });
-        if (vitalsErr) throw new Error("Failed to save vitals.");
-      }
-
-      // 6. Send data request if patient has a linked app account
+      // 5. Send data request if patient has a linked app account
       if (selectedPatient.user_id) {
         await supabase.from("data_requests").insert({
           from_role: "clinic",
@@ -222,16 +209,6 @@ export default function SyncScreen() {
                 {capture.min_temp.toFixed(1)}–{capture.max_temp.toFixed(1)}°C
               </Text>
             </View>
-            {(capture.blood_glucose_mgdl || capture.systolic_bp_mmhg) && (
-              <View style={styles.metaRow}>
-                <Ionicons name="pulse-outline" size={13} color={colors.textSec} />
-                <Text style={[styles.meta, { color: colors.textSec }]}>
-                  {capture.blood_glucose_mgdl ? `${capture.blood_glucose_mgdl} mg/dL` : ""}
-                  {capture.blood_glucose_mgdl && capture.systolic_bp_mmhg ? "  ·  " : ""}
-                  {capture.systolic_bp_mmhg ? `${capture.systolic_bp_mmhg}/${capture.diastolic_bp_mmhg} mmHg` : ""}
-                </Text>
-              </View>
-            )}
             <Text style={[styles.captureDate, { color: colors.textSec }]}>
               {new Date(capture.captured_at).toLocaleString()}
             </Text>

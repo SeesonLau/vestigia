@@ -58,21 +58,6 @@ export default function OfflineHistoryScreen() {
         </Text>
       </View>
 
-      {(item.blood_glucose_mgdl != null || item.systolic_bp_mmhg != null) && (
-        <View style={styles.metaRow}>
-          {item.blood_glucose_mgdl != null && (
-            <Text style={[styles.vitalsText, { color: colors.textSec }]}>
-              BG: {item.blood_glucose_mgdl} mg/dL
-            </Text>
-          )}
-          {item.systolic_bp_mmhg != null && item.diastolic_bp_mmhg != null && (
-            <Text style={[styles.vitalsText, { color: colors.textSec }]}>
-              BP: {item.systolic_bp_mmhg}/{item.diastolic_bp_mmhg} mmHg
-            </Text>
-          )}
-        </View>
-      )}
-
       <Text style={[styles.dateText, { color: colors.textSec }]}>
         {new Date(item.captured_at).toLocaleString()}
       </Text>
@@ -143,7 +128,6 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   metaDivider: { marginHorizontal: 2 },
-  vitalsText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono },
   dateText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   syncedAtText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono },
   emptyText: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },

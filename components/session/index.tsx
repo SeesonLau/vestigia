@@ -7,11 +7,9 @@ import {
     View,
     ViewStyle,
 } from "react-native";
-import { ClinicalThresholds } from "../../constants/clinical";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { ScreeningSession, SessionStatus } from "../../types";
-import Input from "../ui/Input";
 
 // ── SessionCard ────────────────────────────────────────────────
 interface SessionCardProps {
@@ -95,100 +93,6 @@ export function SessionCard({ session, onPress, style }: SessionCardProps) {
   );
 }
 
-// ── VitalsForm ─────────────────────────────────────────────────
-interface VitalsFormValues {
-  blood_glucose: string;
-  systolic_bp: string;
-  diastolic_bp: string;
-  heart_rate: string;
-  hba1c: string;
-}
-
-interface VitalsFormErrors {
-  blood_glucose?: string;
-  systolic_bp?: string;
-  diastolic_bp?: string;
-  heart_rate?: string;
-  hba1c?: string;
-}
-
-interface VitalsFormProps {
-  values: VitalsFormValues;
-  onChange: (key: keyof VitalsFormValues, value: string) => void;
-  errors?: VitalsFormErrors;
-  style?: ViewStyle;
-}
-
-export function VitalsForm({
-  values,
-  onChange,
-  errors = {},
-  style,
-}: VitalsFormProps) {
-  return (
-    <View style={style}>
-      <Input
-        label="Blood Glucose"
-        placeholder="e.g. 120"
-        value={values.blood_glucose}
-        onChangeText={(v) => onChange("blood_glucose", v)}
-        keyboardType="numeric"
-        suffix="mg/dL"
-        error={errors.blood_glucose}
-        hint={`Range: ${ClinicalThresholds.glucose.min}–${ClinicalThresholds.glucose.max} mg/dL`}
-      />
-
-      <View style={vitalsStyles.row}>
-        <View style={vitalsStyles.half}>
-          <Input
-            label="Systolic BP"
-            placeholder="e.g. 120"
-            value={values.systolic_bp}
-            onChangeText={(v) => onChange("systolic_bp", v)}
-            keyboardType="numeric"
-            suffix="mmHg"
-            error={errors.systolic_bp}
-          />
-        </View>
-        <View style={vitalsStyles.spacer} />
-        <View style={vitalsStyles.half}>
-          <Input
-            label="Diastolic BP"
-            placeholder="e.g. 80"
-            value={values.diastolic_bp}
-            onChangeText={(v) => onChange("diastolic_bp", v)}
-            keyboardType="numeric"
-            suffix="mmHg"
-            error={errors.diastolic_bp}
-          />
-        </View>
-      </View>
-
-      <Input
-        label="Heart Rate"
-        placeholder="e.g. 72"
-        value={values.heart_rate}
-        onChangeText={(v) => onChange("heart_rate", v)}
-        keyboardType="numeric"
-        suffix="bpm"
-        error={errors.heart_rate}
-        hint="Optional"
-      />
-
-      <Input
-        label="HbA1c"
-        placeholder="e.g. 7.2"
-        value={values.hba1c}
-        onChangeText={(v) => onChange("hba1c", v)}
-        keyboardType="decimal-pad"
-        suffix="%"
-        error={errors.hba1c}
-        hint="Optional — enter if lab result is available"
-      />
-    </View>
-  );
-}
-
 // ── Styles ─────────────────────────────────────────────────────
 const cardStyles = StyleSheet.create({
   container: {
@@ -252,8 +156,3 @@ const cardStyles = StyleSheet.create({
   },
 });
 
-const vitalsStyles = StyleSheet.create({
-  row: { flexDirection: "row" },
-  half: { flex: 1 },
-  spacer: { width: Spacing.md },
-});

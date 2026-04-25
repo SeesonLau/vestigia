@@ -29,17 +29,6 @@ export type FootSide = "left" | "right" | "bilateral";
 
 export type DPNClassification = "POSITIVE" | "NEGATIVE";
 
-export interface PatientVitals {
-  id?: string;
-  session_id?: string;
-  blood_glucose_mgdl?: number;
-  systolic_bp_mmhg?: number;
-  diastolic_bp_mmhg?: number;
-  heart_rate_bpm?: number;
-  hba1c_pct?: number;
-  recorded_at?: string;
-}
-
 export interface AngiosomeTemps {
   mpa_mean_c?: number;
   lpa_mean_c?: number;
@@ -97,7 +86,6 @@ export interface ScreeningSession {
   // joined
   classification?: ClassificationResult;
   captures?: ThermalCapture[];
-  vitals?: PatientVitals;
 }
 
 // patient.ts
@@ -124,9 +112,6 @@ export interface LocalCapture {
   min_temp: number
   max_temp: number
   mean_temp: number
-  blood_glucose_mgdl?: number
-  systolic_bp_mmhg?: number
-  diastolic_bp_mmhg?: number
   captured_at: string           // ISO timestamp
   synced: boolean
   synced_at?: string

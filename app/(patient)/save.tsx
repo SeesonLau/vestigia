@@ -36,9 +36,6 @@ export default function PatientSaveScreen() {
 
   //Form state — patient label pre-filled with their name
   const [patientLabel, setPatientLabel] = useState(user?.full_name ?? "");
-  const [bloodGlucose, setBloodGlucose] = useState("");
-  const [systolic, setSystolic] = useState("");
-  const [diastolic, setDiastolic] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -57,9 +54,6 @@ export default function PatientSaveScreen() {
         min_temp: parseFloat(params.minTemp ?? "0"),
         max_temp: parseFloat(params.maxTemp ?? "0"),
         mean_temp: parseFloat(params.meanTemp ?? "0"),
-        blood_glucose_mgdl: bloodGlucose ? parseFloat(bloodGlucose) : undefined,
-        systolic_bp_mmhg: systolic ? parseFloat(systolic) : undefined,
-        diastolic_bp_mmhg: diastolic ? parseFloat(diastolic) : undefined,
         captured_at: new Date().toISOString(),
       });
 
@@ -127,47 +121,6 @@ export default function PatientSaveScreen() {
             />
           </View>
 
-          {/* Vitals — optional */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              Vitals <Text style={[styles.optional, { color: colors.textSec }]}>(optional)</Text>
-            </Text>
-
-            <Text style={[styles.inputLabel, { color: colors.textSec }]}>Blood Glucose (mg/dL)</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-              placeholder="e.g. 120"
-              placeholderTextColor={colors.textSec}
-              value={bloodGlucose}
-              onChangeText={setBloodGlucose}
-              keyboardType="numeric"
-              returnKeyType="next"
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.textSec }]}>Blood Pressure</Text>
-            <View style={styles.bpRow}>
-              <TextInput
-                style={[styles.input, styles.bpInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="Systolic"
-                placeholderTextColor={colors.textSec}
-                value={systolic}
-                onChangeText={setSystolic}
-                keyboardType="numeric"
-                returnKeyType="next"
-              />
-              <Text style={[styles.bpSlash, { color: colors.textSec }]}>/</Text>
-              <TextInput
-                style={[styles.input, styles.bpInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="Diastolic"
-                placeholderTextColor={colors.textSec}
-                value={diastolic}
-                onChangeText={setDiastolic}
-                keyboardType="numeric"
-                returnKeyType="done"
-              />
-            </View>
-          </View>
-
           {/* Save button */}
           <TouchableOpacity
             style={[styles.saveBtn, { backgroundColor: colors.success }, saving && styles.saveBtnDisabled]}
@@ -207,8 +160,6 @@ const styles = StyleSheet.create({
   summaryText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
   section: { gap: Spacing.sm },
   label: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
-  optional: { fontFamily: Typography.fonts.body },
-  inputLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5, marginTop: Spacing.xs },
   input: {
     borderWidth: 1,
     borderRadius: Radius.md,
@@ -217,9 +168,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
   },
-  bpRow: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  bpInput: { flex: 1 },
-  bpSlash: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.body },
   saveBtn: {
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,

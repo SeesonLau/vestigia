@@ -3,6 +3,29 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.9.6] — 2026-04-25
+
+### Fixed
+- `android/app/src/main/java/com/anonymous/vestigia/UVCModule.kt` — removed invalid `mode=6` from `setPreviewSize` loop; mode 6 is not a valid AAR Java constant and caused an unhandled JNI exception killing the process whenever the camera was connected on navigate-to-live-feed; now tries `FRAME_FORMAT_YUYV` then `DEFAULT_PREVIEW_MODE` only
+- `app/(clinic)/live-feed.tsx` `CameraStatusPanel` — added cleanup return to `Animated.loop` `useEffect`; orphaned animation loop in Hermes (release JS engine) after component unmount was a secondary crash cause
+
+### Added
+- `UVCModule.kt` — corrected all event names to match JS listeners: `onFrame`, `onCameraConnected`, `onCameraDisconnected`; added `onCameraFormats` event (fires with supported sizes JSON after `camera.open()`); added `getSupportedFormats()` `@ReactMethod`
+- `lib/thermal/uvcCamera.ts` — `onCameraFormats(callback)` listener function; `getSupportedFormats()` async query
+- `app/(clinic)/live-feed.tsx` — `CameraStatusPanel` component: animated pulsing dot, live FPS counter, Y16 sanity check warning banner (fires when <50% pixels in 10–60°C human range), retry button (`retryKey` re-triggers camera setup useEffect), format debug row with supported sizes from camera
+- `_project-docs/hardware-references.md` — hardware reference document: all 6 hardware links, hardware stack diagram, UVC format descriptor table (YUYV/Y16/GREY/RGB565/BGR3), Y16 byte format + Kelvin conversion, libuvccamera constants, known Y16 integration gap, PureThermal + Lepton specs, USB device filter confirmation
+
+---
+
+## [0.9.5] — 2026-04-25
+
+### Added — Thermal Image Storage to Supabase
+- `types/index.ts` — `image_url?: string` added to `ThermalCapture` interface
+- `app/(clinic)/clinical-data.tsx` — bilateral thermal capture loop: inserts two separate `thermal_captures` rows (left + right) each with real per-foot `getMatrixStats()` stats and angiosome means; uploads PNG to `thermal-images/{session_id}/{foot}.png` in Supabase Storage before each insert; upload failure is non-fatal (`image_url = null`)
+- Supabase: `ALTER TABLE thermal_captures ADD COLUMN image_url TEXT`; `thermal-images` private Storage bucket; authenticated upload + read RLS policies
+
+---
+
 ## [0.9.4] — 2026-04-08
 
 ### Added — Real UVC Camera + App Rename

@@ -6,7 +6,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Edge, SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../constants/ThemeContext";
 
 interface ScreenWrapperProps {
@@ -14,6 +14,9 @@ interface ScreenWrapperProps {
   scrollable?: boolean;
   style?: ViewStyle;
   contentStyle?: ViewStyle;
+  /** Edges to apply safe area insets. Defaults to top/left/right only —
+   *  the tab bar handles the bottom inset so screens inside tabs don't need it. */
+  edges?: Edge[];
 }
 
 export default function ScreenWrapper({
@@ -21,6 +24,7 @@ export default function ScreenWrapper({
   scrollable = false,
   style,
   contentStyle,
+  edges = ["top", "left", "right"],
 }: ScreenWrapperProps) {
   const { colors, isDark } = useTheme();
 
@@ -37,7 +41,7 @@ export default function ScreenWrapper({
   );
 
   return (
-    <SafeAreaView style={[{ flex: 1, backgroundColor: colors.bg }, style]}>
+    <SafeAreaView edges={edges} style={[{ flex: 1, backgroundColor: colors.bg }, style]}>
       <StatusBar
         barStyle={isDark ? "light-content" : "dark-content"}
         backgroundColor={colors.bg}

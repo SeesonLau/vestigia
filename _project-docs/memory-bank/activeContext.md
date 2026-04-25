@@ -1,9 +1,36 @@
 # Active Context — Lumen AI (formerly Vestigia)
-**Last updated:** 2026-04-08
+**Last updated:** 2026-04-25
 
 ---
 
-## What Was Done This Session (2026-04-08) — v0.9.4
+## What Was Done This Session (2026-04-25) — v0.9.6
+
+### UVC Event Name Fix
+- `UVCModule.kt` — fixed all event name mismatches: `"UVCFrame"` → `"onFrame"`, `"UVCDisconnected"` → `"onCameraDisconnected"`, added `sendEvent("onCameraConnected", null)` after connect resolves
+- Added `sendEvent("onCameraFormats", supported)` — emits supported sizes JSON string immediately after `camera.open()`
+- Added `getSupportedFormats()` `@ReactMethod` — lets JS query supported formats from a connected camera
+- `lib/thermal/uvcCamera.ts` — added `onCameraFormats` listener + `getSupportedFormats()` async function
+
+### Thermal Image Storage to Supabase (v0.9.5)
+- `types/index.ts` — added `image_url?: string` to `ThermalCapture` interface
+- `app/(clinic)/clinical-data.tsx` — replaced single thermal_captures insert with bilateral loop (left + right foot), each with real per-foot `getMatrixStats()`, angiosome means, and Supabase Storage PNG upload to `thermal-images/{session_id}/{foot}.png`; upload failure is non-fatal (`image_url = null`)
+- Supabase: added `image_url TEXT` column to `thermal_captures`; created `thermal-images` private Storage bucket; added upload + read RLS policies for authenticated users
+
+### Hardware Reference Document
+- `_project-docs/hardware-references.md` — new file: all 6 hardware reference links, hardware stack diagram, UVC format descriptor table (YUYV/Y16/GREY/RGB565/BGR3), Y16 byte format, libuvccamera constants, known Y16 integration problem, PureThermal + Lepton specs, USB device filter confirmation
+
+### CameraStatusPanel UI
+- `app/(clinic)/live-feed.tsx` — replaced static status bar with `CameraStatusPanel` component: animated pulsing dot, live FPS counter, frame data validation (Y16 sanity check: <50% pixels in 10–60°C range → `frameWarning` banner), retry button (increments `retryKey` to re-trigger camera setup useEffect), format debug row showing supported formats from camera, `onCameraFormats` subscription
+
+### Crash Fix — Navigation to Live Feed
+- **Root cause 1:** `UVCModule.kt` attempted `setPreviewSize(160, 120, 6)` — mode 6 is not a valid AAR Java constant; caused unhandled JNI exception killing the process; since camera was always connected on navigate, crash was 100% reproducible
+- **Fix:** Changed `listOf(6, 0, UVCCamera.DEFAULT_PREVIEW_MODE)` → `listOf(UVCCamera.FRAME_FORMAT_YUYV, UVCCamera.DEFAULT_PREVIEW_MODE)`
+- **Root cause 2:** `Animated.loop` in `CameraStatusPanel` had no cleanup; orphaned animation loop in Hermes (release JS engine) after unmount → secondary crash
+- **Fix:** Added `let loop; loop = Animated.loop(...); loop.start(); return () => { loop?.stop(); pulseAnim.stopAnimation(); };`
+
+---
+
+## What Was Done Previous Session (2026-04-08) — v0.9.4
 
 ### HW-01 — Real UVC Camera Module (libuvccamera-release.aar)
 Completed the full build + link of the saki4510t/UVCCamera library into Vestigia:
@@ -77,9 +104,11 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 
 ### UVC Camera (FLIR Lepton 3.5 via PureThermal)
 - ✅ `libuvccamera-release.aar` built from saki4510t/UVCCamera (fixed: AGP, Gradle, ABIs, FLAG_IMMUTABLE)
-- ✅ `UVCModule.kt` fully implemented — emits Y16 Base64 frames to JS
-- ✅ Jetifier enabled; serenegiant:common runtime dep added
-- ⚠️ Untested on physical device — emulator has no USB host stack
+- ✅ `UVCModule.kt` fully implemented — emits Base64 frames to JS; event names match JS listeners
+- ✅ `CameraStatusPanel` — live connection status, FPS counter, Y16 sanity check, retry button, format debug row
+- ✅ Crash fix — removed invalid mode 6 from setPreviewSize; Animated.loop cleanup added
+- ⚠️ Y16 format gap — libuvccamera Java API has no Y16 constant; camera connects via YUYV (AGC visual data, not temperature). Temperatures will be wrong until JNI bridge to libuvc C API is written.
+- ⚠️ Physical device end-to-end test still pending
 
 ### Settings / Profile
 - ✅ Clinic, patient, admin settings all cleaned up
@@ -97,14 +126,16 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 ---
 
 ## Pending Manual Steps
-1. Install release APK on physical device; test UVC camera with PureThermal Mini Pro
-2. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase
-3. `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
-4. ESP32 firmware configuration (BLE + WebSocket per protocol spec)
+1. Install release APK on physical device; test UVC camera — verify live-feed no longer crashes
+2. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase (including `thermal-images` Storage)
+3. Y16 JNI bridge — write JNI wrapper calling libuvc C API to select Y16 by GUID `{59313631-0000-0010-8000-00AA00389B71}`; `libuvc.so` already in build outputs
+4. `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
+5. ESP32 firmware configuration (BLE + WebSocket per protocol spec)
 
 ---
 
 ## Next Steps (priority order)
-1. Test release APK on device — verify UVC frames flow from FLIR → live-feed → assessment
-2. End-to-end test: full bilateral capture → DPN API → classification result → save to cloud
-3. Offline history screen + patient live-feed + patient history (from plan file)
+1. Install new APK → verify live-feed screen no longer crashes with camera connected
+2. Y16 format JNI bridge (get real temperature data from camera)
+3. End-to-end test: bilateral FLIR capture → DPN API → classification result → save to cloud
+4. Offline history screen + patient live-feed + patient history (from plan file)

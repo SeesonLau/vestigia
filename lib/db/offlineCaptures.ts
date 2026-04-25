@@ -11,9 +11,8 @@ export async function saveCapture(
     `INSERT INTO local_captures
       (id, patient_label, foot_side, thermal_matrix_b64,
        min_temp, max_temp, mean_temp,
-       blood_glucose_mgdl, systolic_bp_mmhg, diastolic_bp_mmhg,
        captured_at, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
       capture.id,
       capture.patient_label,
@@ -22,9 +21,6 @@ export async function saveCapture(
       capture.min_temp,
       capture.max_temp,
       capture.mean_temp,
-      capture.blood_glucose_mgdl ?? null,
-      capture.systolic_bp_mmhg ?? null,
-      capture.diastolic_bp_mmhg ?? null,
       capture.captured_at,
     ]
   )
@@ -85,9 +81,6 @@ interface RawRow {
   min_temp: number
   max_temp: number
   mean_temp: number
-  blood_glucose_mgdl: number | null
-  systolic_bp_mmhg: number | null
-  diastolic_bp_mmhg: number | null
   captured_at: string
   synced: number
   synced_at: string | null
@@ -103,9 +96,6 @@ function toCapture(row: RawRow): LocalCapture {
     min_temp: row.min_temp,
     max_temp: row.max_temp,
     mean_temp: row.mean_temp,
-    blood_glucose_mgdl: row.blood_glucose_mgdl ?? undefined,
-    systolic_bp_mmhg: row.systolic_bp_mmhg ?? undefined,
-    diastolic_bp_mmhg: row.diastolic_bp_mmhg ?? undefined,
     captured_at: row.captured_at,
     synced: row.synced === 1,
     synced_at: row.synced_at ?? undefined,
