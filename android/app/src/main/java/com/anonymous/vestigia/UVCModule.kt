@@ -105,14 +105,19 @@ class UVCModule(reactContext: ReactApplicationContext) :
             promise.resolve(true)
             return
         }
-        connectPromise = promise
-        val monitor = USBMonitor(reactApplicationContext, deviceListener)
-        usbMonitor = monitor
-        monitor.register()
-        //Auto-request permission for any device already plugged in
-        val usbManager = reactApplicationContext.getSystemService(Context.USB_SERVICE) as UsbManager
-        usbManager.deviceList.values.forEach { device ->
-            monitor.requestPermission(device)
+        try {
+            connectPromise = promise
+            val monitor = USBMonitor(reactApplicationContext, deviceListener)
+            usbMonitor = monitor
+            monitor.register()
+            //Auto-request permission for any device already plugged in
+            val usbManager = reactApplicationContext.getSystemService(Context.USB_SERVICE) as UsbManager
+            usbManager.deviceList.values.forEach { device ->
+                monitor.requestPermission(device)
+            }
+        } catch (e: Exception) {
+            connectPromise?.reject("UVC_MONITOR_FAILED", e.message ?: "Failed to register USB monitor")
+            connectPromise = null
         }
     }
 
