@@ -48,11 +48,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
                     sendEvent("onCameraFormats", supported)
                 } catch (_: Exception) {}
 
-                //Request Y16 (mode=6 maps to UVC_FRAME_FORMAT_GRAY16 in libuvc).
-                //Falls back to YUYV (mode=0) if the device rejects it.
-                //Falls back further to DEFAULT_PREVIEW_MODE if both fail.
+                //Request YUYV (mode=0) — the only safe constant in the AAR's Java API.
+                //Falls back to DEFAULT_PREVIEW_MODE if YUYV is rejected.
                 var formatAcquired = false
-                for (mode in listOf(6, 0, UVCCamera.DEFAULT_PREVIEW_MODE)) {
+                for (mode in listOf(UVCCamera.FRAME_FORMAT_YUYV, UVCCamera.DEFAULT_PREVIEW_MODE)) {
                     try {
                         camera.setPreviewSize(160, 120, mode)
                         android.util.Log.i("UVCModule", "setPreviewSize succeeded with mode=$mode")
