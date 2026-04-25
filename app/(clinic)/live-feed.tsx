@@ -25,7 +25,6 @@ import {
   ThermalScale,
 } from "../../components/thermal/index";
 import Button from "../../components/ui/Button";
-import { StatusIndicator } from "../../components/ui/index";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getMatrixStats, parseCsvMatrix, parseY16Frame } from "../../lib/thermal/preprocessing";
@@ -35,6 +34,7 @@ import {
   disconnectCamera,
   onCameraConnected,
   onCameraDisconnected,
+  onCameraFormats,
   onFrame,
 } from "../../lib/thermal/uvcCamera";
 import {
@@ -69,6 +69,9 @@ export default function LiveFeedScreen() {
   //Camera
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("disconnected");
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [frameWarning, setFrameWarning] = useState(false);
+  const [supportedFormats, setSupportedFormats] = useState<string>("");
+  const [retryKey, setRetryKey] = useState(0);
 
   //Frame
   const [matrix, setMatrix] = useState<number[][] | null>(null);
@@ -139,10 +142,12 @@ export default function LiveFeedScreen() {
     if (count > 1) setFps(Math.round(((count - 1) / (now - oldest)) * 1000));
   }, []);
 
-  //Camera setup — branches on active camera source
+  //Camera setup — branches on active camera source (retryKey triggers re-connect)
   useEffect(() => {
     setCameraStatus("connecting");
     setCameraError(null);
+    setFrameWarning(false);
+    setSupportedFormats("");
     frameTimestamps.current = [];
 
     if (cameraSource === "wifi") {
@@ -182,14 +187,20 @@ export default function LiveFeedScreen() {
       unsubConnect = onCameraConnected(() => setCameraStatus("connected"));
       unsubDisconnect = onCameraDisconnected(() => {
         setCameraStatus("disconnected");
+        setFrameWarning(false);
         setMatrix(null);
         setFps(0);
         frameTimestamps.current = [];
       });
+      const unsubFormats = onCameraFormats((json) => setSupportedFormats(json));
       unsubFrame = onFrame((base64) => {
         if (capturedRef.current) return;
         try {
           const parsed = parseY16Frame(base64);
+          //Y16 sanity check: >50% of pixels should be in human-observable range (10–60°C)
+          const flat = parsed.flat();
+          const validCount = flat.filter((t) => t >= 10 && t <= 60).length;
+          setFrameWarning(validCount / flat.length < 0.5);
           const stats = getMatrixStats(parsed);
           setMatrix(parsed);
           setMinTemp(stats.min);
@@ -204,16 +215,18 @@ export default function LiveFeedScreen() {
         setCameraStatus("error");
         setCameraError(e instanceof Error ? e.message : "Camera connection failed");
       }
+      return () => unsubFormats();
     }
 
-    setupUvc();
+    const cleanupFormats = setupUvc();
     return () => {
+      cleanupFormats.then((fn) => fn?.());
       unsubFrame?.();
       unsubConnect?.();
       unsubDisconnect?.();
       disconnectCamera();
     };
-  }, [cameraSource, wifiIp, wifiPort]);
+  }, [cameraSource, wifiIp, wifiPort, retryKey]);
 
   //Build image b64 from matrix or imported file
   const getImageB64 = async (currentMatrix: number[][]): Promise<string> => {
@@ -330,17 +343,6 @@ export default function LiveFeedScreen() {
     }
   };
 
-  const statusLabel =
-    cameraStatus === "connected" ? "Camera Connected"
-    : cameraStatus === "connecting" ? "Connecting..."
-    : cameraStatus === "error" ? (cameraError ?? "Camera Error")
-    : "Camera Disconnected";
-
-  const statusType =
-    cameraStatus === "connected" ? "connected"
-    : cameraStatus === "connecting" ? "connecting"
-    : "error";
-
   const isPositive = lastResult?.classification === "POSITIVE";
 
   return (
@@ -367,22 +369,19 @@ export default function LiveFeedScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Status bar */}
-        <View style={styles.statusBar}>
-          <StatusIndicator status={statusType} label={statusLabel} />
-          <TouchableOpacity
-            onPress={() => setShowGuide((v) => !v)}
-            style={[
-              styles.guideToggle,
-              { borderColor: colors.border },
-              showGuide && { borderColor: colors.success, backgroundColor: `${colors.success}1A` },
-            ]}
-            accessibilityLabel={showGuide ? "Hide foot position guides" : "Show foot position guides"}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.guideToggleText, { color: colors.textSec }]}>Guides</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Camera status panel */}
+        <CameraStatusPanel
+          status={cameraStatus}
+          cameraSource={cameraSource}
+          cameraError={cameraError}
+          fps={fps}
+          frameWarning={frameWarning}
+          supportedFormats={supportedFormats}
+          showGuide={showGuide}
+          onToggleGuide={() => setShowGuide((v) => !v)}
+          onRetry={() => { disconnectCamera(); setRetryKey((k) => k + 1); }}
+          colors={colors}
+        />
 
         {/* Bilateral capture step indicator */}
         <View style={[styles.stepRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -401,19 +400,6 @@ export default function LiveFeedScreen() {
           />
         </View>
 
-        {/* No camera state */}
-        {cameraStatus !== "connected" && !bothCaptured && (
-          <View style={styles.noCamera}>
-            <Ionicons name="camera-outline" size={48} color={colors.textSec} style={{ marginBottom: Spacing.md }} />
-            <Text style={[styles.noCameraText, { color: colors.textSec }]}>
-              {cameraStatus === "connecting"
-                ? "Waiting for PureThermal camera…\nPlug in via JST-SH → USB-C"
-                : cameraStatus === "error"
-                ? `${cameraError}\n\nPlug in the PureThermal and reopen this screen.`
-                : "Camera disconnected.\nPlug in the PureThermal to begin."}
-            </Text>
-          </View>
-        )}
 
         {/* Thermal viewer */}
         {matrix && (
@@ -670,6 +656,140 @@ export default function LiveFeedScreen() {
   );
 }
 
+//Camera status panel component
+type ThemeColors = import("../../constants/theme").ThemeColors;
+
+function CameraStatusPanel({
+  status,
+  cameraSource,
+  cameraError,
+  fps,
+  frameWarning,
+  supportedFormats,
+  showGuide,
+  onToggleGuide,
+  onRetry,
+  colors,
+}: {
+  status: CameraStatus;
+  cameraSource: string;
+  cameraError: string | null;
+  fps: number;
+  frameWarning: boolean;
+  supportedFormats: string;
+  showGuide: boolean;
+  onToggleGuide: () => void;
+  onRetry: () => void;
+  colors: ThemeColors;
+}) {
+  const pulseAnim = React.useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    if (status === "connecting") {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 0.15, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      Animated.timing(pulseAnim, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+    }
+  }, [status]);
+
+  const dotColor =
+    status === "connected"
+      ? frameWarning ? colors.warning : colors.success
+      : status === "connecting" ? colors.warning
+      : status === "error" ? colors.error
+      : colors.textSec;
+
+  const sourceLabel = cameraSource === "wifi" ? "ESP32 WiFi" : "FLIR Lepton 3.5";
+  const sourceIcon: React.ComponentProps<typeof Ionicons>["name"] =
+    cameraSource === "wifi" ? "wifi-outline" : "hardware-chip-outline";
+
+  const detailText =
+    status === "connected"
+      ? `${sourceLabel} · 160×120 · 9 Hz`
+      : status === "connecting"
+      ? cameraSource === "uvc"
+        ? "Plug in via JST-SH → USB-C to begin"
+        : "Connecting to Wi-Fi stream…"
+      : status === "error"
+      ? cameraError ?? "Connection failed"
+      : "Camera unplugged · Reconnect to continue";
+
+  return (
+    <View style={[panelStyles.container, { backgroundColor: colors.surface, borderColor: dotColor + "50" }]}>
+      {/* Top row: dot + label + fps/guide */}
+      <View style={panelStyles.topRow}>
+        <Animated.View style={[panelStyles.dot, { backgroundColor: dotColor, opacity: pulseAnim }]} />
+        <Ionicons name={sourceIcon} size={14} color={colors.textSec} />
+        <Text style={[panelStyles.sourceLabel, { color: colors.text }]} numberOfLines={1}>
+          {status === "connecting" ? "Searching for camera…" : sourceLabel}
+        </Text>
+        <View style={panelStyles.topRight}>
+          {status === "connected" && (
+            <View style={[panelStyles.fpsChip, { backgroundColor: colors.success + "20" }]}>
+              <Text style={[panelStyles.fpsValue, { color: colors.success }]}>{fps} fps</Text>
+            </View>
+          )}
+          {status === "error" && (
+            <TouchableOpacity onPress={onRetry} style={[panelStyles.retryBtn, { borderColor: colors.accent }]}>
+              <Ionicons name="refresh-outline" size={12} color={colors.accent} />
+              <Text style={[panelStyles.retryText, { color: colors.accent }]}>Retry</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={onToggleGuide}
+            style={[panelStyles.guideToggle, { borderColor: showGuide ? colors.success : colors.border },
+              showGuide && { backgroundColor: colors.success + "1A" }]}
+            accessibilityLabel={showGuide ? "Hide guides" : "Show guides"}
+          >
+            <Text style={[panelStyles.guideText, { color: showGuide ? colors.success : colors.textSec }]}>Guides</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Detail row */}
+      <View style={panelStyles.detailRow}>
+        <View style={[panelStyles.statusBadge, { backgroundColor: dotColor + "20" }]}>
+          <Text style={[panelStyles.statusBadgeText, { color: dotColor }]}>
+            {status === "connected" ? "CONNECTED"
+              : status === "connecting" ? "SEARCHING"
+              : status === "error" ? "ERROR"
+              : "DISCONNECTED"}
+          </Text>
+        </View>
+        <Text style={[panelStyles.detailText, { color: colors.textSec }]} numberOfLines={1}>
+          {detailText}
+        </Text>
+      </View>
+
+      {/* Frame data warning */}
+      {frameWarning && status === "connected" && (
+        <View style={[panelStyles.warningRow, { backgroundColor: colors.warning + "15", borderColor: colors.warning + "40" }]}>
+          <Ionicons name="warning-outline" size={12} color={colors.warning} />
+          <Text style={[panelStyles.warningText, { color: colors.warning }]}>
+            Temperature data may be inaccurate — frame format not confirmed as Y16
+          </Text>
+        </View>
+      )}
+
+      {/* Supported formats debug row (only shown when formats received) */}
+      {supportedFormats.length > 0 && status === "connected" && (
+        <View style={[panelStyles.formatsRow, { borderTopColor: colors.border }]}>
+          <Ionicons name="information-circle-outline" size={11} color={colors.textSec} />
+          <Text style={[panelStyles.formatsText, { color: colors.textSec }]} numberOfLines={2}>
+            {supportedFormats}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 //Step dot sub-component
 function StepDot({
   label,
@@ -709,6 +829,119 @@ const stepStyles = StyleSheet.create({
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.label,
     letterSpacing: 0.5,
+  },
+});
+
+const panelStyles = StyleSheet.create({
+  container: {
+    borderWidth: 1,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    gap: Spacing.xs,
+  },
+  topRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sourceLabel: {
+    flex: 1,
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.heading,
+  },
+  topRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  fpsChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+  },
+  fpsValue: {
+    fontSize: 11,
+    fontFamily: Typography.fonts.mono,
+    letterSpacing: 0.5,
+  },
+  retryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  retryText: {
+    fontSize: 11,
+    fontFamily: Typography.fonts.label,
+  },
+  guideToggle: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  guideText: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.label,
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  statusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontFamily: Typography.fonts.heading,
+    letterSpacing: 1,
+  },
+  detailText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.mono,
+  },
+  warningRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    marginTop: 2,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 10,
+    fontFamily: Typography.fonts.body,
+    lineHeight: 14,
+  },
+  formatsRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.xs,
+    borderTopWidth: 1,
+    paddingTop: Spacing.xs,
+    marginTop: 2,
+  },
+  formatsText: {
+    flex: 1,
+    fontSize: 9,
+    fontFamily: Typography.fonts.mono,
+    lineHeight: 13,
   },
 });
 

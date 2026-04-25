@@ -41,14 +41,28 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 val camera = UVCCamera()
                 camera.open(ctrlBlock)
 
-                //FLIR Lepton 3.5 via PureThermal: 160×120, YUYV descriptor carries Y16 thermal data
+                //Log all formats the device advertises — visible in adb logcat
                 try {
-                    camera.setPreviewSize(160, 120, UVCCamera.FRAME_FORMAT_YUYV)
-                } catch (e: Exception) {
-                    camera.setPreviewSize(160, 120, UVCCamera.DEFAULT_PREVIEW_MODE)
-                }
+                    val supported = camera.supportedSize
+                    android.util.Log.i("UVCModule", "Supported formats: $supported")
+                    sendEvent("onCameraFormats", supported)
+                } catch (_: Exception) {}
 
-                //Receive raw bytes — JS decodes them the same way as live Y16 frames
+                //Request Y16 (mode=6 maps to UVC_FRAME_FORMAT_GRAY16 in libuvc).
+                //Falls back to YUYV (mode=0) if the device rejects it.
+                //Falls back further to DEFAULT_PREVIEW_MODE if both fail.
+                var formatAcquired = false
+                for (mode in listOf(6, 0, UVCCamera.DEFAULT_PREVIEW_MODE)) {
+                    try {
+                        camera.setPreviewSize(160, 120, mode)
+                        android.util.Log.i("UVCModule", "setPreviewSize succeeded with mode=$mode")
+                        formatAcquired = true
+                        break
+                    } catch (_: Exception) {}
+                }
+                if (!formatAcquired) throw Exception("No supported preview size found for 160×120")
+
+                //Receive raw bytes — JS validates whether they are Y16 or YUYV
                 camera.setFrameCallback(frameCallback, UVCCamera.PIXEL_FORMAT_RAW)
                 camera.startPreview()
 
@@ -138,6 +152,15 @@ class UVCModule(reactContext: ReactApplicationContext) :
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(name, data)
+    }
+
+    @ReactMethod
+    fun getSupportedFormats(promise: Promise) {
+        try {
+            promise.resolve(uvcCamera?.supportedSize ?: "")
+        } catch (e: Exception) {
+            promise.resolve("")
+        }
     }
 
     @ReactMethod fun addListener(eventName: String) {}

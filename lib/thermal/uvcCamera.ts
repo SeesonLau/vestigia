@@ -22,6 +22,7 @@ export type CameraStatus =
 let frameSubscription: EmitterSubscription | null = null
 let connectSubscription: EmitterSubscription | null = null
 let disconnectSubscription: EmitterSubscription | null = null
+let formatsSubscription: EmitterSubscription | null = null
 
 //Connect
 export async function connectCamera(): Promise<void> {
@@ -78,4 +79,21 @@ export function onCameraDisconnected(callback: () => void): () => void {
     disconnectSubscription?.remove()
     disconnectSubscription = null
   }
+}
+
+//Format info — fires once after connect with supported sizes JSON string
+export function onCameraFormats(callback: (formatsJson: string) => void): () => void {
+  if (!emitter) return () => {}
+  formatsSubscription?.remove()
+  formatsSubscription = emitter.addListener('onCameraFormats', callback)
+  return () => {
+    formatsSubscription?.remove()
+    formatsSubscription = null
+  }
+}
+
+//Query supported formats from a connected camera (async, returns JSON string)
+export async function getSupportedFormats(): Promise<string> {
+  if (!UVCCamera) return ''
+  try { return await UVCCamera.getSupportedFormats() } catch { return '' }
 }
