@@ -1,6 +1,7 @@
 package com.anonymous.vestigia
 import expo.modules.splashscreen.SplashScreenManager
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 
@@ -42,6 +43,13 @@ class MainActivity : ReactActivity() {
               mainComponentName,
               fabricEnabled
           ){})
+  }
+
+  // Forward USB_DEVICE_ATTACHED intents when app is already running (singleTask).
+  // Without this, Android's USB auto-grant doesn't apply to the running activity.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
   }
 
   /**

@@ -96,6 +96,14 @@ android {
         versionName "1.0.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/jni/CMakeLists.txt"
+            version "3.22.1"
+        }
     }
     signingConfigs {
         debug {
@@ -125,6 +133,8 @@ android {
         jniLibs {
             def enableLegacyPackaging = findProperty('expo.useLegacyPackaging') ?: 'false'
             useLegacyPackaging enableLegacyPackaging.toBoolean()
+            // Only one copy of the C++ runtime may be loaded — pick the RN one.
+            pickFirst '**/libc++_shared.so'
         }
     }
     androidResources {
@@ -156,13 +166,13 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // UVC camera — real AAR linked
+    // UVC camera — GroupGets fork of saki4510t; includes FRAME_FORMAT_Y16 + native libuvc.so
     implementation fileTree(dir: 'libs', include: ['*.aar', '*.jar'])
     implementation 'com.android.support:support-v4:27.1.1'
     implementation 'com.android.support:support-annotations:27.1.1'
     implementation('com.serenegiant:common:2.12.4') { exclude module: 'support-v4' }
 
-    def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
+def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";
 

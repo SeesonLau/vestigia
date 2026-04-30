@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!--
-        PureThermal Mini Pro JST-SR + FLIR Lepton 3.5
-        VID: 0x1e4e = 7758 decimal
-        PID: 0x0100 = 256 decimal
-    -->
-    <usb-device vendor-id="7758" product-id="256" />
+    <!-- GroupGets / PureThermal — VID 0x1e4e = 7758 decimal -->
+    <!-- Vendor-only match covers all PureThermal board variants -->
+    <usb-device vendor-id="7758" />
+
+    <!-- Explicit PID entries as fallback -->
+    <usb-device vendor-id="7758" product-id="256"  />  <!-- 0x0100 PureThermal 1 / Mini Pro -->
+    <usb-device vendor-id="7758" product-id="512"  />  <!-- 0x0200 PureThermal 2 -->
+    <usb-device vendor-id="7758" product-id="2304" />  <!-- 0x0900 PureThermal Mini -->
+    <usb-device vendor-id="7758" product-id="2305" />  <!-- 0x0901 PureThermal Mini Pro alt -->
 </resources>
