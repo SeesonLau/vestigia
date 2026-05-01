@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { StatusIndicator } from "../../components/ui/index";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
@@ -55,6 +54,8 @@ export default function ClinicHomeScreen() {
   const [todayStats, setTodayStats] = useState({ total: 0, positive: 0, negative: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [devices, setDevices] = useState<Array<{ id: string; device_code: string; firmware_version: string | null; is_active: boolean }>>([]);
+  const [devicesLoading, setDevicesLoading] = useState(true);
 
   const handleLogout = async () => {
     await logout();
@@ -72,12 +73,16 @@ export default function ClinicHomeScreen() {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
 
-      const [clinicResult, sessionsResult] = await Promise.all([
+      const [clinicResult, sessionsResult, devicesResult] = await Promise.all([
         supabase.from("clinics").select("name").eq("id", user.clinic_id).single(),
         supabase.from("screening_sessions")
           .select("id, classification:classification_results(classification)")
           .eq("clinic_id", user.clinic_id)
           .gte("started_at", todayStart.toISOString()),
+        supabase.from("devices")
+          .select("id, device_code, firmware_version, is_active")
+          .eq("clinic_id", user.clinic_id)
+          .order("device_code"),
       ]);
 
       if (clinicResult.error) {
@@ -94,7 +99,11 @@ export default function ClinicHomeScreen() {
         const negative = sessions.filter((s) => getClass(s) === "NEGATIVE").length;
         setTodayStats({ total: sessions.length, positive, negative });
       }
+      if (!devicesResult.error && devicesResult.data) {
+        setDevices(devicesResult.data as any);
+      }
       setStatsLoading(false);
+      setDevicesLoading(false);
     };
     fetchData();
   }, [user?.clinic_id]);
@@ -108,7 +117,6 @@ export default function ClinicHomeScreen() {
           <Text style={[styles.clinicName, { color: colors.text }]}>{clinicName}</Text>
         </View>
         <View style={styles.headerRight}>
-          <StatusIndicator status="connected" label="Scanner Online" />
           <TouchableOpacity
             onPress={handleLogout}
             style={styles.logoutBtn}
@@ -176,28 +184,41 @@ export default function ClinicHomeScreen() {
         />
 
         {/* Device status card */}
-        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Device Status</Text>
-        <View style={[styles.deviceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <View style={styles.deviceTop}>
-            <Text style={[styles.deviceName, { color: colors.text }]}>DPN-Scanner-01</Text>
-            <View style={[styles.deviceActive, { backgroundColor: `${colors.success}1F`, borderColor: `${colors.success}4D` }]}>
-              <View style={[styles.deviceActiveDot, { backgroundColor: colors.success }]} />
-              <Text style={[styles.deviceActiveText, { color: colors.success }]}>Active</Text>
-            </View>
+        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Registered Devices</Text>
+        {devicesLoading ? (
+          <ActivityIndicator color={colors.accent} style={{ paddingVertical: Spacing.md }} />
+        ) : devices.length === 0 ? (
+          <View style={[styles.deviceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.deviceName, { color: colors.textSec, fontFamily: Typography.fonts.body, fontSize: Typography.sizes.sm }]}>
+              No devices registered. Add one in Device Pairing.
+            </Text>
           </View>
-          <View style={styles.deviceStats}>
-            {[
-              ["Sensor", "MI0802M5S"],
-              ["Firmware", "v2.1.4"],
-              ["Last Cal.", "Feb 10"],
-            ].map(([label, value]) => (
-              <View key={label} style={styles.deviceStat}>
-                <Text style={[styles.deviceStatLabel, { color: colors.textSec }]}>{label}</Text>
-                <Text style={[styles.deviceStatValue, { color: colors.textSec }]}>{value}</Text>
+        ) : (
+          devices.map((dev, i) => (
+            <View key={dev.id} style={[styles.deviceCard, { backgroundColor: colors.card, borderColor: colors.border, marginBottom: i < devices.length - 1 ? Spacing.sm : 0 }]}>
+              <View style={styles.deviceTop}>
+                <Text style={[styles.deviceName, { color: colors.text }]}>{dev.device_code}</Text>
+                <View style={[styles.deviceActive, {
+                  backgroundColor: dev.is_active ? `${colors.success}1F` : `${colors.textSec}1F`,
+                  borderColor: dev.is_active ? `${colors.success}4D` : `${colors.textSec}4D`,
+                }]}>
+                  <View style={[styles.deviceActiveDot, { backgroundColor: dev.is_active ? colors.success : colors.textSec }]} />
+                  <Text style={[styles.deviceActiveText, { color: dev.is_active ? colors.success : colors.textSec }]}>
+                    {dev.is_active ? "Active" : "Inactive"}
+                  </Text>
+                </View>
               </View>
-            ))}
-          </View>
-        </View>
+              {dev.firmware_version && (
+                <View style={styles.deviceStats}>
+                  <View style={styles.deviceStat}>
+                    <Text style={[styles.deviceStatLabel, { color: colors.textSec }]}>Firmware</Text>
+                    <Text style={[styles.deviceStatValue, { color: colors.textSec }]}>{dev.firmware_version}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          ))
+        )}
       </View>
     </ScreenWrapper>
   );

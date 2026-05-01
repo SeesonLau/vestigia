@@ -26,28 +26,30 @@ export interface ApiPayload {
 }
 
 //Constants
-const FRAME_WIDTH = 160
-const FRAME_HEIGHT = 120
+export const FRAME_WIDTH = 160
 const BYTES_PER_PIXEL = 2       // Y16 = 16-bit = 2 bytes per pixel
-const EXPECTED_BYTES = FRAME_WIDTH * FRAME_HEIGHT * BYTES_PER_PIXEL // 38400
+const ROW_BYTES = FRAME_WIDTH * BYTES_PER_PIXEL  // 320 bytes per row
 
 // Lepton 3.5 Y16/RAW14 temperature conversion:
 // Raw value is in units of 0.01 kelvin. Subtract 27315 to get °C * 100, then divide by 100.
 const KELVIN_OFFSET = 27315     // 273.15°C * 100
 
 //Parse
-// Decodes a base64 Y16 frame string into a 160×120 matrix of Celsius temperatures.
+// Decodes a base64 Y16 frame into a matrix of Celsius temperatures.
+// Accepts any multiple of ROW_BYTES — height is inferred from byte count.
+// PureThermal fw:v1.3.0 delivers 17920B (160×56) per FID cycle; full frame is 38400B (160×120).
 export function parseY16Frame(base64: string): ThermalMatrix {
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
 
-  if (bytes.length < EXPECTED_BYTES) {
-    throw new Error(`Frame too small: got ${bytes.length} bytes, expected ${EXPECTED_BYTES}`)
+  if (bytes.length < ROW_BYTES || bytes.length % ROW_BYTES !== 0) {
+    throw new Error(`Frame size ${bytes.length}B is not a multiple of row width ${ROW_BYTES}B`)
   }
 
+  const height = bytes.length / ROW_BYTES
   const matrix: ThermalMatrix = []
-  for (let row = 0; row < FRAME_HEIGHT; row++) {
+  for (let row = 0; row < height; row++) {
     const rowData: number[] = []
     for (let col = 0; col < FRAME_WIDTH; col++) {
       const idx = (row * FRAME_WIDTH + col) * BYTES_PER_PIXEL

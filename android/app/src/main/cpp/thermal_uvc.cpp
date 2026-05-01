@@ -85,6 +85,7 @@ struct ThermalDevice {
     uint8_t frame_buf[FRAME_BUF_SIZE];
     size_t  frame_len;
     int8_t  last_fid;   // -1 = uninitialized; 0/1 = last seen FID bit
+    bool    synced;     // true after one-time FID resync; blind accumulator takes over
 
     // JNI back-ref
     JavaVM*  jvm;
@@ -226,10 +227,11 @@ static void* stream_thread(void* arg) {
         int idx = (int)(intptr_t)reaped->usercontext;
         UrbEntry* e = &dev->urbs[idx];
 
-        // UVC header-aware frame assembly.
-        // FID (bit 0) toggles at each true frame boundary — use it to resync.
-        // EOF (bit 1) marks the last packet of a frame — deliver on receipt.
-        // Fallback: deliver at FRAME_TARGET_BYTES in case FID/EOF are absent.
+        // Frame assembly strategy:
+        // 1. FID toggle is used ONCE to resync the blind accumulator to a true frame boundary.
+        //    After that, FID is ignored — a single delivery path prevents double-delivery and
+        //    partial frames (which caused the flicker + dark-image bug).
+        // 2. Blind accumulator delivers at exactly FRAME_TARGET_BYTES every time.
         uint8_t* ptr = e->buf;
         for (int p = 0; p < PKTS_PER_URB; p++) {
             int actual = (int)e->urb.iso_frame_desc[p].actual_length;
@@ -244,18 +246,15 @@ static void* stream_thread(void* arg) {
             }
 
             uint8_t fid = hdr_flags & 0x01;
-            bool    eof = (hdr_flags & 0x02) != 0;
 
-            // FID toggle → true frame boundary.
-            // Accept if ≥90% accumulated (handles slight telemetry-row size variance).
-            if (dev->last_fid >= 0 && fid != (uint8_t)dev->last_fid) {
-                if (dev->frame_len >= (size_t)(FRAME_TARGET_BYTES * 9 / 10)) {
-                    if (dev->frame_len > FRAME_TARGET_BYTES) dev->frame_len = FRAME_TARGET_BYTES;
-                    deliver_frame(dev, env);
-                } else if (dev->frame_len > 0) {
-                    LOGW("FID resync: dropping %zu-byte partial frame", dev->frame_len);
+            // One-time FID resync: discard any partial frame and align to this boundary.
+            // Once synced, FID is never used for delivery to avoid double-delivery/flicker.
+            if (!dev->synced && dev->last_fid >= 0 && fid != (uint8_t)dev->last_fid) {
+                if (dev->frame_len > 0) {
+                    LOGI("FID sync: dropping %zu-byte partial, aligning to frame boundary", dev->frame_len);
                     dev->frame_len = 0;
                 }
+                dev->synced = true;
             }
             dev->last_fid = (int8_t)fid;
 
@@ -268,13 +267,8 @@ static void* stream_thread(void* arg) {
                 dev->frame_len += payload_len;
             }
 
-            // EOF → deliver complete frame
-            if (eof && dev->frame_len >= FRAME_TARGET_BYTES) {
-                dev->frame_len = FRAME_TARGET_BYTES;
-                deliver_frame(dev, env);
-            }
-
-            // Fallback: deliver if buffer is full (handles missing FID/EOF)
+            // Single delivery point — blind accumulator at exactly FRAME_TARGET_BYTES.
+            // Always delivers 38400 bytes; Kotlin renders rows = frame.size / 320 = 120.
             if (dev->frame_len >= FRAME_TARGET_BYTES) {
                 dev->frame_len = FRAME_TARGET_BYTES;
                 deliver_frame(dev, env);

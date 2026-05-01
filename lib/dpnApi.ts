@@ -65,6 +65,13 @@ export async function scanPatient(data: DPNScanRequest): Promise<DPNScanResponse
     if (res.status === 400) {
       throw Object.assign(new Error("Invalid scan data, please retake the scan"), { status: 400 });
     }
+    if (res.status === 422) {
+      const body = await res.json().catch(() => ({})) as { message?: string };
+      throw Object.assign(
+        new Error(body.message ?? "Image validation failed. Please submit a real thermal foot image."),
+        { status: 422 },
+      );
+    }
     if (res.status === 503) {
       throw Object.assign(new Error("AI server is starting up, please retry in 30 seconds"), { status: 503 });
     }

@@ -69,6 +69,15 @@ export default function PatientLayout() {
         }}
       />
       <Tabs.Screen
+        name="import"
+        options={{
+          tabBarAccessibilityLabel: "Import Capture",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon icon="folder-open-outline" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="history"
         options={{
           tabBarAccessibilityLabel: "My History",
@@ -100,7 +109,9 @@ export default function PatientLayout() {
       <Tabs.Screen name="profile"         options={{ href: null as any }} />
       <Tabs.Screen name="privacy-policy"  options={{ href: null as any }} />
       <Tabs.Screen name="terms-of-service" options={{ href: null as any }} />
-      <Tabs.Screen name="contact-support" options={{ href: null as any }} />
+      <Tabs.Screen name="contact-support"  options={{ href: null as any }} />
+      <Tabs.Screen name="patient-details" options={{ href: null as any }} />
+      <Tabs.Screen name="bundle-detail"   options={{ href: null as any }} />
     </Tabs>
   );
 }

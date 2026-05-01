@@ -17,7 +17,6 @@ import { Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
 import { getUnsyncedCaptures } from "../../lib/db/offlineCaptures";
 import { useAuthStore } from "../../store/authStore";
-import { useDeviceStore } from "../../store/sessionStore";
 
 interface SettingRowProps {
   label: string;
@@ -93,7 +92,6 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
   const { logout } = useAuthStore();
-  const pairedDevice = useDeviceStore((s) => s.pairedDevice);
   const [autoUpload, setAutoUpload] = useState(true);
   const [autoReconnect, setAutoReconnect] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
@@ -155,9 +153,8 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow
             icon="hardware-chip-outline"
-            label={S.settings.pairedDevice}
-            subtitle={pairedDevice?.name ?? S.settings.noPairedDevice}
-            value={pairedDevice ? S.settings.connected : undefined}
+            label="Camera"
+            subtitle="FLIR Lepton 3.5 via USB-C"
             onPress={() => router.push("/(clinic)/pairing")}
           />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />

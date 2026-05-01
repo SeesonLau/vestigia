@@ -281,7 +281,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
         val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.JPEG, 75, out)
+        bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
         bmp.recycle()
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }

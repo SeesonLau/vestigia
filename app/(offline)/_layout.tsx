@@ -9,6 +9,8 @@ export default function OfflineLayout() {
       <Stack.Screen name="live-feed" />
       <Stack.Screen name="save" />
       <Stack.Screen name="history" />
+      <Stack.Screen name="patient-details" />
+      <Stack.Screen name="bundle-detail" />
     </Stack>
   );
 }
