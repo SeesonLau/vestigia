@@ -45,7 +45,9 @@ export default function PatientDetailsScreen({ returnRoute, headerLeft }: Props)
   const router = useRouter()
   const { colors } = useTheme()
   const {
-    leftImageB64, rightImageB64,
+    leftRawB64, rightRawB64,
+    leftProcessedB64, rightProcessedB64,
+    leftIsolatedB64, rightIsolatedB64,
     leftCsvContent, rightCsvContent,
     leftStats, rightStats,
     capturedAt,
@@ -81,7 +83,7 @@ export default function PatientDetailsScreen({ returnRoute, headerLeft }: Props)
     if (age === null || age < 0 || age > 120) return "Birthdate results in an invalid age."
     if (isNaN(weight) || weight <= 0) return "Enter a valid weight (kg)."
     if (isNaN(height) || height <= 0) return "Enter a valid height (cm)."
-    if (!leftImageB64 || !rightImageB64) return "Both foot captures are required."
+    if (!leftProcessedB64 || !rightProcessedB64) return "Both foot captures are required."
     if (!leftCsvContent || !rightCsvContent) return "Capture data is incomplete."
     return null
   }
@@ -103,8 +105,8 @@ export default function PatientDetailsScreen({ returnRoute, headerLeft }: Props)
           weight_kg:   weight,
           height_cm:   height,
         },
-        { image_b64: leftImageB64!,  csv_content: leftCsvContent!,  stats: leftStats  ?? { min: 0, max: 0, mean: 0 } },
-        { image_b64: rightImageB64!, csv_content: rightCsvContent!, stats: rightStats ?? { min: 0, max: 0, mean: 0 } },
+        { raw_image_b64: leftRawB64 ?? "",  processed_image_b64: leftProcessedB64!,  isolated_image_b64: leftIsolatedB64  ?? "", csv_content: leftCsvContent!,  stats: leftStats  ?? { min: 0, max: 0, mean: 0 } },
+        { raw_image_b64: rightRawB64 ?? "", processed_image_b64: rightProcessedB64!, isolated_image_b64: rightIsolatedB64 ?? "", csv_content: rightCsvContent!, stats: rightStats ?? { min: 0, max: 0, mean: 0 } },
         at,
       )
       clearBilateral()
@@ -143,9 +145,9 @@ export default function PatientDetailsScreen({ returnRoute, headerLeft }: Props)
         >
           {/* Capture thumbnails */}
           <View style={[styles.thumbRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <FootThumb label="Left Foot"  b64={leftImageB64}  stats={leftStats}  colors={colors} />
+            <FootThumb label="Left Foot"  b64={leftProcessedB64}  stats={leftStats}  colors={colors} />
             <View style={[styles.thumbDivider, { backgroundColor: colors.border }]} />
-            <FootThumb label="Right Foot" b64={rightImageB64} stats={rightStats} colors={colors} />
+            <FootThumb label="Right Foot" b64={rightProcessedB64} stats={rightStats} colors={colors} />
           </View>
 
           {/* Form */}

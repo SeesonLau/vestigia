@@ -16,13 +16,14 @@ import type { ThermalBundle } from "../../lib/thermal/bundleStorage"
 import { calculateAge, calculateBMI, bmiCategory } from "../../lib/thermal/bundleUtils"
 
 interface Props {
-  bundleCode: string
+  bundleCode:  string
+  onViewCsv?:  (side: "left" | "right") => void
 }
 
-export default function BundleDetailScreen({ bundleCode }: Props) {
+export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
   const router = useRouter()
   const { colors } = useTheme()
-  const [bundle, setBundle] = useState<ThermalBundle | null>(null)
+  const [bundle,  setBundle]  = useState<ThermalBundle | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,17 +33,8 @@ export default function BundleDetailScreen({ bundleCode }: Props) {
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header
-          title="Bundle Detail"
-          leftIcon={
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
-            </TouchableOpacity>
-          }
-        />
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
+        <Header title="Bundle Detail" leftIcon={<BackBtn router={router} colors={colors} />} />
+        <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
       </ScreenWrapper>
     )
   }
@@ -50,14 +42,7 @@ export default function BundleDetailScreen({ bundleCode }: Props) {
   if (!bundle) {
     return (
       <ScreenWrapper>
-        <Header
-          title="Bundle Detail"
-          leftIcon={
-            <TouchableOpacity onPress={() => router.back()}>
-              <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
-            </TouchableOpacity>
-          }
-        />
+        <Header title="Bundle Detail" leftIcon={<BackBtn router={router} colors={colors} />} />
         <View style={styles.centered}>
           <Text style={[styles.emptyText, { color: colors.textSec }]}>Bundle not found.</Text>
         </View>
@@ -75,11 +60,7 @@ export default function BundleDetailScreen({ bundleCode }: Props) {
     <ScreenWrapper>
       <Header
         title={bundle.bundle_code}
-        leftIcon={
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
-          </TouchableOpacity>
-        }
+        leftIcon={<BackBtn router={router} colors={colors} />}
       />
 
       <ScrollView
@@ -90,26 +71,25 @@ export default function BundleDetailScreen({ bundleCode }: Props) {
         {/* Patient card */}
         <Section title="Patient" colors={colors}>
           <Text style={[styles.patientName, { color: colors.text }]}>{name}</Text>
-
           <View style={styles.statsGrid}>
-            <InfoCell label="Sex"       value={p.gender}                            colors={colors} />
+            <InfoCell label="Sex"       value={p.gender}                                 colors={colors} />
             <InfoCell label="Birthdate" value={new Date(p.birthdate).toLocaleDateString()} colors={colors} />
-            <InfoCell label="Age"       value={`${age} yrs`}                        colors={colors} />
-            <InfoCell label="Weight"    value={`${p.weight_kg} kg`}                 colors={colors} />
-            <InfoCell label="Height"    value={`${p.height_cm} cm`}                 colors={colors} />
-            <InfoCell label="BMI"       value={`${bmi.toFixed(1)} · ${cat}`}        colors={colors} />
+            <InfoCell label="Age"       value={`${age} yrs`}                             colors={colors} />
+            <InfoCell label="Weight"    value={`${p.weight_kg} kg`}                      colors={colors} />
+            <InfoCell label="Height"    value={`${p.height_cm} cm`}                      colors={colors} />
+            <InfoCell label="BMI"       value={`${bmi.toFixed(1)} · ${cat}`}             colors={colors} />
           </View>
         </Section>
 
         {/* Sync status + timestamp */}
         <View style={[styles.metaRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {bundle.synced ? (
-            <View style={styles.syncRow}>
+            <View style={styles.inlineRow}>
               <Ionicons name="checkmark-circle-outline" size={14} color={colors.success} />
               <Text style={[styles.metaText, { color: colors.success }]}>Synced</Text>
             </View>
           ) : (
-            <View style={styles.syncRow}>
+            <View style={styles.inlineRow}>
               <Ionicons name="cloud-offline-outline" size={14} color={colors.warning} />
               <Text style={[styles.metaText, { color: colors.warning }]}>Local only</Text>
             </View>
@@ -121,22 +101,41 @@ export default function BundleDetailScreen({ bundleCode }: Props) {
 
         {/* Thermal images */}
         <Section title="Thermal Images" colors={colors}>
-          <FootImageCard label="Left Foot" foot={bundle.left} colors={colors} />
-          <FootImageCard label="Right Foot" foot={bundle.right} colors={colors} />
+          <FootImageCard
+            label="Left Foot"  foot={bundle.left}
+            onViewCsv={onViewCsv ? () => onViewCsv("left")  : undefined}
+            colors={colors}
+          />
+          <FootImageCard
+            label="Right Foot" foot={bundle.right}
+            onViewCsv={onViewCsv ? () => onViewCsv("right") : undefined}
+            colors={colors}
+          />
         </Section>
 
-        {/* CSV info */}
+        {/* Saved files */}
         <Section title="Saved Files" colors={colors}>
-          <FileRow icon="document-text-outline" name={bundle.left.csv_filename}  colors={colors} />
-          <FileRow icon="document-text-outline" name={bundle.right.csv_filename} colors={colors} />
-          <FileRow icon="image-outline"         name={bundle.left.image_filename}  colors={colors} />
-          <FileRow icon="image-outline"         name={bundle.right.image_filename} colors={colors} />
+          <FileRow icon="image-outline"         name={bundle.left.processed_filename}  colors={colors} />
+          <FileRow icon="image-outline"         name={bundle.left.isolated_filename}   colors={colors} />
+          <FileRow icon="document-text-outline" name={bundle.left.csv_filename}        colors={colors} />
+          <FileRow icon="image-outline"         name={bundle.right.processed_filename} colors={colors} />
+          <FileRow icon="image-outline"         name={bundle.right.isolated_filename}  colors={colors} />
+          <FileRow icon="document-text-outline" name={bundle.right.csv_filename}       colors={colors} />
           <Text style={[styles.fileNote, { color: colors.textSec }]}>
-            Files are stored on-device inside this bundle and can be synced when online.
+            Files are stored on-device and can be synced when online.
           </Text>
         </Section>
       </ScrollView>
+
     </ScreenWrapper>
+  )
+}
+
+function BackBtn({ router, colors }: { router: ReturnType<typeof useRouter>; colors: ThemeColors }) {
+  return (
+    <TouchableOpacity onPress={() => router.back()}>
+      <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
+    </TouchableOpacity>
   )
 }
 
@@ -161,21 +160,76 @@ function InfoCell({ label, value, colors }: { label: string; value: string; colo
 }
 
 function FootImageCard({
-  label, foot, colors,
+  label, foot, onViewCsv, colors,
 }: {
   label: string
   foot: ThermalBundle["left"]
+  onViewCsv?: () => void
   colors: ThemeColors
 }) {
+  const hasRaw      = !!foot.raw_image_b64
+  const hasIsolated = !!foot.isolated_image_b64
+
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
-      <Text style={[styles.footCardLabel, { color: colors.textSec }]}>{label.toUpperCase()}</Text>
-      <Image
-        source={{ uri: "data:image/png;base64," + foot.image_b64 }}
-        style={[styles.footImage, { borderColor: colors.border }]}
-        resizeMode="contain"
-        fadeDuration={0}
-      />
+      <View style={styles.footCardHeader}>
+        <Text style={[styles.footCardLabel, { color: colors.textSec }]}>{label.toUpperCase()}</Text>
+        {onViewCsv && (
+          <TouchableOpacity
+            onPress={onViewCsv}
+            style={[styles.csvBtn, { borderColor: colors.accent }]}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="grid-outline" size={12} color={colors.accent} />
+            <Text style={[styles.csvBtnText, { color: colors.accent }]}>View CSV</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Three images: Unprocessed | Post-Processed | Isolated */}
+      <View style={styles.imageRow}>
+        <View style={styles.imageCell}>
+          <Text style={[styles.imageLabel, { color: colors.textSec }]}>UNPROCESSED</Text>
+          {hasRaw ? (
+            <Image
+              source={{ uri: "data:image/jpeg;base64," + foot.raw_image_b64 }}
+              style={[styles.footImage, { borderColor: colors.border }]}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
+          ) : (
+            <View style={[styles.footImage, styles.noImage, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              <Ionicons name="camera-outline" size={16} color={colors.border} />
+            </View>
+          )}
+        </View>
+        <View style={styles.imageCell}>
+          <Text style={[styles.imageLabel, { color: colors.textSec }]}>POST-PROCESSED</Text>
+          <Image
+            source={{ uri: "data:image/png;base64," + foot.processed_image_b64 }}
+            style={[styles.footImage, { borderColor: colors.border }]}
+            resizeMode="contain"
+            fadeDuration={0}
+          />
+        </View>
+        <View style={styles.imageCell}>
+          <Text style={[styles.imageLabel, { color: colors.textSec }]}>ISOLATED</Text>
+          {hasIsolated ? (
+            <Image
+              source={{ uri: "data:image/png;base64," + foot.isolated_image_b64 }}
+              style={[styles.footImage, { borderColor: colors.border, backgroundColor: colors.surface }]}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
+          ) : (
+            <View style={[styles.footImage, styles.noImage, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+              <Ionicons name="scan-outline" size={16} color={colors.border} />
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Temp stats */}
       <View style={styles.tempRow}>
         <TempStat label="MIN"  value={foot.stats.min.toFixed(1)}  colors={colors} />
         <TempStat label="MAX"  value={foot.stats.max.toFixed(1)}  colors={colors} />
@@ -204,31 +258,40 @@ function FileRow({ icon, name, colors }: { icon: string; name: string; colors: T
 }
 
 const styles = StyleSheet.create({
-  scroll:  { padding: Spacing.lg, paddingBottom: Spacing["3xl"], gap: Spacing.lg },
+  scroll:   { padding: Spacing.lg, paddingBottom: Spacing["3xl"], gap: Spacing.lg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyText: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
+  emptyText:{ fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
 
-  metaRow: {
+  metaRow:   {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",
     borderWidth: 1, borderRadius: Radius.md,
     paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
   },
-  syncRow:  { flexDirection: "row", alignItems: "center", gap: 5 },
-  metaText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
+  inlineRow: { flexDirection: "row", alignItems: "center", gap: 5 },
+  metaText:  { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
 
   section:      { gap: Spacing.xs },
   sectionTitle: { fontSize: 10, fontFamily: Typography.fonts.label, letterSpacing: 1.5, paddingLeft: 2 },
   sectionCard:  { borderWidth: 1, borderRadius: Radius.lg, overflow: "hidden" },
 
-  patientName: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading, padding: Spacing.md, paddingBottom: Spacing.xs },
-  statsGrid:   { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm },
-  infoCell:    { width: "50%", paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
+  patientName:   { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading, padding: Spacing.md, paddingBottom: Spacing.xs },
+  statsGrid:     { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: Spacing.sm, paddingBottom: Spacing.sm },
+  infoCell:      { width: "50%", paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs },
   infoCellLabel: { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1 },
   infoCellValue: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading, marginTop: 2 },
 
-  footCard:   { padding: Spacing.md, gap: Spacing.sm, borderBottomWidth: 1 },
-  footCardLabel: { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1.5 },
-  footImage:  { width: "100%", aspectRatio: 160 / 120, borderRadius: Radius.md, borderWidth: 1 },
+  footCard:       { padding: Spacing.md, gap: Spacing.sm, borderBottomWidth: 1 },
+  footCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  footCardLabel:  { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1.5 },
+  csvBtn:         { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 },
+  csvBtnText:     { fontSize: 10, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+
+  imageRow:   { flexDirection: "row", gap: Spacing.xs },
+  imageCell:  { flex: 1, gap: 3 },
+  imageLabel: { fontSize: 7, fontFamily: Typography.fonts.label, letterSpacing: 0.5, textAlign: "center" },
+  footImage:  { width: "100%", aspectRatio: 160 / 120, borderRadius: Radius.sm, borderWidth: 1 },
+  noImage:    { alignItems: "center", justifyContent: "center" },
+
   tempRow:    { flexDirection: "row", justifyContent: "space-around" },
   tempStat:   { alignItems: "center", gap: 2 },
   tempLabel:  { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1 },

@@ -71,6 +71,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
     @Volatile private var displayMode   = "rgb"    // raw | agc | rgb
     @Volatile private var palette       = "ironbow" // ironbow | rainbow | rainbow_hc | white_hot | black_hot | arctic | sepia
 
+    // Frame readiness tracking
+    private var prevFrameForDiff: ByteArray? = null
+    private var frameIndex = 0
+
     override fun getName() = "UVCCamera"
 
     // Called from C++ stream thread — receives a complete 38400-byte Y16 frame
@@ -169,7 +173,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         promise.resolve(true)
     }
 
-    // Process the buffered frames on a background thread, then auto-save to device storage.
     @ReactMethod
     fun processCapture(promise: Promise) {
         val frames = synchronized(frameBufferLock) { frameBuffer.toList() }
@@ -180,27 +183,18 @@ class UVCModule(reactContext: ReactApplicationContext) :
         Thread {
             try {
                 val result = processThermalFrames(frames)
-
-                val timestamp = System.currentTimeMillis()
-                val imgName = "thermal_${timestamp}.png"
-                val csvName = "thermal_${timestamp}.csv"
-
-                val pngBytes = Base64.decode(result.displayPngB64, Base64.NO_WRAP)
-                savePngToMediaStore(pngBytes, imgName)
-                saveCsvToMediaStore(result.csvContent, csvName)
-
                 val map = Arguments.createMap()
-                map.putString("displayPngB64", result.displayPngB64)
-                map.putString("tiffB64",        result.tiffB64)
-                map.putString("csvContent",     result.csvContent)
-                map.putInt   ("frameCount",     result.frameCount)
-                map.putInt   ("width",          result.width)
-                map.putInt   ("height",         result.height)
-                map.putDouble("minTemp",        result.minTemp)
-                map.putDouble("maxTemp",        result.maxTemp)
-                map.putDouble("meanTemp",       result.meanTemp)
-                map.putString("imageSaved",     imgName)
-                map.putString("csvSaved",       csvName)
+                map.putString("displayPngB64",    result.displayPngB64)
+                map.putString("isolatedPngB64",   result.isolatedPngB64)
+                map.putString("tiffB64",          result.tiffB64)
+                map.putString("csvContent",       result.csvContent)
+                map.putString("maskedCsvContent", result.maskedCsvContent)
+                map.putInt   ("frameCount",       result.frameCount)
+                map.putInt   ("width",            result.width)
+                map.putInt   ("height",           result.height)
+                map.putDouble("minTemp",          result.minTemp)
+                map.putDouble("maxTemp",          result.maxTemp)
+                map.putDouble("meanTemp",         result.meanTemp)
                 val logs = Arguments.createArray()
                 result.log.forEach { logs.pushString(it) }
                 map.putArray("log", logs)
@@ -212,6 +206,31 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }.start()
     }
 
+    @ReactMethod
+    fun savePngToDevice(filename: String, base64Png: String, promise: Promise) {
+        Thread {
+            try {
+                val bytes = Base64.decode(base64Png, Base64.NO_WRAP)
+                savePngToMediaStore(bytes, filename)
+                promise.resolve(filename)
+            } catch (e: Exception) {
+                promise.reject("SAVE_ERROR", e.message ?: "Failed to save PNG")
+            }
+        }.start()
+    }
+
+    @ReactMethod
+    fun saveCsvToDevice(filename: String, csvContent: String, promise: Promise) {
+        Thread {
+            try {
+                saveCsvToMediaStore(csvContent, filename)
+                promise.resolve(filename)
+            } catch (e: Exception) {
+                promise.reject("SAVE_ERROR", e.message ?: "Failed to save CSV")
+            }
+        }.start()
+    }
+
     @ReactMethod fun addListener(eventName: String) {}
     @ReactMethod fun removeListeners(count: Int) {}
 
@@ -219,9 +238,15 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     private fun startDisplayLoop() {
         displayRunning = true
+        prevFrameForDiff = null
+        frameIndex = 0
         Thread {
             while (displayRunning) {
                 val frame = displayQueue.poll(500, TimeUnit.MILLISECONDS) ?: continue
+
+                // Compute and emit readiness stats for every frame regardless of pause state
+                try { emitFrameStats(frame) } catch (_: Exception) {}
+
                 if (streamPaused) continue
                 try {
                     val jpegB64 = y16ToDisplayJpeg(frame)
@@ -231,6 +256,41 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 }
             }
         }.apply { name = "ThermalDisplay"; isDaemon = true }.start()
+    }
+
+    private fun emitFrameStats(frame: ByteArray) {
+        val n = frame.size / 2
+        var sum = 0.0; var sumSq = 0.0
+        val temps = FloatArray(n)
+        for (i in 0 until n) {
+            val lo = frame[i * 2].toInt() and 0xFF
+            val hi = frame[i * 2 + 1].toInt() and 0xFF
+            val t = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+            temps[i] = t; sum += t; sumSq += t * t
+        }
+        val mean     = (sum / n).toFloat()
+        val variance = ((sumSq / n) - mean * mean).toFloat().coerceAtLeast(0f)
+
+        val prev = prevFrameForDiff
+        val frameDiff = if (prev != null && prev.size == frame.size) {
+            var diffSum = 0.0
+            for (i in 0 until n) {
+                val lo = prev[i * 2].toInt() and 0xFF
+                val hi = prev[i * 2 + 1].toInt() and 0xFF
+                val t  = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+                diffSum += Math.abs(temps[i] - t)
+            }
+            (diffSum / n).toFloat()
+        } else 0f
+
+        prevFrameForDiff = frame.copyOf()
+        val idx = ++frameIndex
+
+        val map = Arguments.createMap()
+        map.putDouble("variance",   variance.toDouble())
+        map.putDouble("frameDiff",  frameDiff.toDouble())
+        map.putInt   ("frameIndex", idx)
+        sendEvent("onFrameStats", map)
     }
 
     // Y16 → JPEG via the current displayMode and palette. Single frame, no averaging.
@@ -369,16 +429,18 @@ class UVCModule(reactContext: ReactApplicationContext) :
     // ── Capture processing ────────────────────────────────────────────────────
 
     private data class ThermalResult(
-        val displayPngB64: String,
-        val tiffB64:        String,
-        val csvContent:     String,
-        val frameCount:     Int,
-        val width:          Int,
-        val height:         Int,
-        val minTemp:        Double,
-        val maxTemp:        Double,
-        val meanTemp:       Double,
-        val log:            List<String>,
+        val displayPngB64:   String,
+        val isolatedPngB64:  String,
+        val tiffB64:         String,
+        val csvContent:      String,
+        val maskedCsvContent:String,
+        val frameCount:      Int,
+        val width:           Int,
+        val height:          Int,
+        val minTemp:         Double,
+        val maxTemp:         Double,
+        val meanTemp:        Double,
+        val log:             List<String>,
     )
 
     private fun processThermalFrames(frames: List<ByteArray>): ThermalResult {
@@ -483,18 +545,171 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("TIFF encoded (${tiffBytes.size} bytes)")
         log.add("Processing complete")
 
+        // Foot isolation
+        val mask             = isolateFootMask(filtered, rows, cols)
+        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range)
+        val maskedCsvContent = buildMaskedCsv(filtered, mask, rows, cols)
+        log.add("Foot isolation complete")
+
         return ThermalResult(
-            displayPngB64 = displayPngB64,
-            tiffB64       = tiffB64,
-            csvContent    = csvSB.toString(),
-            frameCount    = n,
-            width         = cols,
-            height        = rows,
-            minTemp       = minT.toDouble(),
-            maxTemp       = maxT.toDouble(),
-            meanTemp      = meanT,
-            log           = log,
+            displayPngB64    = displayPngB64,
+            isolatedPngB64   = isolatedPngB64,
+            tiffB64          = tiffB64,
+            csvContent       = csvSB.toString(),
+            maskedCsvContent = maskedCsvContent,
+            frameCount       = n,
+            width            = cols,
+            height           = rows,
+            minTemp          = minT.toDouble(),
+            maxTemp          = maxT.toDouble(),
+            meanTemp         = meanT,
+            log              = log,
         )
+    }
+
+    // ── Foot isolation ────────────────────────────────────────────────────────
+
+    private fun isolateFootMask(filtered: FloatArray, rows: Int, cols: Int): BooleanArray {
+        // Otsu's threshold — finds the temp that maximises between-class variance
+        val threshold = otsuThreshold(filtered)
+        val hot = BooleanArray(rows * cols) { filtered[it] >= threshold }
+
+        // BFS flood fill — label connected components (4-connectivity)
+        val labels = IntArray(rows * cols) { -1 }
+        val sizes  = mutableListOf<Int>()
+        val queue  = IntArray(rows * cols)
+
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                val i = r * cols + c
+                if (!hot[i] || labels[i] >= 0) continue
+                val label = sizes.size; sizes.add(0)
+                var head = 0; var tail = 0
+                queue[tail++] = i; labels[i] = label
+                while (head < tail) {
+                    val cur = queue[head++]
+                    val cr = cur / cols; val cc = cur % cols
+                    sizes[label] = sizes[label] + 1
+                    val up    = if (cr > 0)      (cr-1)*cols+cc else -1
+                    val down  = if (cr < rows-1) (cr+1)*cols+cc else -1
+                    val left  = if (cc > 0)      cr*cols+(cc-1) else -1
+                    val right = if (cc < cols-1) cr*cols+(cc+1) else -1
+                    for (ni in intArrayOf(up, down, left, right)) {
+                        if (ni < 0 || !hot[ni] || labels[ni] >= 0) continue
+                        labels[ni] = label; queue[tail++] = ni
+                    }
+                }
+            }
+        }
+
+        if (sizes.isEmpty()) return hot
+        val best = sizes.indices.maxByOrNull { sizes[it] } ?: 0
+        val clean = BooleanArray(rows * cols) { labels[it] == best }
+
+        // Morphological closing: dilate 5px then erode 2px.
+        // Net effect: fills finger-gap holes (closing) with ~3px outward expansion.
+        val DILATE = 5
+        val ERODE  = 2
+
+        val dilated = BooleanArray(rows * cols)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                if (!clean[r * cols + c]) continue
+                for (dr in -DILATE..DILATE) {
+                    for (dc in -DILATE..DILATE) {
+                        val nr = r + dr; val nc = c + dc
+                        if (nr in 0 until rows && nc in 0 until cols)
+                            dilated[nr * cols + nc] = true
+                    }
+                }
+            }
+        }
+
+        val closed = BooleanArray(rows * cols)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                if (!dilated[r * cols + c]) continue
+                var keep = true
+                outer@ for (dr in -ERODE..ERODE) {
+                    for (dc in -ERODE..ERODE) {
+                        val nr = r + dr; val nc = c + dc
+                        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !dilated[nr * cols + nc]) {
+                            keep = false; break@outer
+                        }
+                    }
+                }
+                closed[r * cols + c] = keep
+            }
+        }
+        return closed
+    }
+
+    // Otsu's method: finds the threshold that maximises between-class variance over 256 bins.
+    private fun otsuThreshold(temps: FloatArray): Float {
+        var minT = Float.MAX_VALUE; var maxT = -Float.MAX_VALUE
+        for (v in temps) { if (v < minT) minT = v; if (v > maxT) maxT = v }
+        val range = maxT - minT
+        if (range <= 0f) return minT
+
+        val BINS = 256
+        val hist = IntArray(BINS)
+        for (v in temps) {
+            val bin = ((v - minT) / range * (BINS - 1)).toInt().coerceIn(0, BINS - 1)
+            hist[bin]++
+        }
+
+        val n = temps.size.toDouble()
+        var totalSum = 0.0
+        for (i in 0 until BINS) totalSum += i.toDouble() * hist[i]
+
+        var w0 = 0; var sum0 = 0.0
+        var bestVar = 0.0; var bestBin = 0
+        for (t in 0 until BINS - 1) {
+            w0 += hist[t]; val w1 = n - w0
+            if (w0 == 0 || w1 == 0.0) continue
+            sum0 += t.toDouble() * hist[t]
+            val mu0 = sum0 / w0
+            val mu1 = (totalSum - sum0) / w1
+            val diff = mu0 - mu1
+            val bv   = (w0 / n) * (w1 / n) * diff * diff
+            if (bv > bestVar) { bestVar = bv; bestBin = t }
+        }
+        return minT + (bestBin.toFloat() / (BINS - 1)) * range
+    }
+
+    private fun buildIsolatedPng(
+        filtered: FloatArray, mask: BooleanArray,
+        rows: Int, cols: Int, p1: Float, range: Float
+    ): String {
+        val pixels = IntArray(rows * cols)
+        for (i in 0 until rows * cols) {
+            if (!mask[i]) {
+                pixels[i] = 0
+            } else {
+                val t = ((filtered[i] - p1) / range).coerceIn(0f, 1f)
+                val (r, g, b) = paletteRgb(t, palette)
+                pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+        val out = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        bmp.recycle()
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    }
+
+    private fun buildMaskedCsv(filtered: FloatArray, mask: BooleanArray, rows: Int, cols: Int): String {
+        val sb = StringBuilder(rows * cols * 8)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                if (c > 0) sb.append(',')
+                val i = r * cols + c
+                sb.append(if (mask[i]) "%.2f".format(filtered[i]) else "0.00")
+            }
+            sb.append('\n')
+        }
+        return sb.toString()
     }
 
     // 16-bit grayscale TIFF encoder (little-endian, uncompressed)
@@ -624,6 +839,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         displayRunning = false
         streamPaused   = false
         displayQueue.clear()
+        prevFrameForDiff = null
+        frameIndex = 0
         if (connected || usbConnection != null) {
             try { nativeClose() } catch (_: Exception) {}
             try { usbConnection?.close() } catch (_: Exception) {}

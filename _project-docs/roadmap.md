@@ -10,10 +10,13 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | — | End-to-end test on physical device: bilateral FLIR capture → DPN API → result → save to cloud | 1–2 hrs | Install release APK. Connect PureThermal Mini Pro via USB OTG. Verify Y16 frames render in live-feed → assessment → DPN result → save. |
-| 2 | PLAN | Offline history + patient live-feed + patient history screens | 3–4 hrs | See plan file `fluttering-scribbling-floyd.md`. Four new screens + two modified layouts. |
-| 3 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
-| 4 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
+| 1 | — | `npx expo run:android` rebuild + physical device test: bilateral FLIR capture → isolation → bundle save → CSV viewer → BundleDetailScreen 3-image display | 1–2 hrs | All Kotlin + JS changes in v0.9.7 and v0.9.8 need a native rebuild before testing. |
+| 2 | — | Verify Y16 temperature calibration on physical device | 30 min | Check TLINEAR mode (raw/100 − 273.15) vs uncalibrated RAW14; confirm 160×120 not 160×121 (telemetry row). |
+| 3 | — | End-to-end DPN API test with real thermal data | 1–2 hrs | Bilateral FLIR capture → assessment → DPN result → save to cloud. |
+| 4 | CLEAN | Delete `components/thermal/CsvViewerModal.tsx` | 5 min | Dead code — replaced by CsvViewerScreen, not imported anywhere. |
+| 5 | PLAN | Offline history + patient live-feed + patient history screens | 3–4 hrs | See plan file `fluttering-scribbling-floyd.md`. Four new screens + two modified layouts. |
+| 6 | GAP-08 | Thermal map angiosome overlay | 3–4 hrs | API returns `diagnosis_factors` strings, not per-angiosome data. Decide if overlay is feasible or drop. |
+| 7 | CODE-09 | Replace `MOCK_ANGIOSOMES` in clinical-data.tsx | 2 hrs | Use real preprocessing output. |
 
 ---
 
@@ -134,6 +137,12 @@ If the AI API already returns a `risk_level`, use that directly instead.
 
 | Item | Version | Date |
 |---|---|---|
+| Y16 JNI bridge — GRAY16 added to libuvc; Y16 GUID registered; UVCPreview.cpp mode=2 raw path; AAR rebuilt | v0.9.7 | 2026-04-25 |
+| Kotlin isolation pipeline — Otsu + BFS largest-component + morphological closing; isolatedPngB64 + maskedCsvContent from native | v0.9.8 | 2026-05-01 |
+| Bundle file naming — `${code}_L_raw.png/_processed.png/_isolated.png/_csv.csv`; raw JPEG bundle-only | v0.9.8 | 2026-05-01 |
+| BundleDetailScreen 3-image display — UNPROCESSED, POST-PROCESSED, ISOLATED per foot | v0.9.8 | 2026-05-01 |
+| CsvViewerScreen — WebView HTML ironbow grid; CELL_PX=44; device-width viewport; pinch-to-zoom | v0.9.8 | 2026-05-01 |
+| LOW_SIGNAL_MIN fix — 6.0 → 2.5°C² (fixes "No Subject" false positive in indoor use) | v0.9.8 | 2026-05-01 |
 | GAP-01/02/03 — Real BLE scanning (react-native-ble-plx) + ESP32 WiFi WebSocket stream (Waveshare MIO802M5S) | v0.8.0 | 2026-04-06 |
 | Session detail screens removed (clinic + patient) — blank 5th tab eliminated | v0.8.0 | 2026-04-06 |
 | CameraSource dual-path in live-feed (FLIR UVC vs ESP32 WiFi) | v0.8.0 | 2026-04-06 |
@@ -221,3 +230,9 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.9.2 | Operator avatar in History Cloud tab header (Image or initials fallback) | 2026-04-07 |
 | v0.9.2 | Supabase: profiles.avatar_url column + avatars Storage bucket (public=true) + 4 RLS policies | 2026-04-07 |
 | v0.9.2 | expo-image-picker installed with dynamic import pattern (prevents native crash before rebuild) | 2026-04-07 |
+| v0.9.7 | Y16 JNI bridge — UVC_FRAME_FORMAT_GRAY16 added to libuvc; Y16 GUID registered; UVCPreview.cpp 3-way mode switch; AAR rebuilt | 2026-04-25 |
+| v0.9.8 | Kotlin foot isolation — Otsu threshold + BFS + morphological closing (dilate 5 / erode 2); buildIsolatedPng + buildMaskedCsv | 2026-05-01 |
+| v0.9.8 | Bundle capture overhaul — savePngToDevice/saveCsvToDevice React methods; FootData redesign; bundle-code filenames | 2026-05-01 |
+| v0.9.8 | BundleDetailScreen 3-image display — UNPROCESSED, POST-PROCESSED, ISOLATED per foot | 2026-05-01 |
+| v0.9.8 | CsvViewerScreen — WebView HTML ironbow grid; CELL_PX=44; pinch-to-zoom; csv-viewer routes in all 3 groups | 2026-05-01 |
+| v0.9.8 | LOW_SIGNAL_MIN 6.0 → 2.5°C² — fixes "No Subject" false positive indoors | 2026-05-01 |

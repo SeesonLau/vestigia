@@ -16,11 +16,14 @@ import type { ProcessedCapture } from "../../lib/thermal/captureProcessor"
 import {
   connectCamera, disconnectCamera,
   onCameraConnected, onCameraDisconnected, onCameraFormats, onDisplayFrame,
+  onFrameStats,
   pauseCamera, resumeCamera,
   setDisplayMode as setDisplayModeNative,
   setPalette as setPaletteNative,
 } from "../../lib/thermal/uvcCamera"
 import type { DisplayMode, PaletteType } from "../../lib/thermal/uvcCamera"
+import ReadinessIndicator from "./ReadinessIndicator"
+import type { ReadinessState } from "./ReadinessIndicator"
 
 const { width: SCREEN_W } = Dimensions.get("window")
 const MAP_W = SCREEN_W - Spacing.lg * 2
@@ -86,6 +89,9 @@ export default function ThermalLiveFeedScreen({
   //Settings
   const [showSettings, setShowSettings] = useState(false)
 
+  //Readiness
+  const [readiness, setReadiness] = useState<ReadinessState>({ variance: 0, frameDiff: 0, frameIndex: 0 })
+
   const frameTimestamps = useRef<number[]>([])
   const pulseAnim       = useRef(new Animated.Value(1)).current
   const capturedRef     = useRef(false)
@@ -112,6 +118,7 @@ export default function ThermalLiveFeedScreen({
     let unsubDisplay:    (() => void) | null = null
     let unsubConnect:    (() => void) | null = null
     let unsubDisconnect: (() => void) | null = null
+    let unsubStats:      (() => void) | null = null
 
     async function setup() {
       unsubConnect    = onCameraConnected(() => setCameraStatus("connected"))
@@ -120,6 +127,7 @@ export default function ThermalLiveFeedScreen({
         setDisplayUri(null)
         setFps(0)
         frameTimestamps.current = []
+        setReadiness({ variance: 0, frameDiff: 0, frameIndex: 0 })
       })
       const unsubFormats = onCameraFormats(setSupportedFormats)
       unsubDisplay = onDisplayFrame((jpegB64) => {
@@ -127,6 +135,7 @@ export default function ThermalLiveFeedScreen({
         setDisplayUri("data:image/jpeg;base64," + jpegB64)
         computeFps()
       })
+      unsubStats = onFrameStats((s) => setReadiness(s))
       try {
         await connectCamera()
       } catch (e: unknown) {
@@ -144,6 +153,7 @@ export default function ThermalLiveFeedScreen({
       unsubDisplay?.()
       unsubConnect?.()
       unsubDisconnect?.()
+      unsubStats?.()
       disconnectCamera()
     }
   }, [retryKey])
@@ -180,12 +190,15 @@ export default function ThermalLiveFeedScreen({
     triggerPulse()
     setCapturing(true)
 
+    // Snapshot the live frame URI before processFrames() pauses/processes
+    const rawImageUri = displayUri
+
     const isBilateral = captureMode === "bilateral"
     const step: CaptureStep = isBilateral ? captureStep : "single"
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      const result = await processFrames()
+      const result = await processFrames(rawImageUri)
       await onCapture(result, step, footArg)
 
       if (isBilateral) {
@@ -263,6 +276,11 @@ export default function ThermalLiveFeedScreen({
           onRetry={() => { disconnectCamera(); setRetryKey((k) => k + 1) }}
           colors={colors}
         />
+
+        {/* Capture readiness indicator — shown only while camera is live and capture not yet done */}
+        {cameraStatus === "connected" && !allDone && !cameraPaused && (
+          <ReadinessIndicator readiness={readiness} colors={colors} />
+        )}
 
         {/* Bilateral step indicator */}
         {captureMode === "bilateral" && (

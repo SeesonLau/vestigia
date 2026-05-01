@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)"
+      "Bash(*)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)"
     ]
   }
 }

@@ -109,6 +109,7 @@ export default function ClinicLayout() {
       <Tabs.Screen name="register-patient"  options={{ href: null as any }} />
       <Tabs.Screen name="patient-details"  options={{ href: null as any }} />
       <Tabs.Screen name="bundle-detail"    options={{ href: null as any }} />
+      <Tabs.Screen name="csv-viewer"       options={{ href: null as any }} />
     </Tabs>
   );
 }

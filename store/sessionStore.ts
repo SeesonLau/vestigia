@@ -48,8 +48,12 @@ interface ThermalState {
   fps: number
   leftMatrix: number[][] | null
   rightMatrix: number[][] | null
-  leftImageB64: string | null
-  rightImageB64: string | null
+  leftRawB64: string | null
+  rightRawB64: string | null
+  leftProcessedB64: string | null
+  rightProcessedB64: string | null
+  leftIsolatedB64: string | null
+  rightIsolatedB64: string | null
   leftCsvContent: string | null
   rightCsvContent: string | null
   leftStats: FootStats | null
@@ -59,8 +63,8 @@ interface ThermalState {
   capture: (foot: FootSide) => void
   discardCapture: () => void
   setFps: (fps: number) => void
-  captureLeft: (matrix: number[][], imageB64: string, csvContent: string, stats: FootStats) => void
-  captureRight: (matrix: number[][], imageB64: string, csvContent: string, stats: FootStats) => void
+  captureLeft:  (matrix: number[][], rawB64: string, processedB64: string, isolatedB64: string, csvContent: string, stats: FootStats) => void
+  captureRight: (matrix: number[][], rawB64: string, processedB64: string, isolatedB64: string, csvContent: string, stats: FootStats) => void
   clearBilateral: () => void
 }
 
@@ -74,8 +78,12 @@ export const useThermalStore = create<ThermalState>((set) => ({
   fps: 0,
   leftMatrix: null,
   rightMatrix: null,
-  leftImageB64: null,
-  rightImageB64: null,
+  leftRawB64: null,
+  rightRawB64: null,
+  leftProcessedB64: null,
+  rightProcessedB64: null,
+  leftIsolatedB64: null,
+  rightIsolatedB64: null,
   leftCsvContent: null,
   rightCsvContent: null,
   leftStats: null,
@@ -86,17 +94,24 @@ export const useThermalStore = create<ThermalState>((set) => ({
   capture: (foot) => set((s) => ({ capturedMatrix: s.liveMatrix, capturedFoot: foot })),
   discardCapture: () => set({ capturedMatrix: null, capturedFoot: null }),
   setFps: (fps) => set({ fps }),
-  captureLeft: (matrix, imageB64, csvContent, stats) =>
+  captureLeft: (matrix, rawB64, processedB64, isolatedB64, csvContent, stats) =>
     set((s) => ({
-      leftMatrix: matrix, leftImageB64: imageB64,
+      leftMatrix: matrix,
+      leftRawB64: rawB64, leftProcessedB64: processedB64, leftIsolatedB64: isolatedB64,
       leftCsvContent: csvContent, leftStats: stats,
       capturedAt: s.capturedAt ?? new Date().toISOString(),
     })),
-  captureRight: (matrix, imageB64, csvContent, stats) =>
-    set({ rightMatrix: matrix, rightImageB64: imageB64, rightCsvContent: csvContent, rightStats: stats }),
+  captureRight: (matrix, rawB64, processedB64, isolatedB64, csvContent, stats) =>
+    set({
+      rightMatrix: matrix,
+      rightRawB64: rawB64, rightProcessedB64: processedB64, rightIsolatedB64: isolatedB64,
+      rightCsvContent: csvContent, rightStats: stats,
+    }),
   clearBilateral: () => set({
     leftMatrix: null, rightMatrix: null,
-    leftImageB64: null, rightImageB64: null,
+    leftRawB64: null, rightRawB64: null,
+    leftProcessedB64: null, rightProcessedB64: null,
+    leftIsolatedB64: null, rightIsolatedB64: null,
     leftCsvContent: null, rightCsvContent: null,
     leftStats: null, rightStats: null,
     capturedAt: null,

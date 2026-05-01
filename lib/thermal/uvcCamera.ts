@@ -167,24 +167,52 @@ export async function resumeCamera(): Promise<void> {
   try { await UVCCamera.resumeCamera() } catch {}
 }
 
-// processCapture — temporal average + median filter + TIFF/CSV encode on a Kotlin thread.
-// Auto-saves PNG to Pictures/Vestigia and CSV to Downloads/Vestigia via MediaStore.
+// processCapture — temporal average + median filter + foot isolation + TIFF/CSV encode on a Kotlin thread.
+// Does NOT auto-save to device; call savePngToDevice / saveCsvToDevice with the final bundle filename.
 export interface NativeProcessResult {
-  displayPngB64: string  // base64 PNG (current palette / display mode)
-  tiffB64:        string  // base64 TIFF (16-bit radiometric, Kelvin×100)
-  csvContent:     string  // CSV text rows (°C per pixel, 2 decimal places)
-  frameCount:     number
-  width:          number
-  height:         number
-  minTemp:        number
-  maxTemp:        number
-  meanTemp:       number
-  imageSaved:     string  // filename saved to Pictures/Vestigia
-  csvSaved:       string  // filename saved to Downloads/Vestigia
-  log:            string[]
+  displayPngB64:    string   // base64 PNG (current palette / display mode)
+  isolatedPngB64:   string   // base64 RGBA PNG — foot only, transparent background
+  tiffB64:          string   // base64 TIFF (16-bit radiometric, Kelvin×100)
+  csvContent:       string   // full-frame CSV (°C, 2 dp) — all pixels
+  maskedCsvContent: string   // foot-only CSV — background cells = "0.00"
+  frameCount:       number
+  width:            number
+  height:           number
+  minTemp:          number
+  maxTemp:          number
+  meanTemp:         number
+  log:              string[]
 }
 
 export async function processCapture(): Promise<NativeProcessResult> {
   if (!UVCCamera) throw new Error('UVCCamera native module not available. Use expo run:android.')
   return UVCCamera.processCapture() as Promise<NativeProcessResult>
+}
+
+
+// Save a base64-encoded PNG to Pictures/Vestigia on device storage.
+export async function savePngToDevice(filename: string, base64Png: string): Promise<string> {
+  if (!UVCCamera) throw new Error('UVCCamera native module not available.')
+  return UVCCamera.savePngToDevice(filename, base64Png) as Promise<string>
+}
+
+// Save CSV text to Downloads/Vestigia on device storage.
+export async function saveCsvToDevice(filename: string, csvContent: string): Promise<string> {
+  if (!UVCCamera) throw new Error('UVCCamera native module not available.')
+  return UVCCamera.saveCsvToDevice(filename, csvContent) as Promise<string>
+}
+
+//Frame readiness stats — emitted by Kotlin per display frame alongside onDisplayFrame
+export interface FrameStats {
+  variance:   number   // spatial variance of temps (°C²) — low = FFC or no subject
+  frameDiff:  number   // mean absolute diff from previous frame (°C) — high = motion
+  frameIndex: number   // total frames received since connect
+}
+
+export function onFrameStats(callback: (stats: FrameStats) => void): () => void {
+  if (!emitter) return () => {}
+  const sub = emitter.addListener('onFrameStats', (raw: Record<string, number>) =>
+    callback({ variance: raw.variance, frameDiff: raw.frameDiff, frameIndex: raw.frameIndex })
+  )
+  return () => sub.remove()
 }

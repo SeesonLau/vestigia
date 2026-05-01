@@ -3,6 +3,59 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.9.8] — 2026-05-01
+
+### Added — Kotlin Isolation Pipeline + Bundle Capture Overhaul
+
+#### Kotlin Foot Isolation
+- `UVCModule.kt` — `otsuThreshold()`: 256-bin histogram; maximises `w0*w1*(mu0-mu1)²` between-class variance; finds natural bimodal split between ambient background and foot temperatures
+- `UVCModule.kt` — `isolateFootMask()` rewritten: Otsu threshold → BFS flood fill (4-connectivity) → keep largest component → morphological closing (dilate radius 5px then erode radius 2px); net ~3px expansion with finger gaps filled
+- `UVCModule.kt` — `buildIsolatedPng()`: Android `Bitmap.Config.ARGB_8888`; background pixels `pixels[i]=0` (transparent); foot pixels get ironbow RGB + alpha=255; encoded as PNG 100% quality → Base64
+- `UVCModule.kt` — `buildMaskedCsv()`: background cells `"0.00"`, foot cells `"%.2f".format(temp)`
+- `UVCModule.kt` — `savePngToDevice(filename, base64Png)` and `saveCsvToDevice(filename, csvContent)` added as `@ReactMethod` (background thread); called from JS at bundle-save time when bundle code is known; `processCapture()` no longer auto-saves
+- `ThermalResult` data class: `imageSaved`/`csvSaved` removed; `isolatedPngB64` and `maskedCsvContent` added
+- `lib/thermal/uvcCamera.ts` — `NativeProcessResult` updated; `savePngToDevice` + `saveCsvToDevice` exported; comment clarifies "Does NOT auto-save to device"
+- `lib/thermal/captureProcessor.ts` — complete rewrite; all JS isolation imports removed; `ProcessedCapture` now carries `rawImageUri`, `displayPngUri`, `isolatedPngUri`, `maskedCsvContent`; native result fields used directly
+- `lib/thermal/footIsolation.ts` — JS-side isolation updated to match Kotlin: `otsuThreshold()` function added; closing (dilate 5 + erode 2) replaces pure dilation
+
+#### Bundle Storage Redesign
+- `lib/thermal/bundleStorage.ts` — `FootData` redesigned: `raw_filename`, `processed_filename`, `isolated_filename`, `csv_filename`, `raw_image_b64`, `processed_image_b64`, `isolated_image_b64`, `csv_content`, `stats`; `FootInput` interface added; `saveBundle()` generates bundle-code filenames (`${code}_L_raw.png` etc.); calls `savePngToDevice`/`saveCsvToDevice`; raw image stored bundle-only (not saved to device)
+- `store/sessionStore.ts` — `leftRawB64`/`rightRawB64` added; `leftImageB64`/`rightImageB64` renamed to `leftProcessedB64`/`rightProcessedB64`; `captureLeft`/`captureRight` updated to accept `(matrix, rawB64, processedB64, isolatedB64, csvContent, stats)`
+- All three live-feed wrappers (`app/(clinic)/live-feed.tsx`, `app/(offline)/live-feed.tsx`, `app/(patient)/live-feed.tsx`) — extract rawB64/processedB64/isolatedB64 from `processFrames` result; pass all three to store
+- `components/thermal/PatientDetailsScreen.tsx` — reads `leftRawB64`/`rightRawB64`/`leftProcessedB64`/`rightProcessedB64` from store; passes full FootInput to `saveBundle()`
+- `app/(clinic)/assessment.tsx`, `app/(clinic)/clinical-data.tsx` — `leftImageB64`/`rightImageB64` → `leftProcessedB64`/`rightProcessedB64`
+
+#### BundleDetailScreen — Three Images per Foot
+- `components/thermal/BundleDetailScreen.tsx` — each foot shows UNPROCESSED | POST-PROCESSED | ISOLATED side by side at 160:120 aspect ratio; raw uses jpeg URI prefix, processed/isolated use png; missing images show placeholder icon; `onViewCsv?: (side) => void` prop triggers CSV screen; `CsvViewerModal` removed
+- `app/(clinic)/bundle-detail.tsx`, `app/(patient)/bundle-detail.tsx`, `app/(offline)/bundle-detail.tsx` — pass `onViewCsv` with `router.push` to csv-viewer screen
+
+#### CSV Viewer Screen
+- `components/thermal/CsvViewerScreen.tsx` — new dedicated screen; fetches bundle from AsyncStorage; `buildHtml(csvContent)`: computes per-foot min/max of non-zero pixels; generates 256 CSS ironbow color classes (luminance-based text contrast); builds HTML table 7040×5280px (160×44, 120×44 cells); `device-width` viewport with `user-scalable=yes`; background cells `.bg` class (dimmed); hint bar at bottom
+- `app/(clinic)/csv-viewer.tsx`, `app/(patient)/csv-viewer.tsx`, `app/(offline)/csv-viewer.tsx` — thin wrappers reading `{code, side}` search params
+- `app/(clinic)/_layout.tsx`, `app/(patient)/_layout.tsx` — `csv-viewer` registered as hidden Tabs.Screen
+- `app/(offline)/_layout.tsx` — `csv-viewer` registered as Stack.Screen
+
+### Fixed
+- `components/thermal/ReadinessIndicator.tsx` — `LOW_SIGNAL_MIN` lowered from `6.0` to `2.5`°C²; fixes "No Subject" false positive when hand/foot occupies ~15% of frame at indoor ambient (typical variance ~3–4°C²)
+
+---
+
+## [0.9.7] — 2026-04-25
+
+### Added — Y16 JNI Bridge (AAR Rebuild)
+
+Changes to `C:\Users\PotatoIV\Desktop\UVCCamera\` (saki4510t/UVCCamera source):
+- `UVCCamera.java` — added `FRAME_FORMAT_Y16 = 2` constant
+- `libuvc.h` — added `UVC_FRAME_FORMAT_GRAY16` to `uvc_frame_format` enum (between GRAY8 and BY8)
+- `stream.c` — registered Y16 GUID `{'Y','1','6',' ', 0x00,...}` as `UVC_FRAME_FORMAT_GRAY16`; added GRAY16 as child of UNCOMPRESSED in ancestor table
+- `UVCPreview.cpp` — changed `setPreviewSize` and `prepare_preview` ternaries from 2-way to 3-way (mode=2→GRAY16, mode=1→MJPEG, else→YUYV); changed `do_preview` to branch: mode=2 routes raw Y16 frames directly to `addCaptureFrame` (no conversion); `frameBytes` corrected to `w*h*(mode==1 ? 4 : 2)`
+- AAR rebuilt (`./gradlew :libuvccamera:assembleRelease` → BUILD SUCCESSFUL); copied to `android/app/libs/libuvccamera-release.aar`
+
+Vestigia changes:
+- `UVCModule.kt` — updated mode fallback list to `[FRAME_FORMAT_Y16, FRAME_FORMAT_YUYV, DEFAULT_PREVIEW_MODE]`; app now attempts Y16 first on every camera connect
+
+---
+
 ## [0.9.6] — 2026-04-25
 
 ### Fixed

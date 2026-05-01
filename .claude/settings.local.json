@@ -21,7 +21,27 @@
       "WebFetch(domain:www.pureengineering.com)",
       "WebFetch(domain:groupgets.com)",
       "Read(//c/Users/PotatoIV/Desktop/UVCCamera/**)",
-      "Read(//c/Users/PotatoIV/Desktop/UVCCamera/libuvccamera/**)"
+      "Read(//c/Users/PotatoIV/Desktop/UVCCamera/libuvccamera/**)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" wait-for-device; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"c:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -s ReactNativeJS AndroidRuntime UVCModule -v time 2>&1 | Select-Object -First 80)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -s ReactNativeJS AndroidRuntime UVCModule -v time 2>&1 | Select-Object -First 40)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -c; Write-Host \"Log cleared — open the app now\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -s ReactNativeJS AndroidRuntime UVCModule -v time 2>&1 | Select-Object -First 60)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"c:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\debug\\\\app-debug.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -c)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -s UVCModule -v time 2>&1 | Select-Object -First 20)",
+      "WebFetch(domain:update2flir2se.blob.core.windows.net)",
+      "WebFetch(domain:flir.custhelp.com)",
+      "WebFetch(domain:www.flir.com)",
+      "PowerShell(adb devices)",
+      "PowerShell(Get-ChildItem -Path \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\" -ErrorAction SilentlyContinue; Get-ChildItem -Path \"$env:USERPROFILE\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\" -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -d -s ThermalUVC:V UVCModule:V ReactNativeJS:V 2>&1 | Select-Object -Last 100)",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" 2>&1; Write-Host \"EXIT: $LASTEXITCODE\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices; Get-Item \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" | Select-Object LastWriteTime)"
     ],
     "additionalDirectories": [
       "c:\\Users\\PotatoIV\\Desktop\\UVCCamera"

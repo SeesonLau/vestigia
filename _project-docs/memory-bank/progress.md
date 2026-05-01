@@ -1,6 +1,6 @@
 # Progress — Lumen AI (formerly Vestigia)
-**Current version:** 0.9.6
-**Last verified:** 2026-04-25
+**Current version:** 0.9.8
+**Last verified:** 2026-05-01
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,8 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.8 | 2026-05-01 | Kotlin isolation pipeline (Otsu + BFS + closing); bundle detail 3-image display; CsvViewerScreen WebView; file naming; LOW_SIGNAL_MIN fix |
+| 0.9.7 | 2026-04-25 | Y16 JNI bridge — UVC_FRAME_FORMAT_GRAY16 added to libuvc; Y16 GUID registered; UVCPreview.cpp mode=2 raw path; AAR rebuilt |
 | 0.9.6 | 2026-04-25 | FIX: live-feed crash (UVC mode 6 + Animated.loop cleanup); CameraStatusPanel with Y16 sanity check + FPS + retry; UVC event name fix; hardware reference doc |
 | 0.9.5 | 2026-04-25 | Bilateral thermal PNG upload to Supabase Storage (`thermal-images` bucket); `image_url` column in `thermal_captures`; per-foot stats on bilateral captures |
 | 0.9.4 | 2026-04-08 | HW-01 — real libuvccamera-release.aar linked; UVCModule.kt fully implemented; app renamed "Lumen AI" |
@@ -104,11 +106,19 @@
 - **FR-508** — `lib/classification/riskScoring.ts`: LOW/MEDIUM/HIGH at 1.5°C / 2.2°C thresholds
 - **GAP-18** — Alert on Activate/Deactivate Supabase failure (admin users + clinics)
 - WatermelonDB removed from project
+- **Y16 JNI bridge (v0.9.7)** — `UVC_FRAME_FORMAT_GRAY16` added to libuvc enum; Y16 GUID `{'Y','1','6',' ',...}` registered; `UVCPreview.cpp` 3-way mode switch (mode=2→Y16 raw, mode=1→MJPEG, else→YUYV); `frameBytes` corrected; AAR rebuilt and copied; `UVCModule.kt` updated to try Y16 first
+- **Kotlin foot isolation pipeline (v0.9.8)** — `isolateFootMask()` in Kotlin: Otsu threshold (256-bin, maximize between-class variance) + BFS largest-component + morphological closing (dilate 5px, erode 2px); `buildIsolatedPng()` ARGB_8888 with transparent background; `buildMaskedCsv()` "0.00" for background; `otsuThreshold()` helper
+- **Isolation moved to Kotlin (v0.9.8)** — removed auto-save from `processCapture()`; added `savePngToDevice` + `saveCsvToDevice` React methods; `NativeProcessResult` updated with `isolatedPngB64` + `maskedCsvContent`; JS isolation imports removed from `captureProcessor.ts`
+- **Bundle file naming (v0.9.8)** — `${code}_L_raw.png`, `${code}_L_processed.png`, `${code}_L_isolated.png`, `${code}_L_csv.csv` (same for R); `FootData` redesigned with separate `raw_image_b64`, `processed_image_b64`, `isolated_image_b64`, `csv_content` fields
+- **BundleDetailScreen 3-image display (v0.9.8)** — UNPROCESSED | POST-PROCESSED | ISOLATED side-by-side per foot; raw JPEG stored bundle-only (not saved to device); `onViewCsv` prop triggers CSV viewer navigation
+- **CsvViewerScreen (v0.9.8)** — dedicated screen (`components/thermal/CsvViewerScreen.tsx`); WebView HTML table; 160×120 grid with CELL_PX=44; 256 ironbow CSS classes; `device-width` viewport; background cells dimmed; pinch-to-zoom; thin wrapper routes in clinic/patient/offline groups
+- **LOW_SIGNAL_MIN fix (v0.9.8)** — lowered from 6.0°C² to 2.5°C² in `ReadinessIndicator.tsx`; fixes "No Subject" false positive when hand/foot occupies ~15% of frame at indoor ambient
+- **JS foot isolation improved (v0.9.8)** — `lib/thermal/footIsolation.ts`: Otsu threshold replaces 60th-percentile; closing (dilate 5 + erode 2) replaces pure dilation
 
 ## In Progress 🔄
-- Physical device end-to-end test: bilateral FLIR capture → DPN API → classification → save to cloud
-- Y16 JNI bridge — libuvc C API call to select Y16 by GUID (get real temperature data)
+- Physical device end-to-end test: bilateral FLIR capture → bundle save → CSV viewer → BundleDetailScreen 3-image display → DPN API → classification
 - Edge Function deployment (needs `supabase functions deploy` + Supabase dashboard config)
+- Rebuild required: `npx expo run:android` for all Kotlin changes (isolation, Otsu, savePngToDevice, saveCsvToDevice) and JS changes in this session
 
 ## Not Started ❌
 

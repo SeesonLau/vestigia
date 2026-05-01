@@ -14,12 +14,14 @@ export default function OfflineLiveFeedScreen() {
   const thermalStore = useThermalStore()
 
   const handleCapture = async (result: ThermalCaptureResult, step: CaptureStep, _foot: Foot) => {
-    const imageB64 = result.displayPngUri.replace("data:image/png;base64,", "")
+    const rawB64       = result.rawImageUri.replace("data:image/jpeg;base64,", "")
+    const processedB64 = result.displayPngUri.replace("data:image/png;base64,", "")
+    const isolatedB64  = result.isolatedPngUri.replace("data:image/png;base64,", "")
     if (step === "left") {
-      thermalStore.captureLeft([] as number[][], imageB64, result.csvContent, result.stats)
+      thermalStore.captureLeft([] as number[][], rawB64, processedB64, isolatedB64, result.maskedCsvContent, result.stats)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     } else {
-      thermalStore.captureRight([] as number[][], imageB64, result.csvContent, result.stats)
+      thermalStore.captureRight([] as number[][], rawB64, processedB64, isolatedB64, result.maskedCsvContent, result.stats)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     }
   }

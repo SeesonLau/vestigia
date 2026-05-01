@@ -1,5 +1,49 @@
 # Active Context — Lumen AI (formerly Vestigia)
-**Last updated:** 2026-04-25
+**Last updated:** 2026-05-01
+
+---
+
+## What Was Done This Session (2026-05-01) — v0.9.8
+
+### Kotlin Isolation Pipeline
+- `UVCModule.kt` — added `otsuThreshold()` (256-bin, maximises between-class variance); rewrote `isolateFootMask()` with Otsu + BFS largest-component + morphological closing (dilate 5px / erode 2px); `buildIsolatedPng()` uses ARGB_8888 Bitmap with transparent background for non-foot pixels; `buildMaskedCsv()` writes "0.00" for background, "%.2f" for foot pixels
+- Removed auto-save from `processCapture()` — `savePngToDevice` and `saveCsvToDevice` are now `@ReactMethod`s called from JS at bundle-save time when bundle code is known
+- `ThermalResult` data class: `imageSaved`/`csvSaved` removed; `isolatedPngB64` + `maskedCsvContent` added
+
+### JS-Side Updates
+- `lib/thermal/uvcCamera.ts` — `NativeProcessResult` updated; `savePngToDevice` and `saveCsvToDevice` exports added; removed `imageSaved`/`csvSaved`
+- `lib/thermal/captureProcessor.ts` — complete rewrite; JS isolation removed; uses native `isolatedPngB64` and `maskedCsvContent`; accepts `rawImageUri` param
+- `store/sessionStore.ts` — `leftRawB64`/`rightRawB64` added; `leftImageB64`/`rightImageB64` → `leftProcessedB64`/`rightProcessedB64`; `captureLeft/Right` signatures updated
+- `lib/thermal/bundleStorage.ts` — `FootData` redesigned (raw/processed/isolated/csv); `FootInput` interface added; `saveBundle()` generates `${code}_L_raw.png` etc.; calls `savePngToDevice`/`saveCsvToDevice` after AsyncStorage write
+- `app/(clinic)/assessment.tsx`, `app/(clinic)/clinical-data.tsx` — `leftImageB64`/`rightImageB64` → `leftProcessedB64`/`rightProcessedB64`
+- All three live-feed wrappers — extract rawB64/processedB64/isolatedB64 and pass to store
+
+### Bundle Detail — Three Images
+- `BundleDetailScreen.tsx` — UNPROCESSED | POST-PROCESSED | ISOLATED displayed side-by-side per foot; `onViewCsv` prop added; CSV modal removed
+- `app/(clinic)/bundle-detail.tsx`, `app/(patient)/bundle-detail.tsx`, `app/(offline)/bundle-detail.tsx` — all updated to pass `onViewCsv` with router push to csv-viewer
+
+### CSV Viewer Screen
+- `components/thermal/CsvViewerScreen.tsx` — new dedicated screen; WebView HTML table; CELL_PX=44 (readable values); 256 ironbow CSS color classes matching Kotlin palette; `device-width` viewport; background cells dimmed; hint bar at bottom
+- Thin wrapper routes: `app/(clinic)/csv-viewer.tsx`, `app/(patient)/csv-viewer.tsx`, `app/(offline)/csv-viewer.tsx`
+- Layout files updated: clinic/patient `_layout.tsx` → `csv-viewer` hidden Tab.Screen; offline `_layout.tsx` → `csv-viewer` Stack.Screen
+
+### Bug Fixes
+- `components/thermal/ReadinessIndicator.tsx` — `LOW_SIGNAL_MIN` 6.0 → 2.5°C² (fixes "No Subject" false positive)
+- `lib/thermal/footIsolation.ts` — Otsu threshold + morphological closing (JS-side mirror of Kotlin logic)
+
+---
+
+## What Was Done This Session (2026-04-29) — v0.9.6 (research only, no version bump)
+
+### FLIR Atlas SDK — Hardware Compatibility Analysis
+- User added 3 materials to `_project-docs/flir/`: `atlas-java-sdk-android-2.19.0.tar.gz`, `Android-samples-sources-all.tar.gz`, `FLIR_Mobile_SDK_Fact_Sheet.pdf`
+- Fetched and read FLIR Atlas SDK Javadoc, open-source deps page, and training video list
+- **Conclusion: Atlas SDK does NOT support PureThermal + Lepton 3.5.** It is designed for FLIR ONE, FLIR ONE Edge, ACE, Scout Pro, and WiFi network cameras only. No raw UVC / third-party board support.
+- **Recommendation confirmed:** Stay with libuvccamera + Y16 JNI approach — it is the correct path for PureThermal.
+- Identified 3 things to verify on physical device:
+  1. Whether camera is outputting TLINEAR mode (temperature = raw / 100.0 − 273.15) or uncalibrated RAW14
+  2. Whether Y16 JNI bridge routes frames correctly end-to-end
+  3. Whether Lepton 3.5 is sending 160×121 frames (with telemetry row) instead of 160×120
 
 ---
 
@@ -131,7 +175,14 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 - ✅ `CameraStatusPanel` — live connection status, FPS counter, Y16 sanity check, retry button, format debug row
 - ✅ Crash fix — removed invalid mode 6 from setPreviewSize; Animated.loop cleanup added
 - ✅ Y16 JNI bridge complete — `UVC_FRAME_FORMAT_GRAY16` added to libuvc; Y16 GUID registered; `UVCPreview.cpp` routes mode=2 frames raw to capture callback; `UVCModule.kt` tries Y16 first
-- ⚠️ Physical device end-to-end test still pending (APK rebuilding)
+- ✅ Kotlin isolation pipeline — Otsu + BFS largest-component + morphological closing (dilate 5 / erode 2); `buildIsolatedPng` + `buildMaskedCsv`; `savePngToDevice` / `saveCsvToDevice` React methods
+- ⚠️ Physical device end-to-end test still pending — rebuild required (`npx expo run:android`)
+
+### Bundle Capture Pipeline
+- ✅ Three images per foot: raw (JPEG, bundle-only), processed PNG, isolated PNG (transparent BG)
+- ✅ Bundle file naming: `${code}_L_raw.png`, `_L_processed.png`, `_L_isolated.png`, `_L_csv.csv`
+- ✅ BundleDetailScreen — 3-image display per foot with UNPROCESSED | POST-PROCESSED | ISOLATED
+- ✅ CsvViewerScreen — WebView HTML ironbow grid; CELL_PX=44; readable values; pinch-to-zoom
 
 ### Settings / Profile
 - ✅ Clinic, patient, admin settings all cleaned up
@@ -149,16 +200,16 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 ---
 
 ## Pending Manual Steps
-1. Install release APK on physical device; test UVC camera — verify live-feed no longer crashes
-2. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase (including `thermal-images` Storage)
-3. Y16 JNI bridge — write JNI wrapper calling libuvc C API to select Y16 by GUID `{59313631-0000-0010-8000-00AA00389B71}`; `libuvc.so` already in build outputs
+1. `npx expo run:android` — rebuild required for all Kotlin and JS changes in v0.9.7 + v0.9.8
+2. End-to-end test: bilateral FLIR capture → bundle save → CSV viewer → BundleDetailScreen 3-image display
+3. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase
 4. `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
-5. ESP32 firmware configuration (BLE + WebSocket per protocol spec)
+5. Delete dead code: `components/thermal/CsvViewerModal.tsx` (replaced by CsvViewerScreen, no longer imported)
 
 ---
 
 ## Next Steps (priority order)
-1. Install new APK → verify live-feed screen no longer crashes with camera connected
-2. Y16 format JNI bridge (get real temperature data from camera)
-3. End-to-end test: bilateral FLIR capture → DPN API → classification result → save to cloud
-4. Offline history screen + patient live-feed + patient history (from plan file)
+1. `npx expo run:android` + install APK → physical device test of bilateral capture → isolation → bundle save → CSV viewer
+2. Verify Y16 temperature data is correct (TLINEAR vs RAW14 — divide by 100 - 273.15 or raw scaled)
+3. End-to-end DPN API flow with real thermal data
+4. Clean up dead `CsvViewerModal.tsx`

@@ -11,6 +11,7 @@ export default function OfflineLayout() {
       <Stack.Screen name="history" />
       <Stack.Screen name="patient-details" />
       <Stack.Screen name="bundle-detail" />
+      <Stack.Screen name="csv-viewer" />
     </Stack>
   );
 }

@@ -45,75 +45,103 @@ function makeChunk(type: string, data: Uint8Array): Uint8Array {
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
-export function matrixToPngUri(matrix: number[][], minVal: number, maxVal: number): string {
-  const rows = matrix.length;
-  const cols = matrix[0]?.length ?? 0;
-  if (!rows || !cols) return '';
-
-  const range = maxVal - minVal || 1;
-  const SL = 1 + cols * 3; // scanline: 1 filter byte + RGB
-  const rawLen = rows * SL;
-  const raw = new Uint8Array(rawLen);
+function encodePng(
+  rows: number, cols: number,
+  fillScanline: (raw: Uint8Array, rowOffset: number, r: number) => void,
+  bytesPerPixel: number,
+  colorType: number,   // 2 = RGB, 6 = RGBA
+): string {
+  const SL = 1 + cols * bytesPerPixel
+  const rawLen = rows * SL
+  const raw = new Uint8Array(rawLen)
 
   for (let r = 0; r < rows; r++) {
-    raw[r * SL] = 0; // filter = None
-    const row = matrix[r];
-    for (let c = 0; c < cols; c++) {
-      const [ri, gi, bi] = ironRGB((row[c] - minVal) / range);
-      const p = r * SL + 1 + c * 3;
-      raw[p] = ri; raw[p + 1] = gi; raw[p + 2] = bi;
-    }
+    raw[r * SL] = 0 // filter = None
+    fillScanline(raw, r * SL + 1, r)
   }
 
-  // Adler-32 checksum of raw scanline data
-  let s1 = 1, s2 = 0;
+  let s1 = 1, s2 = 0
   for (let i = 0; i < rawLen; i++) {
-    s1 = (s1 + raw[i]) % 65521;
-    s2 = (s2 + s1) % 65521;
+    s1 = (s1 + raw[i]) % 65521
+    s2 = (s2 + s1) % 65521
   }
-  const adler = ((s2 << 16) | s1) >>> 0;
+  const adler = ((s2 << 16) | s1) >>> 0
 
-  // zlib: header(2) + stored block header(5) + raw data + adler32(4)
-  const zlib = new Uint8Array(2 + 5 + rawLen + 4);
-  zlib[0] = 0x78; zlib[1] = 0x01;        // CMF + FLG (deflate, check OK)
-  zlib[2] = 0x01;                          // BFINAL=1, BTYPE=00 (stored)
-  zlib[3] = rawLen & 0xFF;                 // LEN lo
-  zlib[4] = (rawLen >> 8) & 0xFF;          // LEN hi
-  zlib[5] = (~rawLen) & 0xFF;              // NLEN lo
-  zlib[6] = (~rawLen >> 8) & 0xFF;         // NLEN hi
-  zlib.set(raw, 7);
-  const ao = 7 + rawLen;
-  zlib[ao]   = (adler >> 24) & 0xFF;
-  zlib[ao+1] = (adler >> 16) & 0xFF;
-  zlib[ao+2] = (adler >> 8)  & 0xFF;
-  zlib[ao+3] = adler & 0xFF;
+  const zlib = new Uint8Array(2 + 5 + rawLen + 4)
+  zlib[0] = 0x78; zlib[1] = 0x01
+  zlib[2] = 0x01
+  zlib[3] = rawLen & 0xFF; zlib[4] = (rawLen >> 8) & 0xFF
+  zlib[5] = (~rawLen) & 0xFF; zlib[6] = (~rawLen >> 8) & 0xFF
+  zlib.set(raw, 7)
+  const ao = 7 + rawLen
+  zlib[ao] = (adler >> 24) & 0xFF; zlib[ao+1] = (adler >> 16) & 0xFF
+  zlib[ao+2] = (adler >> 8) & 0xFF; zlib[ao+3] = adler & 0xFF
 
-  // IHDR: width(4) height(4) bitDepth colorType compression filter interlace
-  const ihdr = new Uint8Array(13);
-  const w32i = (o: number, v: number) => { ihdr[o]=(v>>24)&0xFF; ihdr[o+1]=(v>>16)&0xFF; ihdr[o+2]=(v>>8)&0xFF; ihdr[o+3]=v&0xFF; };
-  w32i(0, cols); w32i(4, rows);
-  ihdr[8] = 8; ihdr[9] = 2; // 8-bit RGB
+  const ihdr = new Uint8Array(13)
+  const w32i = (o: number, v: number) => { ihdr[o]=(v>>24)&0xFF; ihdr[o+1]=(v>>16)&0xFF; ihdr[o+2]=(v>>8)&0xFF; ihdr[o+3]=v&0xFF }
+  w32i(0, cols); w32i(4, rows)
+  ihdr[8] = 8; ihdr[9] = colorType
 
-  const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-  const c1 = makeChunk('IHDR', ihdr);
-  const c2 = makeChunk('IDAT', zlib);
-  const c3 = makeChunk('IEND', new Uint8Array(0));
+  const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
+  const c1 = makeChunk('IHDR', ihdr)
+  const c2 = makeChunk('IDAT', zlib)
+  const c3 = makeChunk('IEND', new Uint8Array(0))
 
-  const png = new Uint8Array(sig.length + c1.length + c2.length + c3.length);
-  let off = 0;
-  png.set(sig, off); off += sig.length;
-  png.set(c1,  off); off += c1.length;
-  png.set(c2,  off); off += c2.length;
-  png.set(c3,  off);
+  const png = new Uint8Array(sig.length + c1.length + c2.length + c3.length)
+  let off = 0
+  png.set(sig, off); off += sig.length
+  png.set(c1, off); off += c1.length
+  png.set(c2, off); off += c2.length
+  png.set(c3, off)
 
-  // Base64 encode
-  let b64 = '';
+  let b64 = ''
   for (let i = 0; i < png.length; i += 3) {
-    const a = png[i], b = i+1 < png.length ? png[i+1] : 0, c = i+2 < png.length ? png[i+2] : 0;
-    b64 += B64[a >> 2];
-    b64 += B64[((a & 3) << 4) | (b >> 4)];
-    b64 += i+1 < png.length ? B64[((b & 15) << 2) | (c >> 6)] : '=';
-    b64 += i+2 < png.length ? B64[c & 63] : '=';
+    const a = png[i], b = i+1 < png.length ? png[i+1] : 0, c = i+2 < png.length ? png[i+2] : 0
+    b64 += B64[a >> 2]
+    b64 += B64[((a & 3) << 4) | (b >> 4)]
+    b64 += i+1 < png.length ? B64[((b & 15) << 2) | (c >> 6)] : '='
+    b64 += i+2 < png.length ? B64[c & 63] : '='
   }
-  return 'data:image/png;base64,' + b64;
+  return 'data:image/png;base64,' + b64
+}
+
+export function matrixToPngUri(matrix: number[][], minVal: number, maxVal: number): string {
+  const rows = matrix.length
+  const cols = matrix[0]?.length ?? 0
+  if (!rows || !cols) return ''
+  const range = maxVal - minVal || 1
+  return encodePng(rows, cols, (raw, offset, r) => {
+    const row = matrix[r]
+    for (let c = 0; c < cols; c++) {
+      const [ri, gi, bi] = ironRGB((row[c] - minVal) / range)
+      raw[offset + c * 3]     = ri
+      raw[offset + c * 3 + 1] = gi
+      raw[offset + c * 3 + 2] = bi
+    }
+  }, 3, 2)
+}
+
+// RGBA PNG — foot pixels keep palette colour (alpha=255), background is transparent (alpha=0).
+export function matrixToRgbaPngUri(
+  matrix: number[][],
+  mask: boolean[][],
+  minVal: number,
+  maxVal: number,
+): string {
+  const rows = matrix.length
+  const cols = matrix[0]?.length ?? 0
+  if (!rows || !cols) return ''
+  const range = maxVal - minVal || 1
+  return encodePng(rows, cols, (raw, offset, r) => {
+    const row = matrix[r]
+    const maskRow = mask[r] ?? []
+    for (let c = 0; c < cols; c++) {
+      const [ri, gi, bi] = ironRGB((row[c] - minVal) / range)
+      const p = offset + c * 4
+      raw[p]     = ri
+      raw[p + 1] = gi
+      raw[p + 2] = bi
+      raw[p + 3] = maskRow[c] ? 255 : 0
+    }
+  }, 4, 6)
 }

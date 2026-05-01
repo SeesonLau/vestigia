@@ -93,7 +93,7 @@ export default function ClinicalDataScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
-  const { leftMatrix, rightMatrix, leftImageB64, rightImageB64 } = useThermalStore();
+  const { leftMatrix, rightMatrix, leftProcessedB64, rightProcessedB64 } = useThermalStore();
   const leftAngiosomes  = computeAngiosomes(leftMatrix, "left");
   const rightAngiosomes = computeAngiosomes(rightMatrix, "right");
 
@@ -116,8 +116,8 @@ export default function ClinicalDataScreen() {
       if (sessErr || !session) throw new Error("Failed to create session.");
 
       const captureEntries: Array<{ foot: "left" | "right"; matrix: number[][]; imageB64: string | null; angiosomes: AngiosomeData | null }> = [];
-      if (leftMatrix)  captureEntries.push({ foot: "left",  matrix: leftMatrix,  imageB64: leftImageB64,  angiosomes: leftAngiosomes });
-      if (rightMatrix) captureEntries.push({ foot: "right", matrix: rightMatrix, imageB64: rightImageB64, angiosomes: rightAngiosomes });
+      if (leftMatrix)  captureEntries.push({ foot: "left",  matrix: leftMatrix,  imageB64: leftProcessedB64,  angiosomes: leftAngiosomes });
+      if (rightMatrix) captureEntries.push({ foot: "right", matrix: rightMatrix, imageB64: rightProcessedB64, angiosomes: rightAngiosomes });
 
       for (const entry of captureEntries) {
         const stats = getMatrixStats(entry.matrix);

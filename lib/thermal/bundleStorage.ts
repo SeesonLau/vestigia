@@ -1,5 +1,6 @@
 // lib/thermal/bundleStorage.ts
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { savePngToDevice, saveCsvToDevice } from './uvcCamera'
 
 export interface BundlePatient {
   first_name:  string
@@ -12,11 +13,15 @@ export interface BundlePatient {
 }
 
 export interface FootData {
-  image_filename: string
-  csv_filename:   string
-  image_b64:      string
-  csv_content:    string
-  stats:          { min: number; max: number; mean: number }
+  raw_filename:       string
+  processed_filename: string
+  isolated_filename:  string
+  csv_filename:       string
+  raw_image_b64:      string   // JPEG snapshot taken before processing
+  processed_image_b64:string   // palette PNG from Kotlin
+  isolated_image_b64: string   // RGBA PNG, transparent background, foot only
+  csv_content:        string   // masked CSV (background = "0.00")
+  stats:              { min: number; max: number; mean: number }
 }
 
 export interface ThermalBundle {
@@ -42,40 +47,77 @@ function generateBundleCode(lastName: string, capturedAt: string): string {
   return `${initial}_${yy}${mm}${dd}-${hh}${mi}`
 }
 
+interface FootInput {
+  raw_image_b64:       string
+  processed_image_b64: string
+  isolated_image_b64:  string
+  csv_content:         string
+  stats:               { min: number; max: number; mean: number }
+}
+
 export async function saveBundle(
   patient:    BundlePatient,
-  leftRaw:    { image_b64: string; csv_content: string; stats: { min: number; max: number; mean: number } },
-  rightRaw:   { image_b64: string; csv_content: string; stats: { min: number; max: number; mean: number } },
+  leftInput:  FootInput,
+  rightInput: FootInput,
   capturedAt: string,
 ): Promise<ThermalBundle> {
   const bundle_code = generateBundleCode(patient.last_name, capturedAt)
+  const code = bundle_code
+
+  const leftFoot: FootData = {
+    raw_filename:        `${code}_L_raw.png`,
+    processed_filename:  `${code}_L_processed.png`,
+    isolated_filename:   `${code}_L_isolated.png`,
+    csv_filename:        `${code}_L_csv.csv`,
+    raw_image_b64:       leftInput.raw_image_b64,
+    processed_image_b64: leftInput.processed_image_b64,
+    isolated_image_b64:  leftInput.isolated_image_b64,
+    csv_content:         leftInput.csv_content,
+    stats:               leftInput.stats,
+  }
+
+  const rightFoot: FootData = {
+    raw_filename:        `${code}_R_raw.png`,
+    processed_filename:  `${code}_R_processed.png`,
+    isolated_filename:   `${code}_R_isolated.png`,
+    csv_filename:        `${code}_R_csv.csv`,
+    raw_image_b64:       rightInput.raw_image_b64,
+    processed_image_b64: rightInput.processed_image_b64,
+    isolated_image_b64:  rightInput.isolated_image_b64,
+    csv_content:         rightInput.csv_content,
+    stats:               rightInput.stats,
+  }
 
   const bundle: ThermalBundle = {
-    bundle_code,
+    bundle_code: code,
     captured_at: capturedAt,
     synced: false,
     patient,
-    left: {
-      image_filename: `${bundle_code}_L_img.png`,
-      csv_filename:   `${bundle_code}_L_csv.csv`,
-      ...leftRaw,
-    },
-    right: {
-      image_filename: `${bundle_code}_R_img.png`,
-      csv_filename:   `${bundle_code}_R_csv.csv`,
-      ...rightRaw,
-    },
+    left:  leftFoot,
+    right: rightFoot,
   }
 
-  await AsyncStorage.setItem(BUNDLE_KEY(bundle_code), JSON.stringify(bundle))
+  // Save to AsyncStorage first — device saves are best-effort
+  await AsyncStorage.setItem(BUNDLE_KEY(code), JSON.stringify(bundle))
 
   let index: string[] = []
   try {
     const raw = await AsyncStorage.getItem(INDEX_KEY)
     if (raw) index = JSON.parse(raw)
   } catch {}
-  if (!index.includes(bundle_code)) index.unshift(bundle_code)
+  if (!index.includes(code)) index.unshift(code)
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index))
+
+  // Save images and CSV to device storage with bundle-code filenames
+  const saves: Promise<unknown>[] = [
+    savePngToDevice(leftFoot.processed_filename,  leftInput.processed_image_b64).catch(() => {}),
+    savePngToDevice(leftFoot.isolated_filename,   leftInput.isolated_image_b64).catch(() => {}),
+    saveCsvToDevice(leftFoot.csv_filename,        leftInput.csv_content).catch(() => {}),
+    savePngToDevice(rightFoot.processed_filename, rightInput.processed_image_b64).catch(() => {}),
+    savePngToDevice(rightFoot.isolated_filename,  rightInput.isolated_image_b64).catch(() => {}),
+    saveCsvToDevice(rightFoot.csv_filename,       rightInput.csv_content).catch(() => {}),
+  ]
+  await Promise.all(saves)
 
   return bundle
 }

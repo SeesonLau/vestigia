@@ -22,8 +22,8 @@ export default function AssessmentScreen() {
   const { clearSession } = useSessionStore();
   const leftMatrix    = useThermalStore((s) => s.leftMatrix);
   const rightMatrix   = useThermalStore((s) => s.rightMatrix);
-  const leftImageB64  = useThermalStore((s) => s.leftImageB64);
-  const rightImageB64 = useThermalStore((s) => s.rightImageB64);
+  const leftProcessedB64  = useThermalStore((s) => s.leftProcessedB64);
+  const rightProcessedB64 = useThermalStore((s) => s.rightProcessedB64);
   const discardCapture  = useThermalStore((s) => s.discardCapture);
   const clearBilateral  = useThermalStore((s) => s.clearBilateral);
 
@@ -49,10 +49,10 @@ export default function AssessmentScreen() {
 
   //Start scan once on mount
   useEffect(() => {
-    if (!leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64) return;
+    if (!leftMatrix || !rightMatrix || !leftProcessedB64 || !rightProcessedB64) return;
     startScan({
-      left_image_b64:    leftImageB64,
-      right_image_b64:   rightImageB64,
+      left_image_b64:    leftProcessedB64,
+      right_image_b64:   rightProcessedB64,
       left_temperatures:  leftMatrix,
       right_temperatures: rightMatrix,
     });
@@ -74,20 +74,20 @@ export default function AssessmentScreen() {
   };
 
   const handleRetry = () => {
-    if (!leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64) {
+    if (!leftMatrix || !rightMatrix || !leftProcessedB64 || !rightProcessedB64) {
       handleCancel();
       return;
     }
     startScan({
-      left_image_b64:    leftImageB64,
-      right_image_b64:   rightImageB64,
+      left_image_b64:    leftProcessedB64,
+      right_image_b64:   rightProcessedB64,
       left_temperatures:  leftMatrix,
       right_temperatures: rightMatrix,
     });
   };
 
   //Missing bilateral captures — shouldn't normally happen
-  const missingCaptures = !leftMatrix || !rightMatrix || !leftImageB64 || !rightImageB64;
+  const missingCaptures = !leftMatrix || !rightMatrix || !leftProcessedB64 || !rightProcessedB64;
 
   if (missingCaptures) {
     return (
