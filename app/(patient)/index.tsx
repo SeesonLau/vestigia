@@ -17,7 +17,7 @@ import { dbg } from "../../lib/debug";
 import { getMatrixStats, parseCsvMatrix } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
-import { Patient, ScreeningSession } from "../../types";
+import { ScreeningSession } from "../../types";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
@@ -26,7 +26,6 @@ const THUMB_H = Math.round(THUMB_W * (120 / 160));
 export default function PatientDashboardScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
-  const [patient, setPatient] = useState<Patient | null>(null);
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -87,44 +86,32 @@ export default function PatientDashboardScreen() {
     const fetchData = async () => {
       setFetchError(null);
       try {
-        const { data: patientData, error: patientErr } = await supabase
-          .from("patients")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
-        dbg("patient/index", `patient fetch — error=${patientErr?.code ?? "none"} message=${patientErr?.message ?? "none"}`);
-        if (patientErr?.code === "PGRST116") {
-          setLoading(false);
-          return;
-        }
-        if (patientErr) throw new Error("Failed to load patient data.");
+        //Sessions for this patient — joined via the new dual-identity model.
+        //subject_profile_id = profile.id covers self-captures and clinic-captured
+        //sessions where the patient was matched by their global patient_code.
+        const { data: sessionsData, error: sessionsErr } = await supabase
+          .from("screening_sessions")
+          .select("*, classification:classification_results(*)")
+          .eq("subject_profile_id", user.id)
+          .order("started_at", { ascending: false });
+        dbg("patient/index", `sessions fetch — error=${sessionsErr?.code ?? "none"}`);
+        if (sessionsErr) throw new Error("Failed to load sessions.");
 
-        if (patientData) {
-          setPatient(patientData as Patient);
-
-          const { data: sessionsData, error: sessionsErr } = await supabase
-            .from("screening_sessions")
-            .select("*, classification:classification_results(*)")
-            .eq("patient_id", patientData.id)
-            .order("started_at", { ascending: false });
-          if (sessionsErr) throw new Error("Failed to load sessions.");
-
-          if (sessionsData) {
-            setSessions(
-              (sessionsData as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
-                ...s,
-                classification: Array.isArray(s.classification)
-                  ? s.classification[0] ?? undefined
-                  : s.classification ?? undefined,
-              })) as ScreeningSession[]
-            );
-          }
+        if (sessionsData) {
+          setSessions(
+            (sessionsData as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
+              ...s,
+              classification: Array.isArray(s.classification)
+                ? s.classification[0] ?? undefined
+                : s.classification ?? undefined,
+            })) as ScreeningSession[]
+          );
         }
 
         const { count } = await supabase
           .from("data_requests")
           .select("id", { count: "exact", head: true })
-          .eq("to_id", user.id)
+          .eq("to_profile_id", user.id)
           .eq("status", "pending");
         setPendingRequests(count ?? 0);
       } catch (err: unknown) {
@@ -182,7 +169,7 @@ export default function PatientDashboardScreen() {
         <View style={styles.greeting}>
           <Text style={[styles.greetingHi, { color: colors.text }]}>Hello, {firstName} 👋</Text>
           <Text style={[styles.greetingCode, { color: colors.textSec }]}>
-            Patient ID: {patient?.patient_code ?? "—"}
+            Patient ID: {user?.patient_code ?? "—"}
           </Text>
         </View>
 
