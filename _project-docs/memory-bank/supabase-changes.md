@@ -1,6 +1,75 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-05-02 — v0.10.0] — Schema Rollout (full new schema)
+
+**Type:** Schema Bootstrap + Triggers + RLS + Storage + Seed
+**Tables affected:** all (fresh creation)
+
+### What was done
+Applied 5 migrations against the empty `public` schema (post-v0.9.10 reset). Migrations are also committed under [supabase/migrations/](../../supabase/migrations/) for reproducibility.
+
+| File | Scope |
+| --- | --- |
+| `20260502120000_schema_bootstrap.sql` | 8 enums, 4 PSGC reference tables (empty), 10 core tables, indexes |
+| `20260502120100_triggers_and_code_generators.sql` | `set_updated_at`, `gen_patient_code`, `gen_clinic_code`, `handle_new_user` |
+| `20260502120200_rls_policies.sql` | RLS on all tables + 38 policies + helper functions (`auth_role`, `auth_clinic_id`, `is_admin`) |
+| `20260502120300_storage_buckets.sql` | `avatars`, `thermal-images`, `thermal-csv` (private) + storage.objects policies |
+| `20260502120400_seed_admin_account.sql` | Single admin user + identity row |
+
+### Key design notes
+- **Dual identity on sessions:** `screening_sessions.subject_profile_id` (patient view) and `clinic_id` (clinic view) are independent. Either or both can be filled; the same row surfaces in both histories.
+- **No anonymous patients:** `patients.profile_id` is `NOT NULL`. Every clinic-managed record links to a registered profile.
+- **Code generators:** patient_code = `XXX-YYYYMMDD-HHMM-NN` (initials + creation timestamp + race-safe counter); clinic_code = `XX-YYYYMMDD-HHMM-NN` (facility-type prefix).
+- **Helper RLS functions are SECURITY DEFINER:** they read `profiles` without re-entering RLS, avoiding recursion.
+
+### Surprises during apply
+1. **Duplicate handle_new_user trigger.** The v0.9.10 schema reset only dropped public tables — it left a `trg_on_auth_user_created` trigger on `auth.users` from an earlier setup. After my migration added `on_auth_user_created`, both fired and the profile insert collided on PK. Fix: `DROP TRIGGER IF EXISTS trg_on_auth_user_created ON auth.users;` baked into the seed migration (idempotent).
+2. **`auth.identities.email` is a generated column** in current Supabase. Don't include it in `INSERT`; it's derived from `identity_data->>'email'`.
+
+### Result
+- 14 public tables, 38 RLS policies, 7 triggers (4 updated_at + 2 code generators + 1 handle_new_user), 3 storage buckets with 6 policies, 1 seeded admin.
+- Login on mobile must reject `role='admin'` after profile fetch.
+- PSGC/ZIP seeds and Edge Functions deferred.
+
+### Pending follow-ups
+- Bundle PSGC + ZIP seed data when clinic signup is wired
+- Build Edge Functions: `clinic-signup` (auto-confirmed signup), `finalize-session` (atomic capture upload), `promote-session` (link offline-guest captures to a patient/clinic)
+- Verify the existing `auth.users` triggers (`RI_ConstraintTrigger_*`) don't reference deleted tables — quick cleanup pass after schema stabilizes
+
+---
+## [2026-05-02 — v0.9.10] — Schema Reset (start from scratch)
+
+**Type:** Schema Change (DROP)
+**Table(s) affected:** `profiles`, `clinics`, `patients`, `devices`, `screening_sessions`, `thermal_captures`, `classification_results`
+
+### What was done
+User requested a full schema reset before redesigning the data model. All seven public tables were empty (0 rows) at the time of drop.
+
+### SQL executed
+```sql
+DROP TABLE IF EXISTS public.classification_results CASCADE;
+DROP TABLE IF EXISTS public.thermal_captures CASCADE;
+DROP TABLE IF EXISTS public.screening_sessions CASCADE;
+DROP TABLE IF EXISTS public.devices CASCADE;
+DROP TABLE IF EXISTS public.patients CASCADE;
+DROP TABLE IF EXISTS public.clinics CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
+```
+
+### Why
+Codebase audit revealed the existing schema was outgrown by feature changes (bilateral capture, bundle storage, role expansion). User chose to wipe and redesign rather than migrate. New schema TBD in a follow-up planning round.
+
+### Result
+Success. `list_tables` on `public` returns `[]`. Storage bucket `thermal-images` and any related RLS policies were NOT touched — verify separately when redesigning.
+
+### Pending
+- Redesign and re-create schema (separate planning round)
+- Re-create RLS policies
+- Re-create `handle_new_user()` trigger
+- Re-verify `thermal-images` storage bucket + policies after schema rebuild
+
+---
 ## [2026-04-08 — v0.9.5] — Thermal Image Storage: thermal_captures.image_url + thermal-images bucket
 
 **Type:** Schema Change + Storage Bucket + RLS Policies

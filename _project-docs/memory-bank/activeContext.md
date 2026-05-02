@@ -1,5 +1,118 @@
 # Active Context — Lumen AI (formerly Vestigia)
-**Last updated:** 2026-05-01
+**Last updated:** 2026-05-02
+
+---
+
+## What Was Done This Session (2026-05-02) — v0.10.0
+
+### Supabase Schema Rollout
+
+After multiple rounds of schema design with the user (dual identity on sessions, generated names, anonymous patients eliminated, PSGC + ZIP-driven addresses, deterministic patient/clinic codes), applied the new schema as 5 migrations on the empty `public` schema:
+
+1. **schema_bootstrap** — 8 enums, 4 PSGC reference tables (empty for now), 10 core tables, indexes
+2. **triggers_and_code_generators** — `set_updated_at`, `gen_patient_code` (XXX-YYYYMMDD-HHMM-NN), `gen_clinic_code` (XX-YYYYMMDD-HHMM-NN), `handle_new_user`
+3. **rls_policies** — RLS enabled on all 14 tables, 38 policies, 3 SECURITY DEFINER helper functions (`auth_role`, `auth_clinic_id`, `is_admin`) to break recursion
+4. **storage_buckets** — `avatars`, `thermal-images`, `thermal-csv` (all private) + storage.objects policies that mirror table-level access via `storage.foldername()` lookups
+5. **seed_admin_account** — single seeded admin (transistor@lumenai.com / @dmin123!), email auto-confirmed, identity row in place
+
+### Migrations live in the repo
+All 5 SQL files committed under `supabase/migrations/` so the schema is reproducible from git.
+
+### Surprises during apply
+- A `trg_on_auth_user_created` trigger from a prior schema setup survived the v0.9.10 reset and fired alongside my new `on_auth_user_created`, double-inserting into profiles. Fix baked into the seed migration as `DROP TRIGGER IF EXISTS`.
+- `auth.identities.email` is a generated column in current Supabase — must not be inserted explicitly.
+
+### Vercel deployment (also this session)
+- Web subfolder scaffolded with Next.js 16 + Tailwind v4 + TypeScript
+- `/auth/verified` and `/auth/reset-password` deep-link landing pages live at `https://lumenai-vert.vercel.app`
+- README documents Supabase Auth URL allowlist setup and the mobile `lumenai://` scheme
+- Two FLIR SDK tarballs were also stripped from git history during the push (filter-branch + force-push-with-lease) since they exceeded GitHub's 100MB file limit
+
+### Files modified / created
+- CREATED: `supabase/migrations/20260502120000_schema_bootstrap.sql`
+- CREATED: `supabase/migrations/20260502120100_triggers_and_code_generators.sql`
+- CREATED: `supabase/migrations/20260502120200_rls_policies.sql`
+- CREATED: `supabase/migrations/20260502120300_storage_buckets.sql`
+- CREATED: `supabase/migrations/20260502120400_seed_admin_account.sql`
+- CREATED: `web/` subfolder (Next.js scaffold, /auth/verified, /auth/reset-password, README)
+- UPDATED: `CHANGELOG.md` (v0.10.0 entry)
+- UPDATED: `_project-docs/memory-bank/supabase-changes.md` (v0.10.0 log)
+- UPDATED: this file
+- CREATED: `_project-docs/sessions/2026-05-02-v0.10.0.md`
+
+### Pending / Next session
+1. **PSGC + ZIP seed data** — load region/province/city/barangay reference data and per-city default ZIP codes (with per-barangay overrides for Manila, QC, Cebu).
+2. **Edge Functions** — `clinic-signup` (skips email verification, creates profile + clinic atomically), `finalize-session` (atomic session + captures + classification + data_request), `promote-session` (link offline-guest captures to a patient + clinic).
+3. **Mobile auth flow rewrite** — register `lumenai://` scheme in app.json, handle deep links from the verification + reset pages, role-gate mobile login (reject admin), build the new patient + clinic signup forms (the latter behind the `clinic-signup` Edge Function).
+4. **Avatar component** — Teams-style 2-letter initials fallback when `avatar_url` is null.
+5. **Supabase Auth dashboard config** — set Site URL = `https://lumenai-vert.vercel.app`, allowlist the four redirect URLs.
+
+---
+
+## What Was Done Previous Session (2026-05-02) — v0.9.10
+
+### Codebase Audit + Supabase Schema Reset
+
+User asked to review the project's data flow, screen routes, user roles, and unused UI before redesigning the data model.
+
+Audit findings:
+- 46 screens across 5 route groups: `(auth)`, `(clinic)`, `(patient)`, `(admin)`, `(offline)`
+- Three roles can capture (clinic, patient, offline guest) — patient/offline live-feed and `save` screens stay
+- Triplicated `patient-details` / `bundle-detail` / `csv-viewer` wrappers (across 3 route groups) kept as-is for now
+- Import tabs (`(clinic)/import`, `(patient)/import`) — stubs, deferred
+- `(clinic)/assessment` initially flagged for removal; verification showed it is the active DPN scan progress screen ([app/(clinic)/clinical-data.tsx:157](../../app/(clinic)/clinical-data.tsx#L157) → assessment → dpn-result). **Kept.**
+- `components/assessment/index.tsx` — confirmed orphan (exports `ClassificationCard`, `AngiosomeTable`, `TCIDisplay`, none referenced). **Deleted.**
+- `components/session/index.tsx` — initial path-grep was too narrow; deeper check showed it is actively imported by `(clinic)/history`, `(patient)/index`, `(patient)/history` for `SessionCard`. **Kept.**
+
+Supabase schema reset:
+- All 7 public tables were empty → dropped with CASCADE via Supabase MCP
+- Storage bucket `thermal-images` and associated RLS policies were not touched
+- Schema redesign deferred — needs its own planning round
+
+### Plan File
+- `C:\Users\PotatoIV\.claude\plans\okay-now-lets-start-sorted-feigenbaum.md` — full audit report + cleanup plan
+
+### Files Modified / Deleted
+- DELETED: `components/assessment/index.tsx` (and now-empty `components/assessment/` directory)
+- UPDATED: `CHANGELOG.md` (added v0.9.10 entry)
+- UPDATED: `_project-docs/memory-bank/supabase-changes.md` (logged schema reset)
+- UPDATED: this file
+- CREATED: `_project-docs/sessions/2026-05-02-v0.9.10.md`
+
+### Pending / Next Session
+1. **Schema redesign** — design new Supabase schema from scratch (driven by current bundle pipeline, bilateral capture, role-based access). Separate planning round.
+2. **Sync strategy decision** — bundle (AsyncStorage + device files) vs SQLite `local_captures` as canonical offline store; whether to add NetInfo + a real upload queue.
+3. **Triplicated viewer consolidation** — possible follow-up cleanup.
+4. **Import tab fate** — build or delete.
+5. **`CsvViewerModal`** — verify usage and likely delete.
+6. **WatermelonDB stubs** — `lib/database/` references `@nozbe/watermelondb` which isn't installed; either install + use, or delete.
+
+---
+
+## What Was Done Previous Session (2026-05-02) — v0.9.9
+
+### Isolation Pipeline Rewrite — Both `UVCModule.kt` and `lib/thermal/footIsolation.ts`
+
+User shared screenshots showing two failure modes:
+1. A warm hand still had a coloured fringe of background pixels around the fingers
+2. A cold dumbbell was fully inverted (background isolated, not the dumbbell), and the thin handle was missing
+
+Root causes diagnosed:
+- Hardcoded `>= threshold` polarity assumption caused cold subjects to be discarded
+- BFS ran BEFORE morphological closing, so thin structures (handle) were severed before closing could bridge them
+- Equal dilate/erode (net 0px) preserved near-threshold boundary pixels as fringe
+
+**Pipeline rewrite** (4 stages, same logic in both Kotlin and TypeScript):
+1. **Variance guardrail** — `otsuThresholdWithVariance()` returns `(threshold, bestVar)`; `bestVar < 10.0` → return empty mask (unimodal frame, no subject)
+2. **Closing first** — dilate 5, erode 5 on raw hot mask to bridge thin connections BEFORE BFS
+3. **Border-intersection polarity check** — BFS on both hot and cold classes; class with more border-touching pixels = background; subject = other class (handles warm AND cold subjects)
+4. **Opening trim** — erode 2 → dilate 2 on subject mask; removes near-threshold fringe pixels at boundary
+
+**Helpers added/refactored:**
+- `morphDilate`, `morphErode`, `morphClose`, `largestComponentWithBorderCount`
+- `otsuThreshold` → `otsuThresholdWithVariance` (now returns `Pair<Float,Double>` / `[number, number]`)
+
+Files modified: `UVCModule.kt`, `lib/thermal/footIsolation.ts`
 
 ---
 
@@ -176,6 +289,7 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 - ✅ Crash fix — removed invalid mode 6 from setPreviewSize; Animated.loop cleanup added
 - ✅ Y16 JNI bridge complete — `UVC_FRAME_FORMAT_GRAY16` added to libuvc; Y16 GUID registered; `UVCPreview.cpp` routes mode=2 frames raw to capture callback; `UVCModule.kt` tries Y16 first
 - ✅ Kotlin isolation pipeline — Otsu + BFS largest-component + morphological closing (dilate 5 / erode 2); `buildIsolatedPng` + `buildMaskedCsv`; `savePngToDevice` / `saveCsvToDevice` React methods
+- ✅ Isolation pipeline rewritten (v0.9.9) — variance guardrail; closing before BFS; border polarity check (handles cold subjects); opening trim (removes fringe pixels); mirrors in both Kotlin and TypeScript
 - ⚠️ Physical device end-to-end test still pending — rebuild required (`npx expo run:android`)
 
 ### Bundle Capture Pipeline
@@ -200,16 +314,18 @@ Completed the full build + link of the saki4510t/UVCCamera library into Vestigia
 ---
 
 ## Pending Manual Steps
-1. `npx expo run:android` — rebuild required for all Kotlin and JS changes in v0.9.7 + v0.9.8
+1. `npx expo run:android` — rebuild required for all Kotlin changes in v0.9.7 + v0.9.8 + v0.9.9
 2. End-to-end test: bilateral FLIR capture → bundle save → CSV viewer → BundleDetailScreen 3-image display
-3. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase
-4. `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
-5. Delete dead code: `components/thermal/CsvViewerModal.tsx` (replaced by CsvViewerScreen, no longer imported)
+3. Test isolation with cold subject (e.g. ice pack or cold object) to verify polarity detection works
+4. End-to-end test: bilateral FLIR capture → DPN API → save to Supabase
+5. `npx supabase functions deploy auth-redirect --project-ref yqgpykyogvoawlffkeoq`
+6. Delete dead code: `components/thermal/CsvViewerModal.tsx` (replaced by CsvViewerScreen, no longer imported)
 
 ---
 
 ## Next Steps (priority order)
-1. `npx expo run:android` + install APK → physical device test of bilateral capture → isolation → bundle save → CSV viewer
-2. Verify Y16 temperature data is correct (TLINEAR vs RAW14 — divide by 100 - 273.15 or raw scaled)
-3. End-to-end DPN API flow with real thermal data
-4. Clean up dead `CsvViewerModal.tsx`
+1. `npx expo run:android` + install APK → test warm hand AND cold object isolation
+2. Tune variance guardrail (`bestVar < 10.0`) if needed — may be too strict or too loose
+3. Verify Y16 temperature data is correct (TLINEAR vs RAW14 — divide by 100 - 273.15 or raw scaled)
+4. End-to-end DPN API flow with real thermal data
+5. Clean up dead `CsvViewerModal.tsx`

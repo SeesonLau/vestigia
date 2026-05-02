@@ -3,6 +3,79 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.10.0] — 2026-05-02
+
+### Added — Supabase Schema Rollout
+
+The new schema is live on the remote project (5 migrations) and committed under [supabase/migrations/](supabase/migrations/).
+
+#### Tables
+- 4 PSGC reference tables (`ph_regions`, `ph_provinces`, `ph_cities`, `ph_barangays`) — seeds deferred
+- 10 core tables: `profiles`, `clinics`, `devices`, `patients`, `screening_sessions`, `thermal_captures`, `classification_results`, `data_requests`, `system_config`, `audit_log`
+- 8 enums: `user_role`, `sex_type`, `foot_type`, `session_status`, `capture_mode_type`, `dpn_classification`, `request_status`, `facility_type`
+
+#### Identity model
+- `profiles` stores `first_name + middle_name? + last_name`; `full_name` is a `GENERATED ALWAYS AS STORED` column composed from those.
+- `screening_sessions` carries dual identity: `subject_profile_id` (patient view) and `clinic_id` (clinic view). Either or both can be filled; the same row surfaces in both histories without duplication.
+- `patients` is the clinic-side clinical record; `profile_id` is `NOT NULL` (anonymous walk-ins removed per latest decision).
+
+#### Triggers
+- `set_updated_at` applied to profiles, clinics, patients, screening_sessions
+- `gen_patient_code` BEFORE INSERT on profiles → `XXX-YYYYMMDD-HHMM-NN` (advisory-locked counter)
+- `gen_clinic_code` BEFORE INSERT on clinics → `XX-YYYYMMDD-HHMM-NN` (facility-type prefix)
+- `handle_new_user` AFTER INSERT on `auth.users` → mirrors metadata into `profiles`. `SECURITY DEFINER`.
+
+#### RLS
+- Enabled on all 14 tables, 38 policies total
+- Helper functions: `auth_role()`, `auth_clinic_id()`, `is_admin()` — `SECURITY DEFINER`, bypass RLS internally to avoid recursion
+- Access summary: own + admin everywhere; clinic operators scoped to their clinic; patients see their own subject sessions
+
+#### Storage
+- 3 private buckets: `avatars`, `thermal-images`, `thermal-csv`
+- Path layouts: `profiles/{id}/avatar.png`, `clinics/{id}/avatar.png`, `{session_id}/{foot}/{kind}.png`, `{session_id}/{foot}.csv`
+- `storage.objects` policies mirror table-level access via `storage.foldername()` lookups
+
+#### Admin seed
+- Single admin: `transistor@lumenai.com` / `@dmin123!` — auto-confirmed, identity row inserted for password sign-in
+- Mobile login is blocked at the app layer (role check after sign-in)
+- Recovery email is documentation-only; password reset will be handled in the admin webapp
+- Defensive: drops a leftover `trg_on_auth_user_created` trigger from a prior schema before seeding (would otherwise fire `handle_new_user` twice)
+
+#### Deferred to next round
+- PSGC + ZIP seed data
+- Edge Functions: `clinic-signup`, `finalize-session`, `promote-session`
+- Mobile auth flow rewrite (deep-link handler, role-gate, signup forms)
+
+---
+
+## [0.9.10] — 2026-05-02
+
+### Removed — Codebase Audit Pass
+
+- Deleted orphan file `components/assessment/index.tsx` (exported `ClassificationCard`, `AngiosomeTable`, `TCIDisplay` — none referenced anywhere in the codebase)
+- Removed empty `components/assessment/` directory
+
+### Database — Schema Reset
+
+- Dropped all seven public tables (`profiles`, `clinics`, `patients`, `devices`, `screening_sessions`, `thermal_captures`, `classification_results`) via Supabase MCP. All tables were empty (0 rows). Schema redesign deferred to a separate planning round. See `_project-docs/memory-bank/supabase-changes.md`.
+
+---
+
+## [0.9.9] — 2026-05-02
+
+### Fixed — Isolation Pipeline Rewrite (Polarity + Thin Structures + Fringe Pixels)
+
+- `UVCModule.kt` + `lib/thermal/footIsolation.ts` — `isolateFootMask` fully rewritten with a 4-stage pipeline:
+  1. **Variance guardrail** — `otsuThresholdWithVariance()` returns `(threshold, bestVar)`; if `bestVar < 10.0` (unimodal histogram, no distinct subject in frame) returns an empty mask instead of segmenting noise
+  2. **Closing before BFS** — morphological closing (dilate 5, erode 5) applied to the raw hot mask first; bridges thin connections such as a dumbbell handle or narrow finger base before BFS evaluates connectivity — fixes missing thin-structure isolation
+  3. **Border-intersection polarity check** — BFS runs independently on both the hot class and cold class; the class whose largest connected component has more border-touching pixels is the background; the other is the subject — fixes cold-subject inversion (previously always kept the warm class)
+  4. **Opening trim** (erode 2 → dilate 2) — after BFS selects the subject, removes the ragged rim of near-threshold boundary pixels that produced a coloured fringe around the isolated image
+- `UVCModule.kt` + `lib/thermal/footIsolation.ts` — `otsuThreshold()` renamed to `otsuThresholdWithVariance()` and extended to return between-class variance alongside the threshold value
+- `UVCModule.kt` — helper methods extracted: `morphDilate`, `morphErode`, `morphClose`, `largestComponentWithBorderCount`
+- `lib/thermal/footIsolation.ts` — same helpers as standalone functions: `morphDilate`, `morphErode`, `morphClose`, `largestComponentWithBorderCount`
+
+---
+
 ## [0.9.8] — 2026-05-01
 
 ### Added — Kotlin Isolation Pipeline + Bundle Capture Overhaul
