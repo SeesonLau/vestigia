@@ -60,20 +60,18 @@ export default function DPNResultScreen() {
     setSaveError(null);
     try {
       const { error: classErr } = await supabase.from("classification_results").insert({
-        session_id:         activeSession.id,
-        classification:     result.is_diabetic ? "POSITIVE" : "NEGATIVE",
-        confidence_score:   result.combined_confidence,
-        max_asymmetry_c:    result.asymmetry.mean_temp_difference,
-        // Angiosome-level breakdown not provided by this API version — saved as null
-        asymmetry_mpa_c:    null,
-        asymmetry_lpa_c:    null,
-        asymmetry_mca_c:    null,
-        asymmetry_lca_c:    null,
-        angiosomes_flagged: null,
-        bilateral_tci:      null,
-        model_version:      "dpn-api-v1",
-        processing_time_ms: null,
-        classified_at:      new Date().toISOString(),
+        session_id:               activeSession.id,
+        classification:           result.is_diabetic ? "POSITIVE" : "NEGATIVE",
+        confidence_score:         result.combined_confidence,
+        max_asymmetry_c:          result.asymmetry.mean_temp_difference,
+        //Angiosome-level breakdown not provided by this API version
+        per_angiosome_asymmetry:  null,
+        angiosomes_flagged:       null,
+        left_tci:                 null,
+        right_tci:                null,
+        bilateral_tci:            null,
+        model_version:            "dpn-api-v1",
+        classified_at:            new Date().toISOString(),
       });
       if (classErr) throw new Error("Failed to save classification result.");
 
