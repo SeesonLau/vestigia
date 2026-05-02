@@ -17,6 +17,7 @@ import {
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
+import InitialsAvatar, { facilityInitials, personInitials } from "../../components/ui/InitialsAvatar";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
@@ -79,20 +80,19 @@ export default function ProfileScreen() {
     if (!user?.clinic_id) return;
     supabase
       .from("clinics")
-      .select("name")
+      .select("facility_name")
       .eq("id", user.clinic_id)
       .single()
       .then(({ data }) => {
-        if (data?.name) setClinicName(data.name);
+        if (data?.facility_name) setClinicName(data.facility_name);
       });
   }, [user?.clinic_id]);
 
-  const initials = (user?.full_name ?? "U")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  //Clinic avatar shows the facility's initials when we know the facility name,
+  //otherwise falls back to the operator's initials.
+  const initials = clinicName
+    ? facilityInitials(clinicName)
+    : personInitials(user?.first_name, user?.last_name);
 
   //Avatar
   const handlePickAvatar = () => {
@@ -256,16 +256,14 @@ export default function ProfileScreen() {
         >
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            {avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={[styles.avatarImage, { borderColor: `${colors.accent}66` }]}
-              />
-            ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: `${colors.accent}26`, borderColor: `${colors.accent}66` }]}>
-                <Text style={[styles.avatarText, { color: colors.accent }]}>{initials}</Text>
-              </View>
-            )}
+            <InitialsAvatar
+              initials={initials}
+              seed={user?.clinic_id ?? user?.id ?? initials}
+              imageUrl={avatarUrl}
+              size={96}
+              borderWidth={1.5}
+              borderColor={`${colors.accent}66`}
+            />
 
             <TouchableOpacity
               onPress={handlePickAvatar}

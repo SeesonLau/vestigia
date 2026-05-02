@@ -17,6 +17,7 @@ import {
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
+import InitialsAvatar, { personInitials } from "../../components/ui/InitialsAvatar";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
@@ -74,12 +75,7 @@ export default function PatientProfileScreen() {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url ?? null);
 
-  const initials = (user?.full_name ?? "U")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = personInitials(user?.first_name, user?.last_name);
 
   //Avatar
   const handlePickAvatar = () => {
@@ -231,16 +227,14 @@ export default function PatientProfileScreen() {
         >
           {/* Avatar */}
           <View style={styles.avatarSection}>
-            {avatarUrl ? (
-              <Image
-                source={{ uri: avatarUrl }}
-                style={[styles.avatarImage, { borderColor: `${colors.accent}66` }]}
-              />
-            ) : (
-              <View style={[styles.avatarFallback, { backgroundColor: `${colors.accent}26`, borderColor: `${colors.accent}66` }]}>
-                <Text style={[styles.avatarText, { color: colors.accent }]}>{initials}</Text>
-              </View>
-            )}
+            <InitialsAvatar
+              initials={initials}
+              seed={user?.patient_code ?? user?.id ?? initials}
+              imageUrl={avatarUrl}
+              size={96}
+              borderWidth={1.5}
+              borderColor={`${colors.accent}66`}
+            />
 
             <TouchableOpacity
               onPress={handlePickAvatar}
