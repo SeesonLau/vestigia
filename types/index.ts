@@ -1,15 +1,22 @@
 // types/index.ts
 // auth.ts
 export type UserRole = "patient" | "clinic" | "admin";
+export type Sex = "male" | "female" | "other";
 
 export interface AuthUser {
   id: string;
   email: string;
-  full_name: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  full_name: string;        //DB-generated: first + ' ' + middle? + ' ' + last
   role: UserRole;
-  clinic_id?: string;
-  phone?: string;
-  avatar_url?: string;
+  patient_code?: string | null;
+  sex?: Sex | null;
+  date_of_birth?: string | null;   //YYYY-MM-DD
+  contact_number?: string | null;
+  clinic_id?: string | null;
+  avatar_url?: string | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

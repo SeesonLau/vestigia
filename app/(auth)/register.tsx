@@ -18,29 +18,55 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
 import { useAuthStore } from "../../store/authStore";
+import { Sex } from "../../types";
 
-type Role = "patient" | "clinic";
+const SEX_OPTIONS: { value: Sex; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: "male",   label: "Male",   icon: "male-outline" },
+  { value: "female", label: "Female", icon: "female-outline" },
+  { value: "other",  label: "Other",  icon: "person-outline" },
+];
+
+const isValidDob = (s: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return false;
+  //Reject obviously implausible dates
+  const year = d.getFullYear();
+  return year >= 1900 && d <= new Date();
+};
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { register, error: storeError, clearError } = useAuthStore();
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { registerPatient, error: storeError, clearError } = useAuthStore();
+
+  //Identity
+  const [firstName, setFirstName]   = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName]     = useState("");
+  const [sex, setSex]               = useState<Sex | null>(null);
+  const [dateOfBirth, setDob]       = useState("");
+  const [contactNumber, setContact] = useState("");
+
+  //Account
+  const [email, setEmail]                     = useState("");
+  const [password, setPassword]               = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState<Role>("patient");
-  const [clinicName, setClinicName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword]       = useState(false);
+
+  //UI
+  const [loading, setLoading]     = useState(false);
   const [emailSent, setEmailSent] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors]       = useState<Record<string, string>>({});
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!fullName.trim()) e.fullName = "Full name is required";
+    if (!firstName.trim()) e.firstName = "Required";
+    if (!lastName.trim())  e.lastName  = "Required";
+    if (!sex)              e.sex       = "Select one";
+    if (!isValidDob(dateOfBirth)) e.dateOfBirth = "Use format YYYY-MM-DD";
+    if (!contactNumber.trim()) e.contactNumber = "Required";
     if (!email.includes("@")) e.email = "Enter a valid email address";
-    if (role === "clinic" && !clinicName.trim()) e.clinicName = "Clinic name is required";
     const missing: string[] = [];
     if (password.length < 8) missing.push("8+ characters");
     if (!/[A-Z]/.test(password)) missing.push("uppercase letter");
@@ -54,19 +80,19 @@ export default function RegisterScreen() {
   const handleRegister = async () => {
     if (!validate()) return;
     setLoading(true);
-    const result = await register(email, password, fullName, role, role === "clinic" ? clinicName.trim() : undefined);
+    const result = await registerPatient({
+      email,
+      password,
+      firstName,
+      middleName: middleName.trim() || undefined,
+      lastName,
+      sex: sex!,
+      dateOfBirth,
+      contactNumber,
+    });
     setLoading(false);
-    if (result.success) {
-      if (result.needsConfirmation) {
-        setEmailSent(true);
-      } else {
-        switch (result.role) {
-          case "clinic":   router.replace("/(clinic)"); break;
-          case "patient":  router.replace("/(patient)"); break;
-          case "admin":    router.replace("/(admin)"); break;
-          default:         router.replace("/(auth)/login");
-        }
-      }
+    if (result.success && result.needsConfirmation) {
+      setEmailSent(true);
     }
   };
 
@@ -99,27 +125,17 @@ export default function RegisterScreen() {
               {S.auth.register}
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSec }]}>
-              Join the DPN Thermal platform
+              Create your patient account
             </Text>
           </View>
 
           {emailSent ? (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Text style={[styles.cardTitle, { color: colors.text }]}>
-                Check your inbox
-              </Text>
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>Check your inbox</Text>
               <Text style={[styles.confirmSubtitle, { color: colors.textSec }]}>
                 We've sent a confirmation link to{" "}
-                <Text style={[styles.emailHighlight, { color: colors.accent }]}>
-                  {email}
-                </Text>
-                .{"\n\n"}Click the link in the email to activate your account,
-                then sign in.
+                <Text style={[styles.emailHighlight, { color: colors.accent }]}>{email}</Text>.
+                {"\n\n"}Click the link in the email to activate your account, then sign in.
               </Text>
               <Button
                 label="Back to Sign In"
@@ -129,104 +145,121 @@ export default function RegisterScreen() {
               />
             </View>
           ) : (
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>
-                Account Type
-              </Text>
-              <View style={styles.roleRow}>
-                {(["patient", "clinic"] as Role[]).map((r) => (
-                  <TouchableOpacity
-                    key={r}
-                    onPress={() => { setRole(r); setClinicName(""); }}
-                    style={[
-                      styles.roleBtn,
-                      {
-                        borderColor: role === r ? colors.accent : colors.border,
-                        backgroundColor: role === r ? `${colors.accent}1F` : "transparent",
-                      },
-                    ]}
-                    activeOpacity={0.75}
-                  >
-                    <Ionicons
-                      name={r === "patient" ? "person-outline" : "business-outline"}
-                      size={18}
-                      color={role === r ? colors.accent : colors.textSec}
-                    />
-                    <Text
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              {/* Identity */}
+              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Your details</Text>
+              <Input
+                placeholder="First name"
+                value={firstName}
+                onChangeText={(v) => { setFirstName(v); clearError(); }}
+                autoCapitalize="words"
+                error={errors.firstName}
+              />
+              <Input
+                placeholder="Middle name (optional)"
+                value={middleName}
+                onChangeText={setMiddleName}
+                autoCapitalize="words"
+              />
+              <Input
+                placeholder="Last name"
+                value={lastName}
+                onChangeText={(v) => { setLastName(v); clearError(); }}
+                autoCapitalize="words"
+                error={errors.lastName}
+              />
+
+              {/* Sex */}
+              <Text style={[styles.fieldLabel, { color: colors.textSec }]}>Sex</Text>
+              <View style={styles.sexRow}>
+                {SEX_OPTIONS.map((opt) => {
+                  const selected = sex === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      onPress={() => setSex(opt.value)}
                       style={[
-                        styles.roleLabel,
-                        { color: role === r ? colors.accent : colors.textSec },
+                        styles.sexBtn,
+                        {
+                          borderColor: selected ? colors.accent : colors.border,
+                          backgroundColor: selected ? `${colors.accent}1F` : "transparent",
+                        },
                       ]}
+                      activeOpacity={0.75}
                     >
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <Ionicons
+                        name={opt.icon}
+                        size={18}
+                        color={selected ? colors.accent : colors.textSec}
+                      />
+                      <Text
+                        style={[
+                          styles.sexLabel,
+                          { color: selected ? colors.accent : colors.textSec },
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
+              {errors.sex ? (
+                <Text style={[styles.fieldError, { color: colors.error }]}>{errors.sex}</Text>
+              ) : null}
 
-              {role === "clinic" && (
-                <View style={{ marginBottom: Spacing.xl }}>
-                  <Text style={[styles.sectionLabel, { color: colors.textSec }]}>
-                    Clinic Name
-                  </Text>
-                  <Input
-                    placeholder="e.g. Cebu City Health Center"
-                    value={clinicName}
-                    onChangeText={(v) => { setClinicName(v); clearError(); }}
-                    autoCapitalize="words"
-                    error={errors.clinicName}
+              {/* DOB + contact */}
+              <Input
+                placeholder="Date of birth (YYYY-MM-DD)"
+                value={dateOfBirth}
+                onChangeText={setDob}
+                error={errors.dateOfBirth}
+              />
+              <Input
+                placeholder="Contact number"
+                value={contactNumber}
+                onChangeText={setContact}
+                keyboardType="phone-pad"
+                error={errors.contactNumber}
+              />
+
+              {/* Account */}
+              <Text style={[styles.sectionLabel, { color: colors.textSec, marginTop: Spacing.lg }]}>
+                Account
+              </Text>
+              <Input
+                placeholder="Email address"
+                value={email}
+                onChangeText={(v) => { setEmail(v); clearError(); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                error={errors.email}
+              />
+              <Input
+                placeholder="Password"
+                value={password}
+                onChangeText={(v) => { setPassword(v); clearError(); }}
+                secureTextEntry={!showPassword}
+                error={errors.password}
+                rightIcon={
+                  <Ionicons
+                    name={showPassword ? "eye-off-outline" : "eye-outline"}
+                    size={20}
+                    color={colors.textSec}
                   />
-                </View>
-              )}
-
-              <View style={styles.form}>
-                <Input
-                  placeholder="Full name"
-                  value={fullName}
-                  onChangeText={(v) => { setFullName(v); clearError(); }}
-                  error={errors.fullName}
-                  autoCapitalize="words"
-                />
-                <Input
-                  placeholder="Email address"
-                  value={email}
-                  onChangeText={(v) => { setEmail(v); clearError(); }}
-                  keyboardType="email-address"
-                  error={errors.email}
-                />
-                <Input
-                  placeholder="Password"
-                  value={password}
-                  onChangeText={(v) => { setPassword(v); clearError(); }}
-                  secureTextEntry={!showPassword}
-                  error={errors.password}
-                  rightIcon={
-                    <Ionicons
-                      name={showPassword ? "eye-off-outline" : "eye-outline"}
-                      size={20}
-                      color={colors.textSec}
-                    />
-                  }
-                  onRightIconPress={() => setShowPassword((v) => !v)}
-                />
-                <Input
-                  placeholder="Confirm password"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showPassword}
-                  error={errors.confirmPassword}
-                />
-              </View>
+                }
+                onRightIconPress={() => setShowPassword((v) => !v)}
+              />
+              <Input
+                placeholder="Confirm password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showPassword}
+                error={errors.confirmPassword}
+              />
 
               {storeError ? (
-                <Text style={[styles.generalError, { color: colors.error }]}>
-                  {storeError}
-                </Text>
+                <Text style={[styles.generalError, { color: colors.error }]}>{storeError}</Text>
               ) : null}
 
               <Button
@@ -248,13 +281,8 @@ export default function RegisterScreen() {
             <Text style={[styles.footerText, { color: colors.textSec }]}>
               Already have an account?{" "}
             </Text>
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => router.replace("/(auth)/login")}
-            >
-              <Text style={[styles.loginLink, { color: colors.accent }]}>
-                Sign in
-              </Text>
+            <TouchableOpacity activeOpacity={0.7} onPress={() => router.replace("/(auth)/login")}>
+              <Text style={[styles.loginLink, { color: colors.accent }]}>Sign in</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -321,26 +349,39 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginBottom: Spacing.sm,
   },
-  roleRow: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginBottom: Spacing.xl,
+  fieldLabel: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.label,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
-  roleBtn: {
+  fieldError: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.body,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  sexRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  sexBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
     borderWidth: 1.5,
   },
-  roleLabel: {
-    fontSize: Typography.sizes.base,
+  sexLabel: {
+    fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.subheading,
   },
-  form: { marginBottom: Spacing.lg },
   generalError: {
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
@@ -359,12 +400,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: Spacing.xl,
   },
-  footerText: {
-    fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.body,
-  },
   loginLink: {
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.subheading,
+  },
+  footerText: {
+    fontSize: Typography.sizes.base,
+    fontFamily: Typography.fonts.body,
   },
 });

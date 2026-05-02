@@ -2,7 +2,15 @@
 import { create } from "zustand";
 import { dbg } from "../lib/debug";
 import { supabase } from "../lib/supabase";
-import { AuthUser, UserRole } from "../types";
+import { AuthUser, Sex, UserRole } from "../types";
+
+//Web auth landing pages (Vercel)
+const VERIFIED_REDIRECT = "https://lumenai-vert.vercel.app/auth/verified";
+const RESET_REDIRECT    = "https://lumenai-vert.vercel.app/auth/reset-password";
+
+//Compose the DB's generated full_name for the JWT-bootstrap fast path
+const composeFullName = (first?: string, middle?: string | null, last?: string) =>
+  [first, middle, last].filter(Boolean).join(" ").trim();
 
 // ── Error message mapping ────────────────────────────────────────
 function mapAuthError(error: { message?: string; code?: string; status?: number } | null): string {
@@ -56,13 +64,16 @@ interface AuthState {
     email: string,
     password: string,
   ) => Promise<{ success: boolean; role?: UserRole; error?: string }>;
-  register: (
-    email: string,
-    password: string,
-    fullName: string,
-    role: UserRole,
-    clinicName?: string,
-  ) => Promise<{ success: boolean; needsConfirmation?: boolean; role?: UserRole; error?: string }>;
+  registerPatient: (params: {
+    email: string;
+    password: string;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    sex: Sex;
+    dateOfBirth: string;     //YYYY-MM-DD
+    contactNumber: string;
+  }) => Promise<{ success: boolean; needsConfirmation?: boolean; error?: string }>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
@@ -88,9 +99,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const user: AuthUser = {
         id: session.user.id,
         email: session.user.email ?? "",
-        full_name: meta.full_name ?? "",
+        first_name: meta.first_name ?? "",
+        middle_name: meta.middle_name ?? null,
+        last_name: meta.last_name ?? "",
+        full_name: composeFullName(meta.first_name, meta.middle_name, meta.last_name),
         role: meta.role as UserRole,
-        clinic_id: meta.clinic_id,
+        clinic_id: meta.clinic_id ?? null,
         is_active: true,
       };
       dbg("authStore", `${event} — user from JWT, role=${user.role}`);
@@ -141,6 +155,14 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
         const profile = profileData as AuthUser;
 
+        //Admin login is web-only; reject on mobile.
+        if (profile.role === "admin") {
+          await supabase.auth.signOut();
+          const err = "Admin login is not available on mobile. Use the admin web app.";
+          set({ user: null, isLoading: false, error: err });
+          return { success: false, error: err };
+        }
+
         // AUTH-06: Reset counter on success
         _loginAttempts = 0;
         _loginLockedUntil = 0;
@@ -160,55 +182,44 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
     },
 
-    register: async (
-      email: string,
-      password: string,
-      fullName: string,
-      role: UserRole,
-      clinicName?: string,
-    ) => {
+    registerPatient: async ({
+      email, password, firstName, middleName, lastName,
+      sex, dateOfBirth, contactNumber,
+    }) => {
       set({ isLoading: true, error: null });
       try {
-        // handle_new_user() trigger reads these to create the profile row.
-        // For clinic role, clinic_name is used by the trigger to create a new
-        // clinic record and assign its id to the profile automatically.
-        const metadata: Record<string, string> = { full_name: fullName, role };
-        if (role === "clinic" && clinicName) metadata.clinic_name = clinicName;
+        //handle_new_user() trigger reads these from raw_user_meta_data and
+        //creates the profiles row with role=patient + auto-generated patient_code.
+        const metadata: Record<string, string> = {
+          role: "patient",
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          sex,
+          date_of_birth: dateOfBirth,
+          contact_number: contactNumber.trim(),
+        };
+        if (middleName?.trim()) metadata.middle_name = middleName.trim();
 
         const { data, error } = await supabase.auth.signUp({
           email: email.toLowerCase().trim(),
           password,
           options: {
             data: metadata,
-            emailRedirectTo: `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/auth-redirect`,
+            emailRedirectTo: VERIFIED_REDIRECT,
           },
         });
         if (error) throw error;
 
-        // Email confirmation required — session is null until user clicks link
-        if (!data.session) {
-          // AUTH-16: When email confirmation is enabled, Supabase silently returns
-          // identities: [] instead of a user_already_exists error for duplicate emails.
-          if ((data.user?.identities?.length ?? 1) === 0) {
-            const err = "An account with this email already exists. Please sign in instead.";
-            set({ isLoading: false, error: err });
-            return { success: false, error: err };
-          }
-          set({ isLoading: false });
-          return { success: true, needsConfirmation: true };
+        //Email confirmation required — session is null until user clicks the link.
+        //AUTH-16: Supabase returns identities: [] (not an error) for duplicate emails
+        //when confirmations are enabled.
+        if ((data.user?.identities?.length ?? 1) === 0) {
+          const err = "An account with this email already exists. Please sign in instead.";
+          set({ isLoading: false, error: err });
+          return { success: false, error: err };
         }
-
-        // Email confirmation disabled — session available immediately
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", data.user!.id)
-          .single();
-        if (profileError) throw profileError;
-
-        const profile = profileData as AuthUser;
-        set({ user: profile, isLoading: false, error: null });
-        return { success: true, role: profile.role };
+        set({ isLoading: false });
+        return { success: true, needsConfirmation: true };
       } catch (e: any) {
         const err = mapAuthError(e);
         set({ isLoading: false, error: err });
@@ -229,7 +240,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       try {
         const { error } = await supabase.auth.resetPasswordForEmail(
           email.toLowerCase().trim(),
-          { redirectTo: 'vestigia://update-password' },
+          { redirectTo: RESET_REDIRECT },
         );
         if (error) throw error;
         return { success: true };
