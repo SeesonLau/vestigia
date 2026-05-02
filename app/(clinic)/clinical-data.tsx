@@ -93,7 +93,13 @@ export default function ClinicalDataScreen() {
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
   const { selectedPatient, setActiveSession, clearSession } = useSessionStore();
-  const { leftMatrix, rightMatrix, leftProcessedB64, rightProcessedB64 } = useThermalStore();
+  const {
+    leftMatrix, rightMatrix,
+    leftRawB64, rightRawB64,
+    leftProcessedB64, rightProcessedB64,
+    leftIsolatedB64, rightIsolatedB64,
+    leftCsvContent, rightCsvContent,
+  } = useThermalStore();
   const leftAngiosomes  = computeAngiosomes(leftMatrix, "left");
   const rightAngiosomes = computeAngiosomes(rightMatrix, "right");
 
@@ -109,29 +115,85 @@ export default function ClinicalDataScreen() {
         .from("devices").select("id").eq("clinic_id", user.clinic_id).eq("is_active", true).limit(1).single();
       if (devErr || !device) throw new Error(S.errors.noActiveDevice);
 
+      const startedAt = new Date().toISOString();
+      const patientSnapshot = {
+        first_name:    selectedPatient.first_name,
+        middle_name:   selectedPatient.middle_name ?? null,
+        last_name:     selectedPatient.last_name,
+        sex:           selectedPatient.sex ?? null,
+        date_of_birth: selectedPatient.date_of_birth ?? null,
+      };
+
       const { data: session, error: sessErr } = await supabase
         .from("screening_sessions")
-        .insert({ patient_id: selectedPatient.id, operator_id: user.id, device_id: device.id, clinic_id: user.clinic_id, status: "uploading", started_at: new Date().toISOString() })
-        .select("id").single();
+        .insert({
+          subject_profile_id: selectedPatient.profile_id,
+          patient_id:         selectedPatient.id,
+          clinic_id:          user.clinic_id,
+          operator_id:        user.id,
+          device_id:          device.id,
+          capture_mode:       "clinical",
+          status:             "uploading",
+          patient_snapshot:   patientSnapshot,
+          started_at:         startedAt,
+        })
+        .select("id, bundle_code")
+        .single();
       if (sessErr || !session) throw new Error("Failed to create session.");
 
-      const captureEntries: Array<{ foot: "left" | "right"; matrix: number[][]; imageB64: string | null; angiosomes: AngiosomeData | null }> = [];
-      if (leftMatrix)  captureEntries.push({ foot: "left",  matrix: leftMatrix,  imageB64: leftProcessedB64,  angiosomes: leftAngiosomes });
-      if (rightMatrix) captureEntries.push({ foot: "right", matrix: rightMatrix, imageB64: rightProcessedB64, angiosomes: rightAngiosomes });
+      type FootEntry = {
+        foot: "left" | "right";
+        matrix: number[][];
+        rawB64: string | null;
+        processedB64: string | null;
+        isolatedB64: string | null;
+        csv: string | null;
+        angiosomes: AngiosomeData | null;
+      };
+      const captureEntries: FootEntry[] = [];
+      if (leftMatrix) captureEntries.push({
+        foot: "left", matrix: leftMatrix,
+        rawB64: leftRawB64, processedB64: leftProcessedB64,
+        isolatedB64: leftIsolatedB64, csv: leftCsvContent,
+        angiosomes: leftAngiosomes,
+      });
+      if (rightMatrix) captureEntries.push({
+        foot: "right", matrix: rightMatrix,
+        rawB64: rightRawB64, processedB64: rightProcessedB64,
+        isolatedB64: rightIsolatedB64, csv: rightCsvContent,
+        angiosomes: rightAngiosomes,
+      });
+
+      const uploadPng = async (b64: string | null, sessionId: string, foot: string, kind: string) => {
+        if (!b64) return null;
+        const path = `${sessionId}/${foot}/${kind}.png`;
+        const raw = atob(b64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        const { error } = await supabase.storage
+          .from("thermal-images")
+          .upload(path, bytes, { contentType: "image/png", upsert: true });
+        return error ? null : path;
+      };
+      const uploadCsv = async (text: string | null, sessionId: string, foot: string) => {
+        if (!text) return null;
+        const path = `${sessionId}/${foot}.csv`;
+        const { error } = await supabase.storage
+          .from("thermal-csv")
+          .upload(path, text, { contentType: "text/csv", upsert: true });
+        return error ? null : path;
+      };
 
       for (const entry of captureEntries) {
         const stats = getMatrixStats(entry.matrix);
-
-        let imageUrl: string | null = null;
-        if (entry.imageB64) {
-          const path = `${session.id}/${entry.foot}.png`;
-          const raw = atob(entry.imageB64);
-          const bytes = new Uint8Array(raw.length);
-          for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-          const { error: uploadErr } = await supabase.storage
-            .from("thermal-images")
-            .upload(path, bytes, { contentType: "image/png", upsert: true });
-          if (!uploadErr) imageUrl = path;
+        const [rawPath, processedPath, isolatedPath, csvPath] = await Promise.all([
+          uploadPng(entry.rawB64, session.id, entry.foot, "raw"),
+          uploadPng(entry.processedB64, session.id, entry.foot, "processed"),
+          uploadPng(entry.isolatedB64, session.id, entry.foot, "isolated"),
+          uploadCsv(entry.csv, session.id, entry.foot),
+        ]);
+        if (!processedPath || !isolatedPath) {
+          throw new Error(`Failed to upload ${entry.foot} foot images.`);
         }
 
         const { error: captureErr } = await supabase.from("thermal_captures").insert({
@@ -147,13 +209,27 @@ export default function ClinicalDataScreen() {
           lpa_mean_c: entry.angiosomes?.lpa ?? null,
           mca_mean_c: entry.angiosomes?.mca ?? null,
           lca_mean_c: entry.angiosomes?.lca ?? null,
-          image_url: imageUrl,
+          raw_image_path:       rawPath,
+          processed_image_path: processedPath,
+          isolated_image_path:  isolatedPath,
+          csv_path:             csvPath,
           captured_at: new Date().toISOString(),
         });
         if (captureErr) throw new Error(`Failed to save ${entry.foot} thermal capture.`);
       }
 
-      setActiveSession({ id: session.id, patient_id: selectedPatient.id, operator_id: user.id, device_id: device.id, clinic_id: user.clinic_id, status: "uploading", started_at: new Date().toISOString() });
+      setActiveSession({
+        id: session.id,
+        bundle_code: session.bundle_code ?? null,
+        subject_profile_id: selectedPatient.profile_id,
+        patient_id: selectedPatient.id,
+        operator_id: user.id,
+        device_id: device.id,
+        clinic_id: user.clinic_id,
+        capture_mode: "clinical",
+        status: "uploading",
+        started_at: startedAt,
+      });
       router.push("/(clinic)/assessment");
     } catch (err: any) {
       setErrors({ _form: err.message ?? S.errors.genericError });
