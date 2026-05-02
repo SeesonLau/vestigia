@@ -1,4 +1,10 @@
 // app/(clinic)/register-patient.tsx
+//Pre-redesign: this screen created a brand-new patient row with a
+//clinic-scoped patient_code. Post-redesign: patients self-register
+//and own a global profile.patient_code; this screen looks up that
+//profile by code and (optionally) records clinical data on a new
+//patients row that links back to it.
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -22,14 +28,7 @@ import { useAuthStore } from "../../store/authStore";
 import { useSessionStore } from "../../store/sessionStore";
 import { Patient } from "../../types";
 
-type SexOption = "male" | "female" | "other";
 type DiabetesType = "type1" | "type2" | "gestational" | "unknown";
-
-const SEX_OPTIONS: { value: SexOption; label: string }[] = [
-  { value: "male",   label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other",  label: "Other" },
-];
 
 const DIABETES_OPTIONS: { value: DiabetesType; label: string }[] = [
   { value: "type1",       label: "Type 1" },
@@ -38,7 +37,18 @@ const DIABETES_OPTIONS: { value: DiabetesType; label: string }[] = [
   { value: "unknown",     label: "Unknown" },
 ];
 
-//SegmentedGroup
+interface ProfileLookup {
+  id: string;
+  patient_code: string;
+  full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  sex: "male" | "female" | "other" | null;
+  date_of_birth: string | null;
+  contact_number: string | null;
+}
+
 function SegmentedGroup<T extends string>({
   options,
   selected,
@@ -75,7 +85,6 @@ function SegmentedGroup<T extends string>({
   );
 }
 
-//FieldLabel
 function FieldLabel({ label, required }: { label: string; required?: boolean }) {
   const { colors } = useTheme();
   return (
@@ -92,77 +101,116 @@ export default function RegisterPatientScreen() {
   const user = useAuthStore((s) => s.user);
   const setSelectedPatient = useSessionStore((s) => s.setSelectedPatient);
 
-  //Form state
-  const [patientCode, setPatientCode] = useState("");
-  const [dob, setDob] = useState("");
-  const [sex, setSex] = useState<SexOption | null>(null);
+  //Lookup state
+  const [code, setCode]           = useState("");
+  const [searching, setSearching] = useState(false);
+  const [profile, setProfile]     = useState<ProfileLookup | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  //Clinical fields
   const [diabetesType, setDiabetesType] = useState<DiabetesType | null>(null);
   const [durationYears, setDurationYears] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [weightKg, setWeightKg] = useState("");
   const [notes, setNotes] = useState("");
 
   const [saving, setSaving] = useState(false);
 
-  const handleRegister = async () => {
-    const code = patientCode.trim();
-    if (!code) {
-      Alert.alert("Required", "Patient code is required.");
+  const handleLookup = async () => {
+    const q = code.trim().toUpperCase();
+    if (!q) {
+      Alert.alert("Required", "Enter the patient's ID to look them up.");
       return;
     }
-    if (!user?.clinic_id) {
-      Alert.alert("Error", "Your account is not linked to a clinic.");
+    setSearching(true);
+    setLookupError(null);
+    setProfile(null);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, patient_code, full_name, first_name, middle_name, last_name, sex, date_of_birth, contact_number, role")
+      .eq("patient_code", q)
+      .maybeSingle();
+    setSearching(false);
+    if (error) {
+      setLookupError("Lookup failed. Check your connection and try again.");
       return;
     }
+    if (!data || data.role !== "patient") {
+      setLookupError("No patient found with that ID. Make sure they've signed up first.");
+      return;
+    }
+    setProfile(data as ProfileLookup);
+  };
 
-    //Validate DOB format if provided
-    if (dob.trim() && !/^\d{4}-\d{2}-\d{2}$/.test(dob.trim())) {
-      Alert.alert("Invalid Date", "Date of birth must be in YYYY-MM-DD format.");
-      return;
-    }
+  const handleSubmit = async () => {
+    if (!profile)         return;
+    if (!user?.clinic_id) return Alert.alert("Error", "Your account is not linked to a clinic.");
 
-    //Validate duration if provided
-    const duration = durationYears.trim() ? parseInt(durationYears.trim(), 10) : undefined;
-    if (durationYears.trim() && (isNaN(duration!) || duration! < 0 || duration! > 100)) {
+    const duration = durationYears.trim() ? Number(durationYears.trim()) : null;
+    if (durationYears.trim() && (Number.isNaN(duration) || (duration ?? 0) < 0 || (duration ?? 0) > 100)) {
       Alert.alert("Invalid Duration", "Diabetes duration must be a number between 0 and 100.");
       return;
     }
+    const height = heightCm.trim() ? Number(heightCm.trim()) : null;
+    const weight = weightKg.trim() ? Number(weightKg.trim()) : null;
 
     setSaving(true);
-    const payload: Partial<Patient> = {
-      clinic_id:                user.clinic_id,
-      patient_code:             code,
-      date_of_birth:            dob.trim() || undefined,
-      sex:                      sex ?? undefined,
-      diabetes_type:            diabetesType ?? undefined,
-      diabetes_duration_years:  duration,
-      notes:                    notes.trim() || undefined,
-    };
 
-    const { data, error } = await supabase
+    //If a patients row for (this clinic, this profile) already exists, return it.
+    //Otherwise insert a new one.
+    const existing = await supabase
       .from("patients")
-      .insert(payload)
-      .select()
-      .single();
+      .select("*")
+      .eq("clinic_id", user.clinic_id)
+      .eq("profile_id", profile.id)
+      .maybeSingle();
 
-    setSaving(false);
+    let row: Patient | null = (existing.data as Patient) ?? null;
 
-    if (error) {
-      if (error.code === "23505") {
-        Alert.alert("Duplicate Code", "A patient with this code already exists in your clinic.");
-      } else {
-        Alert.alert("Error", "Failed to register patient. Check your connection and try again.");
+    if (!row) {
+      const insertPayload = {
+        clinic_id:               user.clinic_id,
+        profile_id:              profile.id,
+        first_name:              profile.first_name,
+        middle_name:             profile.middle_name,
+        last_name:               profile.last_name,
+        sex:                     profile.sex ?? null,
+        date_of_birth:           profile.date_of_birth ?? null,
+        contact_number:          profile.contact_number ?? null,
+        diabetes_type:           diabetesType ?? null,
+        diabetes_duration_years: duration,
+        height_cm:               height,
+        weight_kg:               weight,
+        notes:                   notes.trim() || null,
+      };
+      const { data: inserted, error } = await supabase
+        .from("patients")
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (error || !inserted) {
+        setSaving(false);
+        Alert.alert("Error", error?.message ?? "Failed to add patient. Check your connection and try again.");
+        return;
       }
-      return;
+      row = inserted as Patient;
     }
 
-    //Select the new patient and proceed to live feed
-    setSelectedPatient(data as Patient);
+    setSaving(false);
+    //Decorate with the joined profile so downstream screens (sync, etc.) match
+    //the PatientWithProfile shape they consume.
+    setSelectedPatient({
+      ...row,
+      // @ts-expect-error -- attaching the joined profile for screen-local use
+      profile: { patient_code: profile.patient_code, full_name: profile.full_name },
+    });
     router.replace("/(clinic)/live-feed");
   };
 
   return (
     <ScreenWrapper>
       <Header
-        title="Register Patient"
+        title="Add Patient"
         leftIcon={<Ionicons name="chevron-back" size={24} color={colors.text} />}
         onLeftPress={() => router.back()}
       />
@@ -172,80 +220,122 @@ export default function RegisterPatientScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Patient Code */}
-        <FieldLabel label="Patient Code" required />
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-          placeholder="e.g. PAT-0001"
-          placeholderTextColor={colors.textSec}
-          value={patientCode}
-          onChangeText={setPatientCode}
-          autoCapitalize="characters"
-          autoCorrect={false}
-        />
-
-        {/* Date of Birth */}
-        <FieldLabel label="Date of Birth" />
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor={colors.textSec}
-          value={dob}
-          onChangeText={setDob}
-          keyboardType="numeric"
-          maxLength={10}
-        />
-
-        {/* Sex */}
-        <FieldLabel label="Sex" />
-        <SegmentedGroup options={SEX_OPTIONS} selected={sex} onSelect={setSex} />
-
-        {/* Diabetes Type */}
-        <FieldLabel label="Diabetes Type" />
-        <SegmentedGroup options={DIABETES_OPTIONS} selected={diabetesType} onSelect={setDiabetesType} />
-
-        {/* Duration */}
-        <FieldLabel label="Diabetes Duration (years)" />
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-          placeholder="e.g. 5"
-          placeholderTextColor={colors.textSec}
-          value={durationYears}
-          onChangeText={setDurationYears}
-          keyboardType="numeric"
-          maxLength={3}
-        />
-
-        {/* Notes */}
-        <FieldLabel label="Notes" />
-        <TextInput
-          style={[styles.input, styles.textarea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-          placeholder="Optional clinical notes..."
-          placeholderTextColor={colors.textSec}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={3}
-          textAlignVertical="top"
-        />
-
-        {/* Info note */}
         <View style={[styles.infoBox, { backgroundColor: colors.accentSoft, borderColor: `${colors.accent}33` }]}>
           <Ionicons name="information-circle-outline" size={16} color={colors.accent} style={{ marginTop: 1 }} />
           <Text style={[styles.infoText, { color: colors.textSec }]}>
-            After registering, this patient will be automatically selected for the current screening session.
+            Patients sign up themselves on Lumen AI. Enter their Patient ID below to add them to your clinic for screening.
           </Text>
         </View>
 
-        {/* Submit */}
-        <Button
-          label={saving ? "Registering..." : "Register & Start Session"}
-          onPress={handleRegister}
-          variant="teal"
-          size="lg"
-          style={styles.submitBtn}
-        />
-        {saving && <ActivityIndicator color={colors.accent} style={{ marginTop: Spacing.sm }} />}
+        {/* Patient ID lookup */}
+        <FieldLabel label="Patient ID" required />
+        <View style={styles.lookupRow}>
+          <TextInput
+            style={[styles.input, styles.lookupInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            placeholder="e.g. JGS-20260502-1617-00"
+            placeholderTextColor={colors.textSec}
+            value={code}
+            onChangeText={(v) => { setCode(v); setLookupError(null); setProfile(null); }}
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+          <TouchableOpacity
+            onPress={handleLookup}
+            disabled={searching}
+            activeOpacity={0.75}
+            style={[styles.lookupBtn, { backgroundColor: colors.accent }]}
+          >
+            {searching
+              ? <ActivityIndicator color={colors.textInverse} size="small" />
+              : <Ionicons name="search" size={18} color={colors.textInverse} />}
+          </TouchableOpacity>
+        </View>
+        {lookupError ? (
+          <Text style={[styles.lookupError, { color: colors.error }]}>{lookupError}</Text>
+        ) : null}
+
+        {/* Profile preview */}
+        {profile ? (
+          <View style={[styles.previewCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={styles.previewHeader}>
+              <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
+              <Text style={[styles.previewCode, { color: colors.text }]}>{profile.patient_code}</Text>
+            </View>
+            <Text style={[styles.previewName, { color: colors.text }]}>{profile.full_name}</Text>
+            <Text style={[styles.previewMeta, { color: colors.textSec }]}>
+              {profile.sex ? profile.sex.charAt(0).toUpperCase() + profile.sex.slice(1) : "—"}
+              {profile.date_of_birth ? ` · ${profile.date_of_birth}` : ""}
+              {profile.contact_number ? ` · ${profile.contact_number}` : ""}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Clinical fields — only relevant once a profile is matched */}
+        {profile ? (
+          <>
+            <FieldLabel label="Diabetes Type" />
+            <SegmentedGroup options={DIABETES_OPTIONS} selected={diabetesType} onSelect={setDiabetesType} />
+
+            <FieldLabel label="Diabetes Duration (years)" />
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              placeholder="e.g. 5"
+              placeholderTextColor={colors.textSec}
+              value={durationYears}
+              onChangeText={setDurationYears}
+              keyboardType="numeric"
+              maxLength={3}
+            />
+
+            <View style={{ flexDirection: "row", gap: Spacing.md }}>
+              <View style={{ flex: 1 }}>
+                <FieldLabel label="Height (cm)" />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="170"
+                  placeholderTextColor={colors.textSec}
+                  value={heightCm}
+                  onChangeText={setHeightCm}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <FieldLabel label="Weight (kg)" />
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="65"
+                  placeholderTextColor={colors.textSec}
+                  value={weightKg}
+                  onChangeText={setWeightKg}
+                  keyboardType="numeric"
+                  maxLength={5}
+                />
+              </View>
+            </View>
+
+            <FieldLabel label="Notes" />
+            <TextInput
+              style={[styles.input, styles.textarea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+              placeholder="Optional clinical notes..."
+              placeholderTextColor={colors.textSec}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <Button
+              label={saving ? "Adding..." : "Add & Start Session"}
+              onPress={handleSubmit}
+              variant="teal"
+              size="lg"
+              style={styles.submitBtn}
+            />
+            {saving && <ActivityIndicator color={colors.accent} style={{ marginTop: Spacing.sm }} />}
+          </>
+        ) : null}
       </ScrollView>
     </ScreenWrapper>
   );
@@ -299,13 +389,59 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   infoText: {
     flex: 1,
     fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.body,
     lineHeight: 20,
+  },
+  lookupRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  lookupInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  lookupBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lookupError: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.body,
+    marginBottom: Spacing.md,
+  },
+  previewCard: {
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  previewHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: 4,
+  },
+  previewCode: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.mono,
+  },
+  previewName: {
+    fontSize: Typography.sizes.lg,
+    fontFamily: Typography.fonts.heading,
+  },
+  previewMeta: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.body,
+    marginTop: 4,
   },
   submitBtn: { width: "100%" },
 });
