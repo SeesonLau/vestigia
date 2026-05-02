@@ -32,7 +32,7 @@ npm run build    # production build (verifies prerender + types)
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - (server-only) `SUPABASE_SERVICE_ROLE_KEY` for admin routes that need elevated privileges
 6. Deploy. The first build produces a URL like `vestigia-xxx.vercel.app`.
-7. **Project Settings → Domains:** add `lumenai.vercel.app` as the production alias (free, first-come-first-served on `*.vercel.app`).
+7. **Project Settings → Domains:** the production alias is `lumenai-vert.vercel.app` (Vercel auto-suggested this since `lumenai.vercel.app` was already taken). When a custom domain is purchased later, replace the alias.
 
 ### Skipping web builds when only the mobile app changes
 
@@ -42,10 +42,10 @@ Vercel evaluates the **Ignored Build Step** from the project's Root Directory, s
 
 In the Supabase dashboard → Authentication → URL Configuration:
 
-- **Site URL:** `https://lumenai.vercel.app`
+- **Site URL:** `https://lumenai-vert.vercel.app`
 - **Redirect URLs (allowlist):**
-  - `https://lumenai.vercel.app/auth/verified`
-  - `https://lumenai.vercel.app/auth/reset-password`
+  - `https://lumenai-vert.vercel.app/auth/verified`
+  - `https://lumenai-vert.vercel.app/auth/reset-password`
   - `lumenai://auth/account-activated`
   - `lumenai://auth/reset-password`
 
