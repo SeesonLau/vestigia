@@ -12,6 +12,28 @@ const RESET_REDIRECT    = "https://lumenai-vert.vercel.app/auth/reset-password";
 const composeFullName = (first?: string, middle?: string | null, last?: string) =>
   [first, middle, last].filter(Boolean).join(" ").trim();
 
+//Body shape sent to the clinic-signup Edge Function
+export interface ClinicSignupPayload {
+  email: string;
+  password: string;
+  facility_name: string;
+  facility_type: string;
+  doh_lto_number: string;
+  region_code: string;
+  province_code?: string | null;
+  city_code: string;
+  barangay_code: string;
+  address_line?: string;
+  zip_code?: string;
+  phone: string;          //11 digits
+  website?: string;
+  contact_first_name: string;
+  contact_middle_name?: string;
+  contact_last_name: string;
+  contact_mobile: string; //11 digits
+  contact_email: string;
+}
+
 // ── Error message mapping ────────────────────────────────────────
 function mapAuthError(error: { message?: string; code?: string; status?: number } | null): string {
   if (!error) return "An unexpected error occurred";
@@ -74,6 +96,8 @@ interface AuthState {
     dateOfBirth: string;     //YYYY-MM-DD
     contactNumber: string;
   }) => Promise<{ success: boolean; needsConfirmation?: boolean; error?: string }>;
+  registerClinic: (params: ClinicSignupPayload) =>
+    Promise<{ success: boolean; clinic_code?: string; error?: string }>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
@@ -220,6 +244,41 @@ export const useAuthStore = create<AuthState>((set, get) => {
         }
         set({ isLoading: false });
         return { success: true, needsConfirmation: true };
+      } catch (e: any) {
+        const err = mapAuthError(e);
+        set({ isLoading: false, error: err });
+        return { success: false, error: err };
+      }
+    },
+
+    registerClinic: async (params: ClinicSignupPayload) => {
+      set({ isLoading: true, error: null });
+      try {
+        //1. Call the edge function (verify_jwt=false; uses anon key for transport).
+        const { data, error } = await supabase.functions.invoke("clinic-signup", {
+          body: params,
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        if (!data?.success) throw new Error("Clinic signup failed");
+
+        //2. Auto-sign-in with the same credentials.
+        const { data: signIn, error: signInErr } = await supabase.auth.signInWithPassword({
+          email: params.email.toLowerCase().trim(),
+          password: params.password,
+        });
+        if (signInErr) throw signInErr;
+
+        //3. Hydrate profile.
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", signIn.user.id)
+          .single();
+        if (profileErr) throw profileErr;
+
+        set({ user: profile as AuthUser, isLoading: false, error: null });
+        return { success: true, clinic_code: data.clinic_code as string | undefined };
       } catch (e: any) {
         const err = mapAuthError(e);
         set({ isLoading: false, error: err });

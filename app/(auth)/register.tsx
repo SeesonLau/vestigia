@@ -1,7 +1,7 @@
 // app/(auth)/register.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
@@ -14,11 +14,29 @@ import {
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import Picker, { PickerOption } from "../../components/ui/Picker";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
+import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { Sex } from "../../types";
+
+const FACILITY_TYPES: PickerOption[] = [
+  { value: "tertiary_hospital",   label: "Tertiary Hospital" },
+  { value: "secondary_hospital",  label: "Secondary Hospital" },
+  { value: "primary_hospital",    label: "Primary Hospital" },
+  { value: "outpatient_clinic",   label: "Outpatient Clinic" },
+  { value: "diagnostic_center",   label: "Diagnostic Center" },
+  { value: "infirmary",           label: "Infirmary" },
+  { value: "birthing_home",       label: "Birthing Home" },
+  { value: "dialysis_center",     label: "Dialysis Center" },
+  { value: "ambulatory_surgical", label: "Ambulatory Surgical" },
+];
+
+const NCR_REGION_CODE = "130000000";
+const DOH_LTO_RE = /^[0-9]{2}-[0-9]{3}-[0-9]{2}-[A-Z]{2}-[0-9]$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Role = "patient" | "clinic";
 
@@ -232,7 +250,7 @@ export default function RegisterScreen() {
               onSubmit={handleRegister}
             />
           ) : (
-            <ClinicSignupComingSoon accent={accent} />
+            <ClinicForm accent={accent} onSuccess={() => router.replace("/(clinic)")} />
           )}
 
           <View style={styles.footer}>
@@ -420,44 +438,384 @@ function PatientForm(p: PatientFormProps) {
 }
 
 //──────────────────────────────────────────────────────────────────────
-//Clinic signup placeholder — full form lands in a follow-up round
+//Clinic signup form — Account / Facility / Location / Contact
 //──────────────────────────────────────────────────────────────────────
-function ClinicSignupComingSoon({ accent }: { accent: string }) {
+interface CityRow { value: string; label: string; zip: string | null }
+
+function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => void }) {
   const { colors } = useTheme();
+  const { registerClinic } = useAuthStore();
+
+  //Account
+  const [email, setEmail]                     = useState("");
+  const [password, setPassword]               = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword]       = useState(false);
+
+  //Facility
+  const [facilityName, setFacilityName]   = useState("");
+  const [facilityType, setFacilityType]   = useState<string | null>(null);
+  const [dohLto, setDohLto]               = useState("");
+
+  //Location
+  const [regionCode, setRegionCode]       = useState<string | null>(null);
+  const [provinceCode, setProvinceCode]   = useState<string | null>(null);
+  const [cityCode, setCityCode]           = useState<string | null>(null);
+  const [barangayCode, setBarangayCode]   = useState<string | null>(null);
+  const [addressLine, setAddressLine]     = useState("");
+  const [zipCode, setZipCode]             = useState("");
+  const [phoneDigits, setPhoneDigits]     = useState("");
+  const [website, setWebsite]             = useState("");
+
+  //Contact person
+  const [cFirstName, setCFirstName]   = useState("");
+  const [cMiddleName, setCMiddleName] = useState("");
+  const [cLastName, setCLastName]     = useState("");
+  const [cMobileDigits, setCMobile]   = useState("");
+  const [cEmail, setCEmail]           = useState("");
+
+  //PSGC option lists
+  const [regions, setRegions]     = useState<PickerOption[]>([]);
+  const [provinces, setProvinces] = useState<PickerOption[]>([]);
+  const [cities, setCities]       = useState<CityRow[]>([]);
+  const [barangays, setBarangays] = useState<PickerOption[]>([]);
+  const [loadingPicker, setLoadingPicker] = useState({ p: false, c: false, b: false });
+
+  const isNCR = regionCode === NCR_REGION_CODE;
+
+  //Submit state
+  const [errors, setErrors]       = useState<Record<string, string>>({});
+  const [loading, setLoading]     = useState(false);
+  const [storeError, setStoreError] = useState<string | null>(null);
+
+  //Fetch regions on mount
+  useEffect(() => {
+    supabase.from("ph_regions").select("code, name").order("name")
+      .then(({ data }) => {
+        setRegions((data ?? []).map((r) => ({ value: r.code, label: r.name })));
+      });
+  }, []);
+
+  //Refresh provinces when region changes (NCR has none — skip step)
+  useEffect(() => {
+    setProvinceCode(null);
+    setCityCode(null);
+    setBarangayCode(null);
+    setProvinces([]);
+    setCities([]);
+    setBarangays([]);
+    if (!regionCode || isNCR) return;
+    setLoadingPicker((s) => ({ ...s, p: true }));
+    supabase.from("ph_provinces").select("code, name").eq("region_code", regionCode).order("name")
+      .then(({ data }) => {
+        setProvinces((data ?? []).map((p) => ({ value: p.code, label: p.name })));
+        setLoadingPicker((s) => ({ ...s, p: false }));
+      });
+  }, [regionCode, isNCR]);
+
+  //Refresh cities. NCR fetches by code prefix; others by province_code.
+  useEffect(() => {
+    setCityCode(null);
+    setBarangayCode(null);
+    setBarangays([]);
+    setZipCode("");
+    if (!regionCode) { setCities([]); return; }
+    setLoadingPicker((s) => ({ ...s, c: true }));
+    const base = supabase.from("ph_cities").select("code, name, default_zip").order("name");
+    const q = isNCR ? base.like("code", "13%") : provinceCode ? base.eq("province_code", provinceCode) : null;
+    if (!q) { setCities([]); setLoadingPicker((s) => ({ ...s, c: false })); return; }
+    q.then(({ data }) => {
+      setCities((data ?? []).map((c) => ({ value: c.code, label: c.name, zip: c.default_zip })));
+      setLoadingPicker((s) => ({ ...s, c: false }));
+    });
+  }, [regionCode, provinceCode, isNCR]);
+
+  //Refresh barangays + auto-fill ZIP when city changes
+  useEffect(() => {
+    setBarangayCode(null);
+    if (!cityCode) { setBarangays([]); setZipCode(""); return; }
+    const matched = cities.find((c) => c.value === cityCode);
+    if (matched?.zip) setZipCode(matched.zip);
+    setLoadingPicker((s) => ({ ...s, b: true }));
+    supabase.from("ph_barangays").select("code, name").eq("city_code", cityCode).order("name")
+      .then(({ data }) => {
+        setBarangays((data ?? []).map((b) => ({ value: b.code, label: b.name })));
+        setLoadingPicker((s) => ({ ...s, b: false }));
+      });
+  }, [cityCode, cities]);
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!EMAIL_RE.test(email)) e.email = "Enter a valid email";
+    const missing: string[] = [];
+    if (password.length < 8) missing.push("8+ characters");
+    if (!/[A-Z]/.test(password)) missing.push("uppercase letter");
+    if (!/[0-9]/.test(password)) missing.push("number");
+    if (missing.length) e.password = `Must include: ${missing.join(", ")}`;
+    if (password !== confirmPassword) e.confirmPassword = "Passwords do not match";
+
+    if (!facilityName.trim()) e.facilityName = "Required";
+    if (!facilityType) e.facilityType = "Select one";
+    if (!DOH_LTO_RE.test(dohLto)) e.dohLto = "Format: NN-NNN-NN-LL-N";
+
+    if (!regionCode) e.regionCode = "Select region";
+    if (!isNCR && !provinceCode) e.provinceCode = "Select province";
+    if (!cityCode) e.cityCode = "Select city / municipality";
+    if (!barangayCode) e.barangayCode = "Select barangay";
+    if (!/^0\d{10}$/.test(phoneDigits)) e.phone = "11 digits starting with 0";
+
+    if (!cFirstName.trim()) e.cFirstName = "Required";
+    if (!cLastName.trim())  e.cLastName  = "Required";
+    if (!/^0\d{10}$/.test(cMobileDigits)) e.cMobile = "11 digits starting with 0";
+    if (!EMAIL_RE.test(cEmail)) e.cEmail = "Enter a valid email";
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    setStoreError(null);
+    if (!validate()) return;
+    setLoading(true);
+    const result = await registerClinic({
+      email,
+      password,
+      facility_name: facilityName,
+      facility_type: facilityType!,
+      doh_lto_number: dohLto,
+      region_code: regionCode!,
+      province_code: isNCR ? null : provinceCode,
+      city_code: cityCode!,
+      barangay_code: barangayCode!,
+      address_line: addressLine || undefined,
+      zip_code: zipCode || undefined,
+      phone: phoneDigits,
+      website: website || undefined,
+      contact_first_name: cFirstName,
+      contact_middle_name: cMiddleName.trim() || undefined,
+      contact_last_name: cLastName,
+      contact_mobile: cMobileDigits,
+      contact_email: cEmail,
+    });
+    setLoading(false);
+    if (result.success) {
+      onSuccess();
+    } else {
+      setStoreError(result.error ?? "Could not register clinic.");
+    }
+  };
+
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border },
-      ]}
-    >
-      <View style={styles.comingHeader}>
-        <Ionicons name="construct-outline" size={28} color={accent} />
-        <Text style={[styles.cardTitle, { color: colors.text, marginBottom: 0 }]}>
-          Clinic signup coming soon
+    <>
+      {/* Account details */}
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Account details</Text>
+        <Input
+          label="Email address"
+          value={email}
+          onChangeText={(v) => { setEmail(v); setStoreError(null); }}
+          keyboardType="email-address"
+          error={errors.email}
+          accentColor={accent}
+        />
+        <Input
+          label="Password"
+          value={password}
+          onChangeText={(v) => { setPassword(v); setStoreError(null); }}
+          secureTextEntry={!showPassword}
+          error={errors.password}
+          accentColor={accent}
+          rightIcon={
+            <Ionicons
+              name={showPassword ? "eye-off-outline" : "eye-outline"}
+              size={20}
+              color={colors.textSec}
+            />
+          }
+          onRightIconPress={() => setShowPassword((v) => !v)}
+        />
+        <Input
+          label="Confirm password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!showPassword}
+          error={errors.confirmPassword}
+          accentColor={accent}
+        />
+      </View>
+
+      {/* Facility information */}
+      <View style={[styles.card, styles.cardSpaced, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Facility information</Text>
+        <Input
+          label="Facility name"
+          value={facilityName}
+          onChangeText={setFacilityName}
+          autoCapitalize="words"
+          error={errors.facilityName}
+          accentColor={accent}
+        />
+        <Picker
+          label="Facility type"
+          value={facilityType}
+          options={FACILITY_TYPES}
+          onChange={setFacilityType}
+          error={errors.facilityType}
+          accentColor={accent}
+        />
+        <Input
+          label="DOH LTO Number"
+          value={dohLto}
+          onChangeText={setDohLto}
+          format="doh-lto"
+          error={errors.dohLto}
+          accentColor={accent}
+          hint="Format: NN-NNN-NN-LL-N (e.g. 12-345-67-AB-8)"
+        />
+      </View>
+
+      {/* Location and contact */}
+      <View style={[styles.card, styles.cardSpaced, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Location and contact</Text>
+        <Picker
+          label="Region"
+          value={regionCode}
+          options={regions}
+          onChange={setRegionCode}
+          error={errors.regionCode}
+          accentColor={accent}
+        />
+        {!isNCR ? (
+          <Picker
+            label="Province"
+            value={provinceCode}
+            options={provinces}
+            onChange={setProvinceCode}
+            error={errors.provinceCode}
+            accentColor={accent}
+            disabled={!regionCode}
+            loading={loadingPicker.p}
+          />
+        ) : null}
+        <Picker
+          label="City / Municipality"
+          value={cityCode}
+          options={cities.map(({ value, label }) => ({ value, label }))}
+          onChange={setCityCode}
+          error={errors.cityCode}
+          accentColor={accent}
+          disabled={isNCR ? !regionCode : !provinceCode}
+          loading={loadingPicker.c}
+        />
+        <Picker
+          label="Barangay"
+          value={barangayCode}
+          options={barangays}
+          onChange={setBarangayCode}
+          error={errors.barangayCode}
+          accentColor={accent}
+          disabled={!cityCode}
+          loading={loadingPicker.b}
+        />
+        <Input
+          label="Address"
+          optional
+          value={addressLine}
+          onChangeText={setAddressLine}
+          autoCapitalize="words"
+          accentColor={accent}
+          hint="Street, building, floor, etc."
+        />
+        <Input
+          label="ZIP code"
+          optional
+          value={zipCode}
+          onChangeText={setZipCode}
+          keyboardType="numeric"
+          accentColor={accent}
+          hint="Auto-filled from city — edit if needed"
+        />
+        <Input
+          label="Phone"
+          value={phoneDigits}
+          onChangeText={setPhoneDigits}
+          format="phone"
+          error={errors.phone}
+          accentColor={accent}
+        />
+        <Input
+          label="Website"
+          optional
+          value={website}
+          onChangeText={setWebsite}
+          keyboardType="default"
+          accentColor={accent}
+        />
+      </View>
+
+      {/* Primary contact person */}
+      <View style={[styles.card, styles.cardSpaced, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Text style={[styles.sectionLabel, { color: colors.textSec }]}>Primary contact person</Text>
+        <Input
+          label="First name"
+          value={cFirstName}
+          onChangeText={setCFirstName}
+          autoCapitalize="words"
+          error={errors.cFirstName}
+          accentColor={accent}
+        />
+        <Input
+          label="Middle name"
+          optional
+          value={cMiddleName}
+          onChangeText={setCMiddleName}
+          autoCapitalize="words"
+          accentColor={accent}
+        />
+        <Input
+          label="Last name"
+          value={cLastName}
+          onChangeText={setCLastName}
+          autoCapitalize="words"
+          error={errors.cLastName}
+          accentColor={accent}
+        />
+        <Input
+          label="Mobile number"
+          value={cMobileDigits}
+          onChangeText={setCMobile}
+          format="phone"
+          error={errors.cMobile}
+          accentColor={accent}
+        />
+        <Input
+          label="Email address"
+          value={cEmail}
+          onChangeText={setCEmail}
+          keyboardType="email-address"
+          error={errors.cEmail}
+          accentColor={accent}
+        />
+
+        {storeError ? (
+          <Text style={[styles.generalError, { color: colors.error }]}>{storeError}</Text>
+        ) : null}
+
+        <Button
+          label={S.auth.register}
+          onPress={handleSubmit}
+          loading={loading}
+          size="lg"
+          style={{ backgroundColor: accent, borderColor: accent, shadowColor: accent }}
+        />
+
+        <Text style={[styles.terms, { color: colors.textSec }]}>
+          By creating an account, you agree to our{" "}
+          <Text style={{ color: accent }}>Terms of Service</Text> and{" "}
+          <Text style={{ color: accent }}>Privacy Policy</Text>.
         </Text>
       </View>
-      <Text style={[styles.confirmSubtitle, { color: colors.textSec }]}>
-        Clinic registration is a longer process — we'll collect:
-      </Text>
-      <Bullet color={accent} text="Facility name, type, and DOH LTO number" />
-      <Bullet color={accent} text="Region, province, city, barangay, address, and ZIP" />
-      <Bullet color={accent} text="Phone, optional website" />
-      <Bullet color={accent} text="Primary contact person details" />
-      <Text style={[styles.confirmSubtitle, { color: colors.textSec, marginTop: Spacing.lg }]}>
-        This form will be wired up in the next round.
-      </Text>
-    </View>
-  );
-}
-
-function Bullet({ color, text }: { color: string; text: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={styles.bulletRow}>
-      <View style={[styles.bulletDot, { backgroundColor: color }]} />
-      <Text style={[styles.bulletText, { color: colors.text }]}>{text}</Text>
-    </View>
+    </>
   );
 }
 
