@@ -20,6 +20,11 @@ import { useAuthStore } from "../../store/authStore";
 import { useSessionStore } from "../../store/sessionStore";
 import { Patient } from "../../types";
 
+//Patient row joined with profile so we can show + filter by the global patient_code
+type PatientWithProfile = Patient & {
+  profile: { patient_code: string; full_name: string };
+};
+
 function ageFromDob(dob?: string): string {
   if (!dob) return "—";
   const years = Math.floor(
@@ -33,7 +38,7 @@ function diabetesLabel(type?: string): string {
     case "type1":       return "Type 1";
     case "type2":       return "Type 2";
     case "gestational": return "Gestational";
-    default:            return "Unknown";
+    default:            return type ?? "Unknown";
   }
 }
 
@@ -44,7 +49,7 @@ export default function PatientSelectScreen() {
   const user = useAuthStore((s) => s.user);
   const setSelectedPatient = useSessionStore((s) => s.setSelectedPatient);
 
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientWithProfile[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,20 +61,20 @@ export default function PatientSelectScreen() {
       return;
     }
     const q = search.trim();
-    const query = supabase
+    //patient_code lives on profiles now (global). Inner-join so we can filter by it.
+    let query = supabase
       .from("patients")
-      .select("*")
-      .eq("clinic_id", user.clinic_id)
-      .order("patient_code");
-    if (q) query.ilike("patient_code", `%${q}%`);
+      .select("*, profile:profiles!inner(patient_code, full_name)")
+      .eq("clinic_id", user.clinic_id);
+    if (q) query = query.ilike("profile.patient_code", `%${q}%`);
     query.then(({ data, error: err }) => {
       if (err) setError("Could not load patients. Check your connection.");
-      else setPatients(data ?? []);
+      else setPatients((data as PatientWithProfile[]) ?? []);
       setLoading(false);
     });
   }, [user?.clinic_id, search]);
 
-  const handleSelect = (patient: Patient) => {
+  const handleSelect = (patient: PatientWithProfile) => {
     setSelectedPatient(patient);
     router.push("/(clinic)/live-feed");
   };
@@ -117,17 +122,17 @@ export default function PatientSelectScreen() {
             <Ionicons name="people-outline" size={40} color={colors.textSec} />
             <Text style={[styles.emptyTitle, { color: colors.textSec }]}>No patients found</Text>
             <Text style={[styles.emptySubtitle, { color: colors.textSec }]}>
-              {search ? "Try a different search term." : "No patients are registered for your clinic yet."}
+              {search
+                ? "Try a different patient code."
+                : "No patients are linked to your clinic yet. Patients sign up themselves; add one here using their Patient ID."}
             </Text>
-            {!search && (
-              <Button
-                label="Register First Patient"
-                onPress={() => router.push("/(clinic)/register-patient" as any)}
-                variant="primary"
-                size="md"
-                style={styles.registerBtn}
-              />
-            )}
+            <Button
+              label="Add Patient by ID"
+              onPress={() => router.push("/(clinic)/register-patient" as any)}
+              variant="primary"
+              size="md"
+              style={styles.registerBtn}
+            />
           </View>
         )}
 
@@ -142,10 +147,11 @@ export default function PatientSelectScreen() {
               <Ionicons name="person-outline" size={20} color={colors.accent} />
             </View>
             <View style={styles.info}>
-              <Text style={[styles.code, { color: colors.text }]}>{patient.patient_code}</Text>
+              <Text style={[styles.code, { color: colors.text }]}>{patient.profile.patient_code}</Text>
               <Text style={[styles.meta, { color: colors.textSec }]}>
-                {ageFromDob(patient.date_of_birth)} · {diabetesLabel(patient.diabetes_type)}
-                {patient.diabetes_duration_years ? ` · ${patient.diabetes_duration_years}y duration` : ""}
+                {patient.profile.full_name} · {ageFromDob(patient.date_of_birth)}
+                {patient.diabetes_type ? ` · ${diabetesLabel(patient.diabetes_type)}` : ""}
+                {patient.diabetes_duration_years ? ` · ${patient.diabetes_duration_years}y` : ""}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textSec} />
