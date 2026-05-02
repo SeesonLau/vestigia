@@ -1,6 +1,31 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-05-03 — v0.11.0] — PSGC seed + clinic-signup Edge Function
+
+**Type:** Reference data + RLS amendment + Edge Function
+**Tables / functions:** `ph_regions`, `ph_provinces`, `ph_cities`, `ph_barangays`, edge function `clinic-signup`
+
+### What was done
+1. **PSGC seed.** Loaded the Philippine Standard Geographic Code:
+   - 17 regions, 81 provinces, 1634 cities/municipalities, 42046 barangays
+   - 5 migration files committed under [supabase/migrations/](../../supabase/migrations/) (`20260502120500_psgc_alter_and_top.sql` + `_psgc_cities` + 3 barangay parts)
+   - Live seed loaded via [scripts/seed-psgc.mjs](../../scripts/seed-psgc.mjs) using the anon key with RLS temporarily disabled on `ph_cities` and `ph_barangays`. RLS re-enabled after.
+   - Seed migrations themselves are idempotent (`ON CONFLICT (code) DO NOTHING`); a fresh `supabase db push` will replay them.
+2. **PSGC anonymous read.** Migration `20260503120000_psgc_anon_read.sql` replaces the `TO authenticated` SELECT policies with `TO anon, authenticated` so the clinic signup pickers populate before the user is signed in. Reference data is non-sensitive (administrative codes only).
+3. **`clinic-signup` Edge Function** deployed.
+   - File: [supabase/functions/clinic-signup/index.ts](../../supabase/functions/clinic-signup/index.ts)
+   - `verify_jwt = false` (the caller is an unauthenticated signup; the function does its own validation).
+   - With the service role: `auth.admin.createUser({ email_confirm: true })` → `INSERT clinics` → `UPDATE profiles.clinic_id`.
+   - Rolls back the auth user / clinic if any step fails.
+   - On success the mobile `registerClinic` action auto-signs-in with the same credentials.
+
+### Pending follow-ups
+- ZIP per-barangay overrides for Manila / QC / Cebu (deferred until needed).
+- `finalize-session` and `promote-session` Edge Functions (deferred until the capture flow rewrite).
+- The clinic profile screen now reads `facility_name`; other screens (`history`, etc.) still reference the pre-redesign schema columns and will need a sweep.
+
+---
 ## [2026-05-02 — v0.10.0] — Schema Rollout (full new schema)
 
 **Type:** Schema Bootstrap + Triggers + RLS + Storage + Seed

@@ -1,9 +1,76 @@
 # Active Context — Lumen AI (formerly Vestigia)
-**Last updated:** 2026-05-02
+**Last updated:** 2026-05-03
 
 ---
 
-## What Was Done This Session (2026-05-02) — v0.10.0
+## What Was Done This Session (2026-05-03) — v0.11.0
+
+A long stretch of work that takes the project from "schema lives, no clients" to "patient + clinic signup work end-to-end."
+
+### PSGC reference data
+- Pulled regions/provinces/cities/barangays from `psgc.gitlab.io/api` and seeded via two helper scripts in [scripts/](../../scripts/). Live counts: 17 / 81 / 1634 / 42046.
+- Migration `20260502120500_psgc_alter_and_top.sql` drops `NOT NULL` on `ph_cities.province_code` (NCR cities have no PSGC province).
+- Migration `20260503120000_psgc_anon_read.sql` opens `ph_*` SELECT to anon (the signup pickers populate before login).
+
+### Mobile auth flow rewrite
+- `app.json` `scheme` is now `lumenai`.
+- `types/index.ts` `AuthUser` matches the new schema (first / middle / last + patient-only fields).
+- `store/authStore.ts`:
+  - `registerPatient(...)` writes per-field metadata; the `handle_new_user` trigger auto-generates `patient_code`.
+  - Login rejects `role=admin` on mobile.
+  - Email verify + reset redirect to `https://lumenai-vert.vercel.app/auth/{verified,reset-password}`.
+  - JWT-bootstrap composes `full_name` client-side.
+- `app/(auth)/account-activated.tsx` consumes the deep-link hash via `expo-linking` and calls `setSession`.
+- `app/(auth)/reset-password.tsx` (new) does the same for recovery and forwards to `update-password`.
+
+### UI standardization
+- `components/ui/Input.tsx` rewritten as the global floating-label component (matches the PatientDetailsScreen pattern). Adds three masks: `format='date'` (YYYY-MM-DD), `format='phone'` (0000 000 0000), `format='doh-lto'` (NN-NNN-NN-LL-N). Plus an `optional` flag and `accentColor` override for role-based theming.
+- `components/ui/Picker.tsx` (new) — searchable bottom-sheet modal with FlatList virtualization. Same look as Input. Used for facility type, region, province, city, barangay.
+- `components/ui/InitialsAvatar.tsx` (new) — Teams-style 2-letter circular avatar with a deterministic 12-color palette seeded by `patient_code` / `clinic_id`. Helpers `personInitials(first, last)` and `facilityInitials(name)`. Wired into both profile screens.
+
+### Patient signup polish
+- Two-card form (Account / Profile).
+- Sex limited to Male / Female.
+- Middle name shows `(optional)`.
+- DOB and contact use the new auto-formats.
+
+### Role selector + theme separation
+- Tab strip at top of register switches between Patient and Clinic forms.
+- Patient flow keeps the theme `accent` (teal). Clinic flow uses theme `info` (blue). The selected accent flows through to inputs, sex toggle, submit button, header logo tint, and link colors.
+
+### Clinic signup live
+- New 4-card form: Account / Facility / Location & Contact / Primary Contact Person.
+- DOH LTO uses `format='doh-lto'`. Phone uses `format='phone'`.
+- PSGC pickers chain region → province (skipped for NCR; NCR cities filtered by code prefix `13%`) → city → barangay. ZIP auto-fills from `ph_cities.default_zip`.
+- `authStore.registerClinic` invokes the new `clinic-signup` Edge Function (service-role signup with `email_confirm: true`, atomic profile + clinic insert with rollback on failure), then auto-signs-in with the same credentials.
+
+### Edge Function
+- [supabase/functions/clinic-signup/index.ts](../../supabase/functions/clinic-signup/index.ts) deployed (`verify_jwt=false`).
+
+### Files
+- CREATED: `components/ui/Picker.tsx`, `components/ui/InitialsAvatar.tsx`
+- CREATED: `app/(auth)/reset-password.tsx`
+- CREATED: `supabase/functions/clinic-signup/index.ts`
+- CREATED: `supabase/migrations/20260502120500*` (5 PSGC files), `20260503120000_psgc_anon_read.sql`
+- CREATED: `scripts/fetch-psgc.mjs`, `scripts/seed-psgc.mjs`
+- CREATED: this update + new session log
+- UPDATED: `app.json`, `types/index.ts`, `store/authStore.ts`
+- UPDATED: `app/(auth)/register.tsx` (role tabs, patient form polish, full clinic form)
+- UPDATED: `app/(auth)/account-activated.tsx`
+- UPDATED: `components/ui/Input.tsx`
+- UPDATED: `app/(patient)/profile.tsx`, `app/(clinic)/profile.tsx`
+
+### Pending / next session
+1. **Capture-flow rewrite for the new schema.** History, sync, clinical-data, save screens still reference old column names (`patient_code` on patients, `clinic.name`, etc.) and will fail at runtime.
+2. **`finalize-session` Edge Function** — atomic capture upload (sessions + thermal_captures + classification_results + data_requests).
+3. **`promote-session` Edge Function** — link offline-guest captures to a patient/clinic later.
+4. **Sweep for old `clinic.name` / `patients.user_id` references** — one-shot replace pass after the capture flow is on the new schema.
+5. **Push the queue.** ~17 commits unpushed since the last `git push`.
+6. **Avatar** wiring on the clinic history operator chip.
+
+---
+
+## What Was Done Previous Session (2026-05-02) — v0.10.0
 
 ### Supabase Schema Rollout
 

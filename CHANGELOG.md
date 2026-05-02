@@ -3,6 +3,55 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.11.0] — 2026-05-03
+
+### Added — PSGC reference data
+- 5 migrations + 2 helper scripts seed the Philippine Standard Geographic Code: 17 regions, 81 provinces, 1634 cities, 42046 barangays.
+- [scripts/fetch-psgc.mjs](scripts/fetch-psgc.mjs) regenerates the SQL migrations from `psgc.gitlab.io/api`. [scripts/seed-psgc.mjs](scripts/seed-psgc.mjs) is the one-shot bulk loader used to load the live project (the barangay migrations exceed Read tooling limits).
+- New migration [supabase/migrations/20260503120000_psgc_anon_read.sql](supabase/migrations/20260503120000_psgc_anon_read.sql) opens `ph_*` SELECT to anon so the clinic signup pickers populate before login.
+
+### Added — Patient mobile auth flow (new schema)
+- `app.json` `scheme` → `lumenai`.
+- `types/index.ts` `AuthUser` carries first / middle / last / full_name + patient-only fields (sex, date_of_birth, contact_number, patient_code).
+- `store/authStore.ts`:
+  - `register()` replaced by `registerPatient({ email, password, firstName, middleName?, lastName, sex, dateOfBirth, contactNumber })`. Writes new metadata into `raw_user_meta_data` so `handle_new_user` populates profiles + auto-generates patient_code.
+  - Email verification redirectTo points at `https://lumenai-vert.vercel.app/auth/verified`.
+  - Password reset redirectTo points at `https://lumenai-vert.vercel.app/auth/reset-password`.
+  - `onAuthStateChange` JWT bootstrap composes `full_name` client-side (cold-start fast path).
+  - Login rejects `role=admin` on mobile (signs out, returns "Admin login is not available on mobile").
+- `app/(auth)/account-activated.tsx` consumes the deep-link hash via `expo-linking`, calls `supabase.auth.setSession`, and routes by role.
+- `app/(auth)/reset-password.tsx` (new) does the same for recovery and forwards to the existing `update-password` form.
+
+### Added — UI standardization
+- `components/ui/Input.tsx` rewritten as a floating-label component (label rises 150ms when focused or filled; matches the PatientDetailsScreen pattern). New props:
+  - `format='date'`     → YYYY-MM-DD auto-mask, value holds 8 raw digits
+  - `format='phone'`    → 0000 000 0000 auto-mask, value holds 11 raw digits
+  - `format='doh-lto'`  → NN-NNN-NN-LL-N with per-position validation + auto-uppercase
+  - `optional` flag appends ` (optional)` in dimmed style
+  - `accentColor` overrides focus color (used for role-based theming)
+- `components/ui/Picker.tsx` (new) — searchable bottom-sheet modal with FlatList virtualization (handles the 42K barangay list smoothly). Same floating-label visual language as Input.
+- `components/ui/InitialsAvatar.tsx` (new) — Teams-style up-to-2-letter avatar with deterministic 12-color palette seeded by patient_code / clinic_id. Helpers: `personInitials(first, last)`, `facilityInitials(name)`. Wired into patient + clinic profile screens.
+
+### Added — Clinic signup flow
+- New register screen: tab strip selects Patient or Clinic. Patient flow keeps the teal accent; clinic flow uses theme `info` (blue) so the visual experience is clearly different per role.
+- Patient form split into Account / Profile cards; sex narrowed to Male/Female; middle name shows `(optional)`; DOB and contact use the new auto-formats.
+- Clinic form (4 cards) — Account / Facility / Location & Contact / Primary Contact Person:
+  - Facility type Picker (9 options)
+  - DOH LTO Number with `format='doh-lto'`
+  - PSGC Region → Province (skipped for NCR, NCR cities queried by code prefix `13%`) → City → Barangay Pickers
+  - ZIP auto-fills from `ph_cities.default_zip` when a city is selected
+  - Phone uses `format='phone'`
+  - On submit, `authStore.registerClinic` calls the new `clinic-signup` Edge Function and auto-signs-in.
+
+### Added — `clinic-signup` Edge Function
+- [supabase/functions/clinic-signup/index.ts](supabase/functions/clinic-signup/index.ts), deployed (active, `verify_jwt=false`).
+- Validates the payload server-side, then with the service role: `auth.admin.createUser({ email_confirm: true })` → INSERT clinics → UPDATE profiles.clinic_id. Rolls back the auth user if any step fails.
+
+### Notes
+- The clinic profile screen now reads `facility_name` (the new schema column) instead of the old `name`. Other screens that reference renamed columns (`history.tsx`, etc.) are still on the old shape and will be updated in a follow-up round.
+
+---
+
 ## [0.10.0] — 2026-05-02
 
 ### Added — Supabase Schema Rollout
