@@ -24,6 +24,11 @@ import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import type { LocalCapture, Patient } from "../../types";
 
+//Local patient row with joined profile for patient_code + full_name access
+type PatientWithProfile = Patient & {
+  profile: { patient_code: string; full_name: string };
+};
+
 export default function SyncScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -35,9 +40,9 @@ export default function SyncScreen() {
 
   //Patient search
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Patient[]>([]);
+  const [searchResults, setSearchResults] = useState<PatientWithProfile[]>([]);
   const [searching, setSearching] = useState(false);
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientWithProfile | null>(null);
 
   //Sync
   const [syncing, setSyncing] = useState(false);
@@ -59,13 +64,14 @@ export default function SyncScreen() {
     searchTimerRef.current = setTimeout(async () => {
       if (!user?.clinic_id) return;
       setSearching(true);
+      //Patient code now lives on profiles (global). Join to filter by it.
       const { data } = await supabase
         .from("patients")
-        .select("*")
+        .select("*, profile:profiles!inner(patient_code, full_name)")
         .eq("clinic_id", user.clinic_id)
-        .ilike("patient_code", `%${query.trim()}%`)
+        .ilike("profile.patient_code", `%${query.trim()}%`)
         .limit(10);
-      setSearchResults((data as Patient[]) ?? []);
+      setSearchResults((data as PatientWithProfile[]) ?? []);
       setSearching(false);
     }, 400);
     return () => {
@@ -121,13 +127,12 @@ export default function SyncScreen() {
       });
       if (capErr) throw new Error("Failed to save thermal capture.");
 
-      // 5. Send data request if patient has a linked app account
-      if (selectedPatient.user_id) {
+      // 5. Send data request to the patient's profile (always, since every patient
+      //    now has a profile post-redesign).
+      if (selectedPatient.profile_id) {
         await supabase.from("data_requests").insert({
-          from_role: "clinic",
-          from_id: user.id,
-          to_role: "patient",
-          to_id: selectedPatient.user_id,
+          from_profile_id: user.id,
+          to_profile_id: selectedPatient.profile_id,
           session_id: session.id,
           status: "pending",
         });
@@ -138,9 +143,7 @@ export default function SyncScreen() {
 
       Alert.alert(
         "Synced",
-        selectedPatient.user_id
-          ? "Session uploaded and a request was sent to the patient's account."
-          : "Session uploaded. The patient doesn't have an app account yet — no notification was sent.",
+        "Session uploaded and a request was sent to the patient's account.",
         [{ text: "OK", onPress: () => router.replace("/(clinic)/history" as any) }]
       );
     } catch (err: unknown) {
@@ -248,21 +251,17 @@ export default function SyncScreen() {
                     style={[styles.resultItem, { borderBottomColor: colors.border }, idx === searchResults.length - 1 && { borderBottomWidth: 0 }]}
                     onPress={() => {
                       setSelectedPatient(p);
-                      setQuery(p.patient_code);
+                      setQuery(p.profile.patient_code);
                       setSearchResults([]);
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.resultCode, { color: colors.text }]}>{p.patient_code}</Text>
-                    {p.sex && (
-                      <Text style={[styles.resultMeta, { color: colors.textSec }]}>
-                        {p.sex.charAt(0).toUpperCase() + p.sex.slice(1)}
-                        {p.diabetes_type ? ` · ${p.diabetes_type}` : ""}
-                      </Text>
-                    )}
-                    {!p.user_id && (
-                      <Text style={[styles.noAccountNote, { color: colors.textSec }]}>No app account</Text>
-                    )}
+                    <Text style={[styles.resultCode, { color: colors.text }]}>{p.profile.patient_code}</Text>
+                    <Text style={[styles.resultMeta, { color: colors.textSec }]}>
+                      {p.profile.full_name}
+                      {p.sex ? ` · ${p.sex.charAt(0).toUpperCase() + p.sex.slice(1)}` : ""}
+                      {p.diabetes_type ? ` · ${p.diabetes_type}` : ""}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -274,7 +273,7 @@ export default function SyncScreen() {
             <View style={[styles.selectedCard, { backgroundColor: `${colors.accent}14`, borderColor: `${colors.accent}40` }]}>
               <View style={styles.selectedHeader}>
                 <Ionicons name="person-circle-outline" size={20} color={colors.accent} />
-                <Text style={[styles.selectedCode, { color: colors.text }]}>{selectedPatient.patient_code}</Text>
+                <Text style={[styles.selectedCode, { color: colors.text }]}>{selectedPatient.profile.patient_code}</Text>
                 <TouchableOpacity onPress={() => { setSelectedPatient(null); setQuery(""); }}>
                   <Ionicons name="close-circle-outline" size={18} color={colors.textSec} />
                 </TouchableOpacity>
@@ -287,17 +286,10 @@ export default function SyncScreen() {
                     : ""}
                 </Text>
               )}
-              {selectedPatient.user_id ? (
-                <View style={styles.accountRow}>
-                  <Ionicons name="checkmark-circle-outline" size={13} color={colors.success} />
-                  <Text style={[styles.accountNote, { color: colors.success }]}>Has app account — will receive a notification</Text>
-                </View>
-              ) : (
-                <View style={styles.accountRow}>
-                  <Ionicons name="information-circle-outline" size={13} color={colors.textSec} />
-                  <Text style={[styles.noAccountNoteInline, { color: colors.textSec }]}>No app account — session saved, no notification sent</Text>
-                </View>
-              )}
+              <View style={styles.accountRow}>
+                <Ionicons name="checkmark-circle-outline" size={13} color={colors.success} />
+                <Text style={[styles.accountNote, { color: colors.success }]}>Linked to {selectedPatient.profile.full_name} — will receive a notification</Text>
+              </View>
             </View>
           )}
 

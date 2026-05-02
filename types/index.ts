@@ -24,37 +24,39 @@ export interface AuthUser {
 
 // session.ts
 export type SessionStatus =
-  | "pending"
-  | "capturing"
+  | "draft"
   | "uploading"
-  | "processing"
   | "completed"
   | "failed"
   | "discarded";
 
+export type CaptureMode = "clinical" | "patient_self" | "offline_guest";
+
 export type FootSide = "left" | "right" | "bilateral";
 
-export type DPNClassification = "POSITIVE" | "NEGATIVE";
+export type DPNClassification = "POSITIVE" | "NEGATIVE" | "INCONCLUSIVE";
 
 export interface AngiosomeTemps {
   mpa_mean_c?: number;
   lpa_mean_c?: number;
   mca_mean_c?: number;
   lca_mean_c?: number;
-  tci?: number;
 }
 
 export interface ThermalCapture extends AngiosomeTemps {
   id: string;
   session_id: string;
-  foot: FootSide;
+  foot: "left" | "right";
   thermal_matrix: number[][];
   min_temp_c: number;
   max_temp_c: number;
   mean_temp_c: number;
   resolution_x?: number;
   resolution_y?: number;
-  image_url?: string;
+  raw_image_path?: string | null;
+  processed_image_path: string;
+  isolated_image_path: string;
+  csv_path?: string | null;
   captured_at: string;
 }
 
@@ -63,48 +65,54 @@ export interface ClassificationResult {
   session_id: string;
   classification: DPNClassification;
   confidence_score: number;
-  asymmetry_mpa_c?: number;
-  asymmetry_lpa_c?: number;
-  asymmetry_mca_c?: number;
-  asymmetry_lca_c?: number;
-  max_asymmetry_c?: number;
-  angiosomes_flagged?: string[];
-  bilateral_tci?: number;
-  risk_level?: "LOW" | "MEDIUM" | "HIGH";
-  feature_vector?: Record<string, number>;
+  left_tci?: number | null;
+  right_tci?: number | null;
+  bilateral_tci?: number | null;
+  max_asymmetry_c?: number | null;
+  per_angiosome_asymmetry?: {
+    mpa?: number; lpa?: number; mca?: number; lca?: number;
+  } | null;
+  angiosomes_flagged?: string[] | null;
   model_version: string;
   classified_at: string;
-  processing_time_ms?: number;
 }
 
 export interface ScreeningSession {
   id: string;
-  patient_id: string;
-  operator_id: string;
-  device_id: string;
-  clinic_id: string;
+  bundle_code?: string | null;
+  subject_profile_id?: string | null;
+  patient_id?: string | null;
+  clinic_id?: string | null;
+  operator_id?: string | null;
+  device_id?: string | null;
+  capture_mode: CaptureMode;
   status: SessionStatus;
-  ambient_temperature_c?: number;
-  room_humidity_pct?: number;
-  notes?: string;
-  app_version?: string;
+  patient_snapshot?: Record<string, unknown> | null;
+  notes?: string | null;
   started_at: string;
-  completed_at?: string;
+  completed_at?: string | null;
   // joined
   classification?: ClassificationResult;
   captures?: ThermalCapture[];
 }
 
 // patient.ts
+// Clinic-side clinical record. profile_id is NOT NULL post-redesign --
+// every patients row links to an existing profile (no anonymous patients).
 export interface Patient {
   id: string;
-  user_id?: string;
   clinic_id: string;
-  patient_code: string;
-  date_of_birth?: string;
+  profile_id: string;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
   sex?: "male" | "female" | "other";
-  diabetes_type?: "type1" | "type2" | "gestational" | "unknown";
+  date_of_birth?: string;
+  contact_number?: string;
+  diabetes_type?: string;
   diabetes_duration_years?: number;
+  height_cm?: number;
+  weight_kg?: number;
   notes?: string;
   created_at?: string;
   updated_at?: string;
@@ -127,13 +135,12 @@ export interface LocalCapture {
 
 export interface DataRequest {
   id: string
-  from_role: 'clinic' | 'patient'
-  from_id: string
-  to_role: 'clinic' | 'patient'
-  to_id: string
+  from_profile_id: string
+  to_profile_id: string
   session_id: string
-  status: 'pending' | 'accepted' | 'rejected'
-  created_at: string
+  status: 'pending' | 'accepted' | 'rejected' | 'revoked'
+  requested_at: string
+  responded_at?: string | null
   from_profile?: { full_name: string; email: string }
   session?: ScreeningSession
 }

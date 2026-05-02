@@ -18,15 +18,21 @@ interface SessionCardProps {
   style?: ViewStyle;
 }
 
-type StatusConfig = { label: string; color: (colors: any) => string; bg: (colors: any) => string };
+type ThemedColors = {
+  text: string; textSec: string; accent: string;
+  info: string; warning: string; success: string; error: string;
+};
+type StatusConfig = {
+  label: string;
+  color: (c: ThemedColors) => string;
+  bg: (c: ThemedColors) => string;
+};
 
 const statusConfig: Record<SessionStatus, StatusConfig> = {
-  pending:    { label: "Pending",    color: (c) => c.textSec, bg: (c) => `${c.textSec}26` },
-  capturing:  { label: "Capturing",  color: (c) => c.info,    bg: (c) => `${c.info}26` },
+  draft:      { label: "Draft",      color: (c) => c.textSec, bg: (c) => `${c.textSec}26` },
   uploading:  { label: "Uploading",  color: (c) => c.warning, bg: (c) => `${c.warning}26` },
-  processing: { label: "Processing", color: (c) => c.accent,  bg: (c) => `${c.accent}26` },
   completed:  { label: "Completed",  color: (c) => c.success, bg: (c) => `${c.success}26` },
-  failed:     { label: "Failed",     color: (_c) => "#f87171", bg: (_c) => "rgba(239,68,68,0.15)" },
+  failed:     { label: "Failed",     color: (c) => c.error,   bg: (c) => `${c.error}26` },
   discarded:  { label: "Discarded",  color: (c) => c.textSec, bg: (c) => `${c.textSec}1A` },
 };
 

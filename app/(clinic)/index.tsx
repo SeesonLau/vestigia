@@ -74,21 +74,21 @@ export default function ClinicHomeScreen() {
       todayStart.setHours(0, 0, 0, 0);
 
       const [clinicResult, sessionsResult, devicesResult] = await Promise.all([
-        supabase.from("clinics").select("name").eq("id", user.clinic_id).single(),
+        supabase.from("clinics").select("facility_name").eq("id", user.clinic_id).single(),
         supabase.from("screening_sessions")
           .select("id, classification:classification_results(classification)")
           .eq("clinic_id", user.clinic_id)
           .gte("started_at", todayStart.toISOString()),
         supabase.from("devices")
-          .select("id, device_code, firmware_version, is_active")
+          .select("id, name, serial, is_active")
           .eq("clinic_id", user.clinic_id)
-          .order("device_code"),
+          .order("name"),
       ]);
 
       if (clinicResult.error) {
         setStatsError("Could not load clinic data.");
-      } else if (clinicResult.data?.name) {
-        setClinicName(clinicResult.data.name);
+      } else if (clinicResult.data?.facility_name) {
+        setClinicName(clinicResult.data.facility_name);
       }
 
       if (!sessionsResult.error && sessionsResult.data) {

@@ -20,14 +20,14 @@ import { useAuthStore } from "../../store/authStore";
 
 type PendingRequest = {
   id: string;
-  from_id: string;
+  from_profile_id: string;
   session_id: string;
-  created_at: string;
+  requested_at: string;
   session: {
     id: string;
     started_at: string;
     status: string;
-    clinic: { name: string } | null;
+    clinic: { facility_name: string } | null;
     captures: Array<{ foot: string; min_temp_c: number; max_temp_c: number }>;
   } | null;
 };
@@ -48,20 +48,20 @@ export default function PatientSyncScreen() {
       .from("data_requests")
       .select(`
         id,
-        from_id,
+        from_profile_id,
         session_id,
-        created_at,
+        requested_at,
         session:screening_sessions (
           id,
           started_at,
           status,
-          clinic:clinics ( name ),
+          clinic:clinics ( facility_name ),
           captures:thermal_captures ( foot, min_temp_c, max_temp_c )
         )
       `)
-      .eq("to_id", user.id)
+      .eq("to_profile_id", user.id)
       .eq("status", "pending")
-      .order("created_at", { ascending: false });
+      .order("requested_at", { ascending: false });
     setRequests((data as unknown as PendingRequest[]) ?? []);
     setLoading(false);
   }, [user?.id]);
@@ -121,7 +121,7 @@ export default function PatientSyncScreen() {
           <View style={styles.clinicRow}>
             <Ionicons name="business-outline" size={14} color={colors.textSec} />
             <Text style={[styles.clinicName, { color: colors.text }]}>
-              {item.session?.clinic?.name ?? "Unknown Clinic"}
+              {item.session?.clinic?.facility_name ?? "Unknown Clinic"}
             </Text>
           </View>
           <View style={styles.pendingBadge}>
@@ -158,7 +158,7 @@ export default function PatientSyncScreen() {
         )}
 
         <Text style={[styles.sentDate, { color: colors.textSec }]}>
-          Sent {new Date(item.created_at).toLocaleDateString("en-PH", {
+          Sent {new Date(item.requested_at).toLocaleDateString("en-PH", {
             month: "short",
             day: "numeric",
             year: "numeric",
