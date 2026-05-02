@@ -12,7 +12,7 @@ import {
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 
-export type InputFormat = "date" | "phone";
+export type InputFormat = "date" | "phone" | "doh-lto";
 
 interface InputProps {
   /** Floating label. Falls back to `placeholder` if omitted. */
@@ -68,6 +68,28 @@ const formatPhone = (digits: string) => {
   return d.slice(0, 4) + " " + d.slice(4, 7) + " " + d.slice(7);
 };
 
+//DOH LTO Number: NN-NNN-NN-LL-N (7 digits + 2 uppercase letters + 1 digit = 10 chars).
+//Per-position validation drops chars typed in the wrong slot.
+const cleanDoh = (raw: string) => {
+  const upper = raw.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 10);
+  const out: string[] = [];
+  for (let i = 0; i < upper.length; i++) {
+    const c = upper[i];
+    const digitPos  = i <= 6 || i === 9;
+    const letterPos = i === 7 || i === 8;
+    if (digitPos  && /[0-9]/.test(c)) out.push(c);
+    else if (letterPos && /[A-Z]/.test(c)) out.push(c);
+  }
+  return out.join("");
+};
+const formatDoh = (clean: string) => {
+  if (clean.length <= 2) return clean;
+  if (clean.length <= 5) return clean.slice(0, 2) + "-" + clean.slice(2);
+  if (clean.length <= 7) return clean.slice(0, 2) + "-" + clean.slice(2, 5) + "-" + clean.slice(5);
+  if (clean.length <= 9) return clean.slice(0, 2) + "-" + clean.slice(2, 5) + "-" + clean.slice(5, 7) + "-" + clean.slice(7);
+  return clean.slice(0, 2) + "-" + clean.slice(2, 5) + "-" + clean.slice(5, 7) + "-" + clean.slice(7, 9) + "-" + clean.slice(9);
+};
+
 export default function Input({
   label,
   placeholder,
@@ -112,7 +134,7 @@ export default function Input({
     }).start();
   }, [isUp, anim]);
 
-  //Format-aware change handler: formatted text → raw digits
+  //Format-aware change handler: formatted text → raw value
   const handleChange = (text: string) => {
     if (format === "date") {
       onChangeText(text.replace(/\D/g, "").slice(0, 8));
@@ -122,18 +144,26 @@ export default function Input({
       onChangeText(text.replace(/\D/g, "").slice(0, 11));
       return;
     }
+    if (format === "doh-lto") {
+      onChangeText(cleanDoh(text));
+      return;
+    }
     onChangeText(text);
   };
 
   const displayed =
     format === "date" ? formatDate(value)
       : format === "phone" ? formatPhone(value)
-        : value;
+        : format === "doh-lto" ? formatDoh(value)
+          : value;
 
   const effectiveKeyboardType =
     format === "date" ? "numeric"
       : format === "phone" ? "phone-pad"
         : keyboardType ?? "default";
+
+  const effectiveAutoCapitalize =
+    format === "doh-lto" ? "characters" : autoCapitalize;
 
   const borderColor = focused ? accent : error ? colors.error : colors.border;
 
@@ -228,7 +258,7 @@ export default function Input({
           keyboardType={effectiveKeyboardType}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          autoCapitalize={autoCapitalize}
+          autoCapitalize={effectiveAutoCapitalize}
           editable={editable}
           selectionColor={accent}
         />
