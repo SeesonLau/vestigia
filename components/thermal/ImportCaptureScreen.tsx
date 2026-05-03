@@ -94,14 +94,41 @@ export default function ImportCaptureScreen() {
 
   async function pick(side: Side, kind: Kind) {
     try {
+      //Strict-ish MIME filter: PNG only for the image slot, CSV-ish only
+      //for the temperature slot. We still allow */* for CSV because some
+      //Android pickers don't honor text/csv, but we sanity-check below.
       const res = await DocumentPicker.getDocumentAsync({
-        type: kind === "image" ? ["image/png", "image/*"] : ["text/csv", "text/comma-separated-values", "*/*"],
+        type: kind === "image" ? ["image/png"] : ["text/csv", "text/comma-separated-values", "text/plain"],
         multiple: false,
         copyToCacheDirectory: true,
       });
       if (res.canceled) return;
       const file = res.assets?.[0];
       if (!file) return;
+      const name = (file.name ?? "file").toLowerCase();
+
+      //Reject obvious wrong file types up front so the user gets a useful
+      //message instead of a confusing API error.
+      if (kind === "image") {
+        if (!name.endsWith(".png")) {
+          setErr(`Please pick a PNG thermal image (got "${file.name}"). Re-encoded files (e.g. Messenger downloads) lose the temperature data even if they're still PNG -- use the original.`);
+          return;
+        }
+        if (name.startsWith("messenger_") || name.includes("_creation_")) {
+          setErr("This image looks like it was downloaded from Messenger and has been re-compressed. Use the ORIGINAL thermal PNG (transfer via USB, Drive, or email-as-attachment).");
+          return;
+        }
+      } else {
+        if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+          setErr(`"${file.name}" is an Excel spreadsheet, not a CSV. Open it in Excel/Sheets and "Save As" / Export → CSV (comma-delimited) first.`);
+          return;
+        }
+        if (!name.endsWith(".csv") && !name.endsWith(".txt")) {
+          setErr(`Please pick a CSV file (got "${file.name}").`);
+          return;
+        }
+      }
+
       const picked: Picked = { uri: file.uri, name: file.name ?? "file", size: file.size ?? undefined };
       setSlots((s) => ({ ...s, [slotKey(side, kind)]: picked }));
       setErr(null);
@@ -138,6 +165,12 @@ export default function ImportCaptureScreen() {
         "head=", JSON.stringify(sample(rightCsvText)));
       if (leftB64.length === 0 || rightB64.length === 0) {
         throw new Error("Could not read one of the image files (empty bytes). Try re-picking from local storage.");
+      }
+      //Zip-signature check: .xlsx / .docx / .pages all start with "PK".
+      //If we somehow got past the picker filter, abort with a clear message.
+      const looksLikeZip = (s: string) => s.startsWith("PK\x03\x04") || s.startsWith("PK");
+      if (looksLikeZip(leftCsvText) || looksLikeZip(rightCsvText)) {
+        throw new Error("One of the temperature files is a spreadsheet (.xlsx), not a CSV. Export it as CSV first.");
       }
       const malformed = (label: string, m: number[][], raw: string) =>
         `${label} CSV looks malformed: parsed ${m.length} rows × ${m[0]?.length ?? 0} cols. ` +
@@ -180,8 +213,10 @@ export default function ImportCaptureScreen() {
       />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.intro, { color: colors.textSec }]}>
-          Provide a thermal image (PNG) and its temperature matrix (CSV) for each foot. The
-          analyzer expects a 160×120 CSV grid in degrees Celsius.
+          For each foot, provide the ORIGINAL thermal PNG and its temperature CSV
+          (comma-separated, no header). Re-compressed downloads (Messenger,
+          screenshots) and Excel/Sheets `.xlsx` exports won&apos;t work — convert
+          to `.csv` first and transfer the PNG without recompression.
         </Text>
 
         <FootGroup
