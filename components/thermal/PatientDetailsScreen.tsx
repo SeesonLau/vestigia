@@ -247,7 +247,22 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           .from("devices").select("id")
           .eq("clinic_id", clinicId).eq("is_active", true)
           .limit(1).maybeSingle();
-        deviceId = dev.data?.id ?? null;
+        if (dev.data?.id) {
+          deviceId = dev.data.id;
+        } else {
+          //First capture for this clinic: auto-register a default device so
+          //the session FK resolves. The operator can rename / pair more
+          //devices later.
+          const inserted = await supabase
+            .from("devices")
+            .insert({ clinic_id: clinicId, name: "Default Device", is_active: true })
+            .select("id")
+            .single();
+          if (inserted.error || !inserted.data) {
+            throw new Error(inserted.error?.message ?? "Failed to register a default device.");
+          }
+          deviceId = inserted.data.id;
+        }
 
         //Find or create the patients row
         const existing = await supabase
