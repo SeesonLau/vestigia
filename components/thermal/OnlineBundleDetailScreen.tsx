@@ -79,59 +79,71 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv }: Props
     let cancelled = false;
     (async () => {
       try {
-        //Session + clinic name
-        const sess = await supabase
-          .from("screening_sessions")
-          .select(`
-            id, bundle_code, capture_mode, status,
-            patient_snapshot, started_at, completed_at,
-            clinic:clinics ( facility_name )
-          `)
-          .eq("id", sessionId)
-          .maybeSingle();
-        if (sess.error || !sess.data) throw new Error(sess.error?.message ?? "Session not found");
+        //Session + captures fire in parallel; storage signing waits on captures.
+        const [sessRes, capsRes] = await Promise.all([
+          supabase
+            .from("screening_sessions")
+            .select(`
+              id, bundle_code, capture_mode, status,
+              patient_snapshot, started_at, completed_at,
+              clinic:clinics ( facility_name )
+            `)
+            .eq("id", sessionId)
+            .maybeSingle(),
+          supabase
+            .from("thermal_captures")
+            .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path")
+            .eq("session_id", sessionId),
+        ]);
 
-        //Captures
-        const caps = await supabase
-          .from("thermal_captures")
-          .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path")
-          .eq("session_id", sessionId);
-        if (caps.error) throw caps.error;
+        if (sessRes.error || !sessRes.data) throw new Error(sessRes.error?.message ?? "Session not found");
+        if (capsRes.error) throw capsRes.error;
 
-        const sign = async (path: string | null): Promise<string | null> => {
-          if (!path) return null;
-          const r = await supabase.storage.from("thermal-images").createSignedUrl(path, SIGN_EXPIRY);
-          return r.data?.signedUrl ?? null;
-        };
-
-        const buildFoot = async (row: ThermalCaptureRow): Promise<FootSigned> => {
-          const [rawUri, processedUri, isolatedUri] = await Promise.all([
-            sign(row.raw_image_path),
-            sign(row.processed_image_path),
-            sign(row.isolated_image_path),
-          ]);
-          return {
-            rawUri,
-            processedUri: processedUri ?? "",
-            isolatedUri,
-            csvPath: row.csv_path,
-            stats: { min: Number(row.min_temp_c), max: Number(row.max_temp_c), mean: Number(row.mean_temp_c) },
-          };
-        };
-
-        const rows = (caps.data ?? []) as ThermalCaptureRow[];
+        const rows = (capsRes.data ?? []) as ThermalCaptureRow[];
         const leftRow  = rows.find((r) => r.foot === "left")  ?? null;
         const rightRow = rows.find((r) => r.foot === "right") ?? null;
 
-        const [leftSigned, rightSigned] = await Promise.all([
-          leftRow  ? buildFoot(leftRow)  : Promise.resolve(null),
-          rightRow ? buildFoot(rightRow) : Promise.resolve(null),
-        ]);
+        //One batch sign for ALL paths -- six createSignedUrl calls in series
+        //was the dominant latency. createSignedUrls(plural) is one round-trip.
+        const allPaths: string[] = [];
+        if (leftRow?.raw_image_path)        allPaths.push(leftRow.raw_image_path);
+        if (leftRow?.processed_image_path)  allPaths.push(leftRow.processed_image_path);
+        if (leftRow?.isolated_image_path)   allPaths.push(leftRow.isolated_image_path);
+        if (rightRow?.raw_image_path)       allPaths.push(rightRow.raw_image_path);
+        if (rightRow?.processed_image_path) allPaths.push(rightRow.processed_image_path);
+        if (rightRow?.isolated_image_path)  allPaths.push(rightRow.isolated_image_path);
+
+        const signedRes = allPaths.length
+          ? await supabase.storage.from("thermal-images").createSignedUrls(allPaths, SIGN_EXPIRY)
+          : { data: [], error: null };
+        if (signedRes.error) throw signedRes.error;
+
+        const urlByPath = new Map<string, string>();
+        for (const item of signedRes.data ?? []) {
+          if (item.path && item.signedUrl) urlByPath.set(item.path, item.signedUrl);
+        }
+        const signed = (path: string | null) =>
+          path ? urlByPath.get(path) ?? null : null;
+
+        const buildFoot = (row: ThermalCaptureRow | null): FootSigned | null => {
+          if (!row) return null;
+          return {
+            rawUri:       signed(row.raw_image_path),
+            processedUri: signed(row.processed_image_path) ?? "",
+            isolatedUri:  signed(row.isolated_image_path),
+            csvPath:      row.csv_path,
+            stats: {
+              min:  Number(row.min_temp_c),
+              max:  Number(row.max_temp_c),
+              mean: Number(row.mean_temp_c),
+            },
+          };
+        };
 
         if (cancelled) return;
-        setSession(sess.data as unknown as SessionRow);
-        setLeft(leftSigned);
-        setRight(rightSigned);
+        setSession(sessRes.data as unknown as SessionRow);
+        setLeft(buildFoot(leftRow));
+        setRight(buildFoot(rightRow));
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load bundle");
       } finally {

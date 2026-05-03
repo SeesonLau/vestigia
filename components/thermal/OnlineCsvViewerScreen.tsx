@@ -35,40 +35,39 @@ export default function OnlineCsvViewerScreen({ sessionId, side }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        //1. find the thermal_captures row to get the csv_path
-        const cap = await supabase
-          .from("thermal_captures")
-          .select("csv_path")
-          .eq("session_id", sessionId)
-          .eq("foot", side)
-          .maybeSingle();
-        if (cap.error || !cap.data?.csv_path) {
+        //Capture row + session header fire in parallel.
+        const [capRes, sessRes] = await Promise.all([
+          supabase
+            .from("thermal_captures")
+            .select("csv_path")
+            .eq("session_id", sessionId)
+            .eq("foot", side)
+            .maybeSingle(),
+          supabase
+            .from("screening_sessions")
+            .select("bundle_code")
+            .eq("id", sessionId)
+            .maybeSingle(),
+        ]);
+
+        if (capRes.error || !capRes.data?.csv_path) {
           throw new Error("CSV not found for this capture.");
         }
 
-        //2. signed URL for the CSV
         const signed = await supabase.storage
           .from("thermal-csv")
-          .createSignedUrl(cap.data.csv_path, 3600);
+          .createSignedUrl(capRes.data.csv_path, 3600);
         if (signed.error || !signed.data?.signedUrl) {
           throw new Error("Could not sign CSV URL.");
         }
 
-        //3. download the CSV text
         const res = await fetch(signed.data.signedUrl);
         if (!res.ok) throw new Error("CSV download failed.");
         const text = await res.text();
 
-        //4. session bundle_code for the header subtitle
-        const sess = await supabase
-          .from("screening_sessions")
-          .select("bundle_code")
-          .eq("id", sessionId)
-          .maybeSingle();
-
         if (cancelled) return;
         setCsvContent(text);
-        setLabel(`${sess.data?.bundle_code ?? sessionId.slice(0, 8)} · ${side === "left" ? "Left" : "Right"} Foot`);
+        setLabel(`${sessRes.data?.bundle_code ?? sessionId.slice(0, 8)} · ${side === "left" ? "Left" : "Right"} Foot`);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load CSV.");
       } finally {

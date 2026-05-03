@@ -19,7 +19,7 @@ import { getAllCaptures } from "../../lib/db/offlineCaptures";
 import { dbg } from "../../lib/debug";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
-import { LocalCapture, Patient, ScreeningSession } from "../../types";
+import { LocalCapture, ScreeningSession } from "../../types";
 
 type DataView = "cloud" | "local";
 type Filter = "all" | "completed" | "failed";
@@ -48,27 +48,16 @@ export default function PatientHistoryScreen() {
 
     const fetchSessions = async () => {
       try {
-        //Resolve patient record first
-        const { data: patientData, error: patientErr } = await supabase
-          .from("patients")
-          .select("id")
-          .eq("user_id", user.id)
-          .single();
-        dbg("patient/history", `patient fetch — error=${patientErr?.code ?? "none"}`);
-
-        if (patientErr?.code === "PGRST116") {
-          //No patient record yet — cloud history will be empty
-          setCloudLoading(false);
-          return;
-        }
-        if (patientErr) throw new Error("Failed to load patient data.");
-
+        //Post-redesign: every session for this patient is reachable via
+        //subject_profile_id = self -- no need to resolve a clinic-side
+        //patients row first.
         const { data, error } = await supabase
           .from("screening_sessions")
           .select("*, classification:classification_results(*)")
-          .eq("patient_id", (patientData as Patient).id)
+          .eq("subject_profile_id", user.id)
           .order("started_at", { ascending: false });
 
+        dbg("patient/history", `sessions fetch — error=${error?.code ?? "none"}`);
         if (error) throw new Error("Failed to load sessions.");
 
         setSessions(
