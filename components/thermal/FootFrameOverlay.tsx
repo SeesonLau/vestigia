@@ -136,9 +136,13 @@ export default function FootFrameOverlay({ frameWidth, frameHeight, onInteractio
         return;
       }
 
-      //Single-finger pan. Clamp uses the START dimensions which equal the
-      //CURRENT box size (single-finger pan never resizes), so the box can
-      //pan all the way until its bottom/right edges hit the frame edges.
+      //Single-finger pan only. If the gesture started in pinch mode and
+      //the user lifts one finger without releasing entirely, freeze the
+      //box rather than teleporting it (gesture.dx/dy at this point is
+      //relative to the original two-finger touchdown, not the current
+      //single-finger position, so applying it would jump).
+      if (start.mode !== "pan") return;
+
       const dx = gesture.dx / frameWRef.current;
       const dy = gesture.dy / frameHRef.current;
       const newX = clamp(start.x + dx, 0, 1 - start.w);

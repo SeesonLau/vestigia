@@ -379,6 +379,23 @@ function FootImageCard({
   onViewCsv?: () => void;
   colors: ThemeColors;
 }) {
+  //Derive a SINGLE aspect ratio from the processed image (the post-crop
+  //artifact) and use it for all three cells. If we let each cell use its
+  //own aspect, the row gets dominated by the tallest cell and looks
+  //unbalanced. resizeMode="contain" letterboxes the raw 4:3 image inside
+  //its (now portrait) cell so its content stays visible.
+  const [rowAspect, setRowAspect] = useState<number>(160 / 120);
+  useEffect(() => {
+    const uri = foot?.processedUri;
+    if (!uri) return;
+    let cancelled = false;
+    RNImage.getSize(
+      uri,
+      (w, h) => { if (!cancelled && w > 0 && h > 0) setRowAspect(w / h); },
+      () => {/* keep default */},
+    );
+    return () => { cancelled = true; };
+  }, [foot?.processedUri]);
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
       <View style={styles.footCardHeader}>
@@ -396,9 +413,9 @@ function FootImageCard({
       </View>
 
       <View style={styles.imageRow}>
-        <ImageCell label="UNPROCESSED"   uri={foot?.rawUri ?? null}      icon="camera-outline"  colors={colors} />
-        <ImageCell label="POST-PROCESSED" uri={foot?.processedUri || null} icon="image-outline"   colors={colors} />
-        <ImageCell label="ISOLATED"       uri={foot?.isolatedUri ?? null}  icon="scan-outline"    colors={colors} />
+        <ImageCell label="UNPROCESSED"    uri={foot?.rawUri ?? null}        icon="camera-outline" aspect={rowAspect} colors={colors} />
+        <ImageCell label="POST-PROCESSED" uri={foot?.processedUri || null}  icon="image-outline"  aspect={rowAspect} colors={colors} />
+        <ImageCell label="ISOLATED"       uri={foot?.isolatedUri ?? null}   icon="scan-outline"   aspect={rowAspect} colors={colors} />
       </View>
 
       {foot ? (
@@ -413,24 +430,14 @@ function FootImageCard({
 }
 
 function ImageCell({
-  label, uri, icon, colors,
+  label, uri, icon, aspect, colors,
 }: {
-  label: string; uri: string | null; icon: keyof typeof Ionicons.glyphMap; colors: ThemeColors;
+  label: string;
+  uri: string | null;
+  icon: keyof typeof Ionicons.glyphMap;
+  aspect: number;
+  colors: ThemeColors;
 }) {
-  //Resolve the image's natural aspect so the cell matches the actual
-  //dimensions (raw is 160x120, but processed/isolated PNGs are cropped
-  //to the user's framing rectangle and are typically portrait).
-  const [aspect, setAspect] = useState<number>(160 / 120);
-  useEffect(() => {
-    if (!uri) return;
-    let cancelled = false;
-    RNImage.getSize(
-      uri,
-      (w, h) => { if (!cancelled && w > 0 && h > 0) setAspect(w / h); },
-      () => {/* keep default */},
-    );
-    return () => { cancelled = true; };
-  }, [uri]);
   return (
     <View style={styles.imageCell}>
       <Text style={[styles.imageLabel, { color: colors.textSec }]}>{label}</Text>
@@ -444,7 +451,11 @@ function ImageCell({
           resizeMode="contain"
         />
       ) : (
-        <View style={[styles.footImage, styles.noImage, { borderColor: colors.border, backgroundColor: colors.surface }]}>
+        <View style={[
+          styles.footImage,
+          styles.noImage,
+          { aspectRatio: aspect, borderColor: colors.border, backgroundColor: colors.surface },
+        ]}>
           <Ionicons name={icon} size={16} color={colors.border} />
         </View>
       )}
