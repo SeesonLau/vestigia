@@ -1,4 +1,10 @@
 // app/(patient)/sync.tsx
+//Patient inbox for clinic-history-share consent.
+//  Pending  → Approve / Disapprove
+//  Accepted → Revoke
+//Backed by the clinic_access table; mutations go through the
+//respond_to_clinic_access / revoke_clinic_access RPCs (SECURITY DEFINER).
+
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -18,166 +24,136 @@ import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 
-type PendingRequest = {
+type AccessRow = {
   id: string;
-  from_profile_id: string;
-  session_id: string;
+  status: "pending" | "accepted" | "rejected" | "revoked";
   requested_at: string;
-  session: {
+  responded_at: string | null;
+  clinic: {
     id: string;
-    started_at: string;
-    status: string;
-    clinic: { facility_name: string } | null;
-    captures: Array<{ foot: string; min_temp_c: number; max_temp_c: number }>;
+    facility_name: string;
+    facility_type: string;
+    clinic_code: string;
   } | null;
 };
 
-export default function PatientSyncScreen() {
+const formatFacilityType = (t: string) =>
+  t.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+export default function PatientInboxScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
 
-  const [requests, setRequests] = useState<PendingRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pending, setPending]   = useState<AccessRow[]>([]);
+  const [accepted, setAccepted] = useState<AccessRow[]>([]);
+  const [loading, setLoading]   = useState(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     const { data } = await supabase
-      .from("data_requests")
+      .from("clinic_access")
       .select(`
-        id,
-        from_profile_id,
-        session_id,
-        requested_at,
-        session:screening_sessions (
-          id,
-          started_at,
-          status,
-          clinic:clinics ( facility_name ),
-          captures:thermal_captures ( foot, min_temp_c, max_temp_c )
-        )
+        id, status, requested_at, responded_at,
+        clinic:clinics ( id, facility_name, facility_type, clinic_code )
       `)
-      .eq("to_profile_id", user.id)
-      .eq("status", "pending")
+      .eq("patient_profile_id", user.id)
+      .in("status", ["pending", "accepted"])
       .order("requested_at", { ascending: false });
-    setRequests((data as unknown as PendingRequest[]) ?? []);
+    const rows = (data as unknown as AccessRow[]) ?? [];
+    setPending(rows.filter((r) => r.status === "pending"));
+    setAccepted(rows.filter((r) => r.status === "accepted"));
     setLoading(false);
   }, [user?.id]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleAccept = async (req: PendingRequest) => {
+  const handleRespond = async (req: AccessRow, approve: boolean) => {
     setActioningId(req.id);
-    const { error } = await supabase
-      .from("data_requests")
-      .update({ status: "accepted" })
-      .eq("id", req.id);
+    const { error } = await supabase.rpc("respond_to_clinic_access", {
+      p_request_id: req.id,
+      p_approve:    approve,
+    });
     setActioningId(null);
     if (error) {
-      Alert.alert("Error", "Could not accept the request. Please try again.");
+      Alert.alert("Error", error.message ?? "Could not record your response.");
       return;
     }
-    setRequests((prev) => prev.filter((r) => r.id !== req.id));
-    Alert.alert("Accepted", "The session has been added to your health record.");
+    if (approve) {
+      //Move card from pending → accepted
+      setPending((prev)  => prev.filter((r) => r.id !== req.id));
+      setAccepted((prev) => [{ ...req, status: "accepted", responded_at: new Date().toISOString() }, ...prev]);
+    } else {
+      setPending((prev) => prev.filter((r) => r.id !== req.id));
+    }
   };
 
-  const handleReject = (req: PendingRequest) => {
+  const handleRevoke = (req: AccessRow) => {
     Alert.alert(
-      "Reject Request",
-      "Are you sure you want to reject this session request? It will not appear in your record.",
+      "Revoke access",
+      `Revoke ${req.clinic?.facility_name ?? "this clinic"}'s access to your screening history?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Reject",
+          text: "Revoke",
           style: "destructive",
           onPress: async () => {
             setActioningId(req.id);
-            const { error } = await supabase
-              .from("data_requests")
-              .update({ status: "rejected" })
-              .eq("id", req.id);
+            const { error } = await supabase.rpc("revoke_clinic_access", { p_request_id: req.id });
             setActioningId(null);
             if (error) {
-              Alert.alert("Error", "Could not reject the request.");
+              Alert.alert("Error", error.message ?? "Could not revoke access.");
               return;
             }
-            setRequests((prev) => prev.filter((r) => r.id !== req.id));
+            setAccepted((prev) => prev.filter((r) => r.id !== req.id));
           },
         },
-      ]
+      ],
     );
   };
 
-  const renderItem = useCallback(({ item }: { item: PendingRequest }) => {
-    const capture = item.session?.captures?.[0] ?? null;
+  const renderRequest = useCallback(({ item }: { item: AccessRow }) => {
     const isActioning = actioningId === item.id;
-
     return (
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        {/* Clinic + date */}
         <View style={styles.cardHeader}>
           <View style={styles.clinicRow}>
             <Ionicons name="business-outline" size={14} color={colors.textSec} />
             <Text style={[styles.clinicName, { color: colors.text }]}>
-              {item.session?.clinic?.facility_name ?? "Unknown Clinic"}
+              {item.clinic?.facility_name ?? "Unknown Clinic"}
             </Text>
           </View>
-          <View style={styles.pendingBadge}>
-            <Text style={styles.pendingText}>Pending</Text>
+          <View style={[styles.pendingBadge, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}66` }]}>
+            <Text style={[styles.pendingText, { color: colors.warning }]}>Pending</Text>
           </View>
         </View>
 
-        {/* Session info */}
-        <View style={styles.infoRow}>
-          <Ionicons name="calendar-outline" size={13} color={colors.textSec} />
-          <Text style={[styles.infoText, { color: colors.textSec }]}>
-            {item.session
-              ? new Date(item.session.started_at).toLocaleDateString("en-PH", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })
-              : "—"}
-          </Text>
-        </View>
-
-        {capture && (
-          <View style={styles.infoRow}>
-            <Ionicons name="footsteps-outline" size={13} color={colors.textSec} />
-            <Text style={[styles.infoText, { color: colors.textSec }]}>
-              {capture.foot.charAt(0).toUpperCase() + capture.foot.slice(1)} foot
-            </Text>
-            <Text style={[styles.infoDivider, { color: colors.textSec }]}>·</Text>
-            <Ionicons name="thermometer-outline" size={13} color={colors.textSec} />
-            <Text style={[styles.infoText, { color: colors.textSec }]}>
-              {capture.min_temp_c.toFixed(1)}–{capture.max_temp_c.toFixed(1)}°C
-            </Text>
-          </View>
-        )}
-
-        <Text style={[styles.sentDate, { color: colors.textSec }]}>
-          Sent {new Date(item.requested_at).toLocaleDateString("en-PH", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+        <Text style={[styles.metaText, { color: colors.textSec }]}>
+          {item.clinic ? `${formatFacilityType(item.clinic.facility_type)} · ${item.clinic.clinic_code}` : "—"}
         </Text>
 
-        {/* Actions */}
+        <Text style={[styles.bodyText, { color: colors.text }]}>
+          {item.clinic?.facility_name ?? "This clinic"} is requesting access to your screening history.
+        </Text>
+
+        <Text style={[styles.sentDate, { color: colors.textSec }]}>
+          Sent {new Date(item.requested_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+        </Text>
+
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.rejectBtn, { borderColor: colors.border }]}
-            onPress={() => handleReject(item)}
+            onPress={() => handleRespond(item, false)}
             disabled={isActioning}
             activeOpacity={0.7}
           >
-            <Text style={[styles.rejectText, { color: colors.textSec }]}>Reject</Text>
+            <Text style={[styles.rejectText, { color: colors.textSec }]}>Disapprove</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: colors.success }, isActioning && styles.btnDisabled]}
-            onPress={() => handleAccept(item)}
+            onPress={() => handleRespond(item, true)}
             disabled={isActioning}
             activeOpacity={0.8}
           >
@@ -186,7 +162,7 @@ export default function PatientSyncScreen() {
             ) : (
               <>
                 <Ionicons name="checkmark-outline" size={15} color="#fff" />
-                <Text style={styles.acceptText}>Accept</Text>
+                <Text style={styles.acceptText}>Approve</Text>
               </>
             )}
           </TouchableOpacity>
@@ -195,11 +171,55 @@ export default function PatientSyncScreen() {
     );
   }, [actioningId, colors]);
 
+  const renderAccepted = useCallback(({ item }: { item: AccessRow }) => {
+    const isActioning = actioningId === item.id;
+    return (
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.clinicRow}>
+            <Ionicons name="business-outline" size={14} color={colors.textSec} />
+            <Text style={[styles.clinicName, { color: colors.text }]}>
+              {item.clinic?.facility_name ?? "Unknown Clinic"}
+            </Text>
+          </View>
+          <View style={[styles.acceptedBadge, { backgroundColor: `${colors.success}26`, borderColor: `${colors.success}66` }]}>
+            <Text style={[styles.acceptedText, { color: colors.success }]}>Approved</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.metaText, { color: colors.textSec }]}>
+          {item.clinic ? `${formatFacilityType(item.clinic.facility_type)} · ${item.clinic.clinic_code}` : "—"}
+        </Text>
+
+        {item.responded_at ? (
+          <Text style={[styles.sentDate, { color: colors.textSec }]}>
+            Granted {new Date(item.responded_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+          </Text>
+        ) : null}
+
+        <TouchableOpacity
+          style={[styles.revokeBtn, { borderColor: `${colors.error}66`, backgroundColor: `${colors.error}1A` }, isActioning && styles.btnDisabled]}
+          onPress={() => handleRevoke(item)}
+          disabled={isActioning}
+          activeOpacity={0.75}
+        >
+          {isActioning ? (
+            <ActivityIndicator size="small" color={colors.error} />
+          ) : (
+            <Text style={[styles.revokeText, { color: colors.error }]}>Revoke access</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }, [actioningId, colors]);
+
+  const isEmpty = pending.length === 0 && accepted.length === 0;
+
   return (
     <ScreenWrapper>
       <Header
-        title="Data Requests"
-        subtitle="Pending clinic submissions"
+        title="Access Requests"
+        subtitle="Clinic history sharing"
         leftIcon={
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
@@ -211,27 +231,41 @@ export default function PatientSyncScreen() {
         <View style={styles.centered}>
           <ActivityIndicator color={colors.accent} />
         </View>
+      ) : isEmpty ? (
+        <View style={styles.empty}>
+          <Ionicons
+            name="checkmark-circle-outline"
+            size={48}
+            color={colors.success}
+            style={styles.emptyIcon}
+          />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>All caught up</Text>
+          <Text style={[styles.emptyHint, { color: colors.textSec }]}>
+            No clinics are requesting access right now.
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={requests}
-          keyExtractor={(r) => r.id}
-          renderItem={renderItem}
+          data={[
+            ...(pending.length  ? [{ kind: "pending"  as const, items: pending  }] : []),
+            ...(accepted.length ? [{ kind: "accepted" as const, items: accepted }] : []),
+          ]}
+          keyExtractor={(s) => s.kind}
+          renderItem={({ item: section }) => (
+            <View style={{ marginBottom: Spacing.lg }}>
+              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>
+                {section.kind === "pending" ? "Pending requests" : "Active access"}
+              </Text>
+              <FlatList
+                data={section.items}
+                keyExtractor={(r) => r.id}
+                renderItem={section.kind === "pending" ? renderRequest : renderAccepted}
+                scrollEnabled={false}
+              />
+            </View>
+          )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={48}
-                color={colors.success}
-                style={styles.emptyIcon}
-              />
-              <Text style={[styles.emptyTitle, { color: colors.text }]}>All caught up</Text>
-              <Text style={[styles.emptyHint, { color: colors.textSec }]}>
-                No pending session requests from your clinic.
-              </Text>
-            </View>
-          }
         />
       )}
     </ScreenWrapper>
@@ -241,7 +275,15 @@ export default function PatientSyncScreen() {
 const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   list: { padding: Spacing.lg, paddingBottom: Spacing["3xl"] },
-  //Card
+
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: Typography.fonts.label,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: Spacing.sm,
+  },
+
   card: {
     borderWidth: 1,
     borderRadius: Radius.lg,
@@ -262,26 +304,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   pendingBadge: {
-    backgroundColor: "rgba(251,191,36,0.15)",
     borderRadius: Radius.full,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.3)",
   },
-  pendingText: { fontSize: 10, fontFamily: Typography.fonts.label, color: "#fbbf24" },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  infoText: {
+  pendingText: { fontSize: 10, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+  acceptedBadge: {
+    borderRadius: Radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderWidth: 1,
+  },
+  acceptedText: { fontSize: 10, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+
+  metaText: {
     fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.body,
+    fontFamily: Typography.fonts.mono,
   },
-  infoDivider: { marginHorizontal: 2 },
+  bodyText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    lineHeight: 20,
+    marginTop: 4,
+  },
   sentDate: {
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
     marginTop: Spacing.xs,
   },
-  //Actions
+
   actions: {
     flexDirection: "row",
     gap: Spacing.sm,
@@ -313,8 +365,20 @@ const styles = StyleSheet.create({
     fontFamily: Typography.fonts.heading,
     color: "#fff",
   },
-  //Empty state
-  empty: { paddingTop: Spacing["3xl"], alignItems: "center" },
+
+  revokeBtn: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  revokeText: {
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.heading,
+  },
+
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: Spacing.lg },
   emptyIcon: { marginBottom: Spacing.md },
   emptyTitle: {
     fontSize: Typography.sizes.base,
