@@ -373,6 +373,15 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
         }
       }
 
+      //Mark the bundle complete now that all uploads + child rows landed.
+      //Assessment (DPN classification) is a separate flow run from history later;
+      //a row with status='completed' AND no classification_results entry is the
+      //'not yet assessed' bundle in that future UI.
+      await supabase
+        .from("screening_sessions")
+        .update({ status: "completed", completed_at: new Date().toISOString() })
+        .eq("id", session.id);
+
       setActiveSession({
         id:                 session.id,
         bundle_code:        session.bundle_code ?? null,
@@ -382,23 +391,17 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
         operator_id:        user.id,
         device_id:          deviceId,
         capture_mode:       mode === "clinic" ? "clinical" : "patient_self",
-        status:             "uploading",
+        status:             "completed",
         started_at:         startedAt,
       });
+      clearBilateral();
 
-      if (mode === "clinic") {
-        //Don't clear the thermal store yet -- the assessment screen needs the
-        //matrices + B64s for the DPN call. dpn-result.cleanup() clears at the
-        //end of the flow.
-        router.replace("/(clinic)/assessment");
-      } else {
-        clearBilateral();
-        Alert.alert(
-          "Capture Saved",
-          "Your thermal capture has been saved to your account.",
-          [{ text: "OK", onPress: () => router.replace("/(patient)") }],
-        );
-      }
+      const homeRoute = mode === "clinic" ? "/(clinic)" : "/(patient)";
+      Alert.alert(
+        "Bundle Saved",
+        "The thermal capture has been saved. Run assessment from the history screen when you're ready.",
+        [{ text: "OK", onPress: () => router.replace(homeRoute) }],
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setFormError(`Save failed: ${msg}`);
