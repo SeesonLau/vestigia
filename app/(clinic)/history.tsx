@@ -1,12 +1,14 @@
 // app/(clinic)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  SectionList,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -21,8 +23,11 @@ import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { LocalCapture, ScreeningSession } from "../../types";
 
-type Filter = "all" | "completed" | "failed";
+type Filter = "all" | "analyzed" | "pending";
+type SortOrder = "newest" | "oldest";
 type DataView = "cloud" | "local";
+
+interface Section { title: string; sub?: string; data: ScreeningSession[] }
 
 export default function HistoryScreen() {
   const router = useRouter();
@@ -36,6 +41,9 @@ export default function HistoryScreen() {
   const [cloudLoading, setCloudLoading] = useState(true);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  const [search, setSearch] = useState("");
+  const [groupByPatient, setGroupByPatient] = useState(false);
   const [localCaptures, setLocalCaptures] = useState<LocalCapture[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
   //Patient label for the header subtitle when drilled in
@@ -44,10 +52,12 @@ export default function HistoryScreen() {
   useEffect(() => {
     if (!user?.clinic_id) return;
     setCloudLoading(true);
+    //Don't filter by clinic_id here -- RLS already gates visibility, AND
+    //it includes patient self-captures shared via clinic_access. Filtering
+    //client-side by clinic_id would hide those granted-access sessions.
     let q = supabase
       .from("screening_sessions")
-      .select("*, classification: classification_results(*)")
-      .eq("clinic_id", user.clinic_id);
+      .select("*, classification: classification_results(*)");
     if (patient_id) q = q.eq("patient_id", patient_id);
     q.order("started_at", { ascending: false })
       .then(({ data, error: err }) => {
@@ -77,11 +87,55 @@ export default function HistoryScreen() {
     getAllCaptures().then(setLocalCaptures).finally(() => setLocalLoading(false));
   }, [activeView]);
 
-  const filtered = sessions.filter((s) => {
-    if (filter === "completed") return s.status === "completed";
-    if (filter === "failed") return s.status === "failed" || s.status === "discarded";
-    return true;
-  });
+  const sessionPatientName = useCallback((s: ScreeningSession): string => {
+    const snap = s.patient_snapshot as
+      | { first_name?: string | null; middle_name?: string | null; last_name?: string | null }
+      | null
+      | undefined;
+    if (!snap) return "";
+    return [snap.first_name, snap.middle_name, snap.last_name]
+      .filter(Boolean).join(" ").trim();
+  }, []);
+
+  const getClassification = useCallback((s: ScreeningSession) => {
+    const c = s.classification;
+    return Array.isArray(c) ? c[0]?.classification : c?.classification;
+  }, []);
+
+  const filtered = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    let arr = sessions.filter((s) => {
+      if (filter === "analyzed" && !getClassification(s)) return false;
+      if (filter === "pending"  &&  getClassification(s)) return false;
+      if (needle) {
+        const name = sessionPatientName(s).toLowerCase();
+        const code = (s.bundle_code ?? "").toLowerCase();
+        if (!name.includes(needle) && !code.includes(needle)) return false;
+      }
+      return true;
+    });
+    arr = arr.slice().sort((a, b) => {
+      const aT = new Date(a.started_at).getTime();
+      const bT = new Date(b.started_at).getTime();
+      return sortOrder === "newest" ? bT - aT : aT - bT;
+    });
+    return arr;
+  }, [sessions, filter, search, sortOrder, sessionPatientName, getClassification]);
+
+  //Group filtered sessions by patient (subject_profile_id) when toggle is on.
+  //Drill-down view always renders flat (already a single patient).
+  const sections: Section[] = useMemo(() => {
+    if (!groupByPatient || patient_id) return [];
+    const map = new Map<string, Section>();
+    for (const s of filtered) {
+      const key = s.subject_profile_id ?? "unknown";
+      const name = sessionPatientName(s) || "Unnamed patient";
+      const existing = map.get(key);
+      if (existing) existing.data.push(s);
+      else map.set(key, { title: name, sub: s.bundle_code ?? undefined, data: [s] });
+    }
+    return Array.from(map.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }, [filtered, groupByPatient, patient_id, sessionPatientName]);
 
   const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
     <SessionCard
@@ -133,10 +187,6 @@ export default function HistoryScreen() {
     </View>
   ), [router, colors]);
 
-  const getClassification = (s: ScreeningSession) => {
-    const c = s.classification;
-    return Array.isArray(c) ? c[0]?.classification : c?.classification;
-  };
   const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
   const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
   const unsyncedCount = localCaptures.filter((c) => !c.synced).length;
@@ -225,8 +275,28 @@ export default function HistoryScreen() {
               ))}
             </View>
 
+            {/* Search box */}
+            <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={16} color={colors.textSec} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search by patient or bundle code"
+                placeholderTextColor={colors.textSec}
+                style={[styles.searchInput, { color: colors.text }]}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {search.length > 0 ? (
+                <TouchableOpacity onPress={() => setSearch("")} hitSlop={8}>
+                  <Ionicons name="close-circle" size={16} color={colors.textSec} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* Filter chips */}
             <View style={styles.filterRow}>
-              {(["all", "completed", "failed"] as Filter[]).map((f) => (
+              {(["all", "analyzed", "pending"] as Filter[]).map((f) => (
                 <TouchableOpacity
                   key={f}
                   onPress={() => setFilter(f)}
@@ -240,10 +310,51 @@ export default function HistoryScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                    {f === "all" ? "All" : f === "analyzed" ? "Analyzed" : "Pending"}
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            {/* Sort + group toggles */}
+            <View style={styles.toolRow}>
+              <TouchableOpacity
+                onPress={() => setSortOrder((s) => (s === "newest" ? "oldest" : "newest"))}
+                style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={sortOrder === "newest" ? "arrow-down-outline" : "arrow-up-outline"}
+                  size={14}
+                  color={colors.textSec}
+                />
+                <Text style={[styles.toolBtnText, { color: colors.textSec }]}>
+                  {sortOrder === "newest" ? "Newest first" : "Oldest first"}
+                </Text>
+              </TouchableOpacity>
+
+              {!patient_id ? (
+                <TouchableOpacity
+                  onPress={() => setGroupByPatient((g) => !g)}
+                  style={[
+                    styles.toolBtn,
+                    {
+                      borderColor: groupByPatient ? colors.accent : colors.border,
+                      backgroundColor: groupByPatient ? `${colors.accent}1F` : colors.card,
+                    },
+                  ]}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={14}
+                    color={groupByPatient ? colors.accent : colors.textSec}
+                  />
+                  <Text style={[styles.toolBtnText, { color: groupByPatient ? colors.accent : colors.textSec }]}>
+                    Group by patient
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {cloudLoading ? (
@@ -254,6 +365,29 @@ export default function HistoryScreen() {
               <View style={styles.emptyState}>
                 <Text style={[styles.errorText, { color: colors.error }]}>{cloudError}</Text>
               </View>
+            ) : groupByPatient && !patient_id ? (
+              <SectionList
+                sections={sections}
+                keyExtractor={(s) => s.id}
+                renderItem={renderSession}
+                renderSectionHeader={({ section }) => (
+                  <View style={[styles.sectionHeader, { backgroundColor: colors.bg }]}>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.title}</Text>
+                    <Text style={[styles.sectionCount, { color: colors.textSec }]}>
+                      {section.data.length} session{section.data.length === 1 ? "" : "s"}
+                    </Text>
+                  </View>
+                )}
+                stickySectionHeadersEnabled
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.list}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Ionicons name="time-outline" size={48} color={colors.textSec} style={styles.emptyIcon} />
+                    <Text style={[styles.emptyText, { color: colors.textSec }]}>No sessions found</Text>
+                  </View>
+                }
+              />
             ) : (
               <FlatList
                 data={filtered}
@@ -345,7 +479,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: Typography.sizes.xl, fontFamily: Typography.fonts.heading },
   statLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5, marginTop: 2 },
   statDivider: { width: 1, height: 36 },
-  filterRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.lg },
+  filterRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.sm },
   filterChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -353,6 +487,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   filterText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
+    borderWidth: 1, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: 6,
+    marginBottom: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: Typography.sizes.sm,
+    fontFamily: Typography.fonts.body,
+    paddingVertical: 4,
+  },
+  toolRow: { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.lg },
+  toolBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderWidth: 1, borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: 6,
+  },
+  toolBtnText: {
+    fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5,
+  },
+  sectionHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.sm,
+  },
+  sectionTitle: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
+  sectionCount: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
   localCard: {
     borderWidth: 1,
     borderRadius: Radius.lg,
