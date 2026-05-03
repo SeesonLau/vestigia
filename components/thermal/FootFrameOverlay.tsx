@@ -10,10 +10,9 @@ import React, { useEffect } from "react";
 import { StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  Extrapolation,
-  interpolate,
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
   withSpring,
   withTiming,
@@ -111,6 +110,19 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
 
   const composed = Gesture.Simultaneous(pan, pinch);
 
+  //Track whether the box is below the practical minimum size. Use a derived
+  //shared value so the JS thread can render-time-read it without crossing
+  //thread boundaries unsafely.
+  const tooSmallSV = useDerivedValue(() => w.value < ROI_MIN_W + 0.005);
+  const [tooSmall, setTooSmall] = React.useState(false);
+  useDerivedValue(() => {
+    runOnJS(setTooSmall)(tooSmallSV.value);
+    return null;
+  });
+
+  //Position + opacity + scale only — read shared values in the worklet.
+  //Border color / fill / dash style depend on JS booleans (locked, tooSmall)
+  //so we apply them as regular RN styles in the JSX below.
   const animatedStyle = useAnimatedStyle(() => {
     return {
       position: "absolute",
@@ -123,33 +135,27 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
     };
   });
 
-  //Border / fill colors react to lock state (and to too-small via min check).
-  const animatedBorderStyle = useAnimatedStyle(() => {
-    const tooSmall = w.value < ROI_MIN_W + 0.005;
-    const borderColor = tooSmall
-      ? colors.error
-      : locked
-        ? colors.success
-        : colors.accent;
-    const fillAlpha = interpolate(
-      tooSmall ? 1 : 0,
-      [0, 1],
-      [0.10, 0.18],
-      Extrapolation.CLAMP,
-    );
-    const fillColor = `${borderColor}${Math.round(fillAlpha * 255).toString(16).padStart(2, "0")}`;
-    return {
-      borderColor,
-      backgroundColor: fillColor,
-      borderStyle: locked ? "solid" : "dashed",
-    };
-  });
-
-  if (!visible && opacity.value === 0) return null;
+  const borderColor = tooSmall
+    ? colors.error
+    : locked
+      ? colors.success
+      : colors.accent;
+  const fillColor = `${borderColor}${tooSmall ? "33" : "1F"}`;
 
   return (
     <GestureDetector gesture={composed}>
-      <Animated.View style={[animatedStyle, styles.box, animatedBorderStyle]} pointerEvents="auto">
+      <Animated.View
+        style={[
+          animatedStyle,
+          styles.box,
+          {
+            borderColor,
+            backgroundColor: fillColor,
+            borderStyle: locked ? "solid" : "dashed",
+          },
+        ]}
+        pointerEvents={visible ? "auto" : "none"}
+      >
         {/* Corner markers — fade out when locked to signal "no longer interactive" */}
         {!locked ? (
           <>
