@@ -94,6 +94,11 @@ export default function ThermalLiveFeedScreen({
   //Settings
   const [showSettings, setShowSettings] = useState(false)
 
+  //Suppress ScrollView vertical scrolling while the user is dragging the
+  //foot-frame overlay. Without this, after a few pixels of finger movement
+  //the parent ScrollView's responder takes over and stops the box mid-drag.
+  const [overlayDragging, setOverlayDragging] = useState(false)
+
   //Foot-framing rectangle
   const roiRect       = useRoiStore((s) => s.rect)
   const roiLocked     = useRoiStore((s) => s.locked)
@@ -322,6 +327,7 @@ export default function ThermalLiveFeedScreen({
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={!overlayDragging}
       >
         <CameraStatusPanel
           status={cameraStatus}
@@ -366,7 +372,11 @@ export default function ThermalLiveFeedScreen({
           >
             <Image source={{ uri: displayUri }} style={{ width: MAP_W, height: MAP_H }} resizeMode="contain" fadeDuration={0} />
             {!allDone && (
-              <FootFrameOverlay frameWidth={MAP_W} frameHeight={MAP_H} />
+              <FootFrameOverlay
+                frameWidth={MAP_W}
+                frameHeight={MAP_H}
+                onInteractionChange={setOverlayDragging}
+              />
             )}
             {cameraPaused && (
               <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.55)" }]}>

@@ -32,6 +32,9 @@ interface Props {
   frameWidth: number;
   /** Height of the rendered thermal feed in screen pixels. */
   frameHeight: number;
+  /** Notify the parent when an interaction begins/ends so it can disable
+   *  ancestor ScrollView scrolling while the user is dragging the box. */
+  onInteractionChange?: (active: boolean) => void;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -44,7 +47,7 @@ function distance(touches: GestureResponderEvent["nativeEvent"]["touches"]): num
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
+export default function FootFrameOverlay({ frameWidth, frameHeight, onInteractionChange }: Props) {
   const { colors } = useTheme();
   const rect    = useRoiStore((s) => s.rect);
   const locked  = useRoiStore((s) => s.locked);
@@ -82,9 +85,18 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
   }, [visible, opacity, scale]);
 
   const responder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => interactiveRef.current,
-    onMoveShouldSetPanResponder:  () => interactiveRef.current,
-    onPanResponderTerminationRequest: () => false,
+    //Use Capture variants so the box wins the gesture during the capture
+    //phase -- otherwise the parent ScrollView's own onMoveShouldSetResponder
+    //activates after a few pixels of vertical movement, terminates our
+    //responder, and the box stops moving partway down. Capture-phase claim
+    //preempts that.
+    onStartShouldSetPanResponderCapture: () => interactiveRef.current,
+    onMoveShouldSetPanResponderCapture:  () => interactiveRef.current,
+    onStartShouldSetPanResponder:        () => interactiveRef.current,
+    onMoveShouldSetPanResponder:         () => interactiveRef.current,
+    onPanResponderTerminationRequest:    () => false,
+    //Block the gesture from propagating to ancestors after we've claimed it.
+    onShouldBlockNativeResponder:        () => true,
     onPanResponderGrant: (e) => {
       const t = e.nativeEvent.touches;
       const d = draftRef.current;
@@ -93,6 +105,7 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
         dist: t.length >= 2 ? distance(t) : 0,
         mode: t.length >= 2 ? "pinch" : "pan",
       };
+      onInteractionChange?.(true);
     },
     onPanResponderMove: (e, gesture) => {
       const start = startRef.current;
@@ -138,10 +151,12 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
       startRef.current.mode = "idle";
       //Persist final draft to the store so the capture pipeline reads it.
       setRect(draftRef.current);
+      onInteractionChange?.(false);
     },
     onPanResponderTerminate: () => {
       startRef.current.mode = "idle";
       setRect(draftRef.current);
+      onInteractionChange?.(false);
     },
   })).current;
 
