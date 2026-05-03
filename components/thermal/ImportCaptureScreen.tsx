@@ -42,10 +42,26 @@ type Slots = {
 
 const EMPTY: Slots = { leftImage: null, leftCsv: null, rightImage: null, rightCsv: null };
 
+//Detect the column separator used by a CSV file. Some thermal-camera
+//exports use tabs or semicolons (European locale); we try a few and pick
+//whichever gives the widest first row.
+function detectSeparator(sample: string): RegExp {
+  const firstLine = sample.split(/\r?\n/).find((l) => l.trim().length > 0) ?? "";
+  const candidates: { re: RegExp; count: number }[] = [
+    { re: /,/g,    count: (firstLine.match(/,/g)    ?? []).length },
+    { re: /;/g,    count: (firstLine.match(/;/g)    ?? []).length },
+    { re: /\t/g,   count: (firstLine.match(/\t/g)   ?? []).length },
+    { re: / +/g,   count: (firstLine.match(/ +/g)   ?? []).length },
+  ];
+  candidates.sort((a, b) => b.count - a.count);
+  return candidates[0].count > 0 ? candidates[0].re : /,/g;
+}
+
 function csvToMatrix(csv: string): number[][] {
+  const sep = detectSeparator(csv);
   return csv.trim().split(/\r?\n/).map((line) =>
-    line.split(",").map((v) => {
-      const n = parseFloat(v.trim());
+    line.split(sep).map((v) => {
+      const n = parseFloat(v.trim().replace(",", "."));   //handle "28,5" decimal style
       return Number.isNaN(n) ? 0 : n;
     }),
   );
@@ -112,20 +128,25 @@ export default function ImportCaptureScreen() {
       ]);
       const leftMatrix  = csvToMatrix(leftCsvText);
       const rightMatrix = csvToMatrix(rightCsvText);
-      //Diagnostic — visible in `npx react-native log-android` when debugging
-      //input shape mismatches that cause the API to 500.
+      //Snippet of raw text so the on-screen error can show what was actually read.
+      const sample = (s: string) => s.slice(0, 80).replace(/\n/g, " ⏎ ").replace(/\t/g, "→");
       console.log("[importCapture] left  png b64=", leftB64.length,
-        "csv rows=", leftMatrix.length, "cols=", leftMatrix[0]?.length ?? 0);
+        "csv rows=", leftMatrix.length, "cols=", leftMatrix[0]?.length ?? 0,
+        "head=", JSON.stringify(sample(leftCsvText)));
       console.log("[importCapture] right png b64=", rightB64.length,
-        "csv rows=", rightMatrix.length, "cols=", rightMatrix[0]?.length ?? 0);
+        "csv rows=", rightMatrix.length, "cols=", rightMatrix[0]?.length ?? 0,
+        "head=", JSON.stringify(sample(rightCsvText)));
       if (leftB64.length === 0 || rightB64.length === 0) {
         throw new Error("Could not read one of the image files (empty bytes). Try re-picking from local storage.");
       }
+      const malformed = (label: string, m: number[][], raw: string) =>
+        `${label} CSV looks malformed: parsed ${m.length} rows × ${m[0]?.length ?? 0} cols. ` +
+        `First bytes: "${sample(raw)}"`;
       if (leftMatrix.length < 10 || (leftMatrix[0]?.length ?? 0) < 10) {
-        throw new Error(`Left CSV looks malformed (${leftMatrix.length}x${leftMatrix[0]?.length ?? 0}). Expected a comma-separated 2D temperature grid.`);
+        throw new Error(malformed("Left",  leftMatrix,  leftCsvText));
       }
       if (rightMatrix.length < 10 || (rightMatrix[0]?.length ?? 0) < 10) {
-        throw new Error(`Right CSV looks malformed (${rightMatrix.length}x${rightMatrix[0]?.length ?? 0}). Expected a comma-separated 2D temperature grid.`);
+        throw new Error(malformed("Right", rightMatrix, rightCsvText));
       }
       const r = await scanPatient({
         left_image_b64:     leftB64,
