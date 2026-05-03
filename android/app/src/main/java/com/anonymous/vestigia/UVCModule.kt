@@ -20,6 +20,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
@@ -174,15 +175,25 @@ class UVCModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun processCapture(promise: Promise) {
+    fun processCapture(cropMap: ReadableMap?, promise: Promise) {
         val frames = synchronized(frameBufferLock) { frameBuffer.toList() }
         if (frames.isEmpty()) {
             promise.reject("NO_FRAMES", "No thermal frames buffered. Ensure the camera is streaming in Y16 mode.")
             return
         }
+        //Optional foot-frame ROI from the live feed UI. Coordinates are
+        //normalized [0..1] over the sensor matrix; null means full frame.
+        val crop: CropRoi? = cropMap?.let {
+            CropRoi(
+                x = it.getDouble("x").toFloat(),
+                y = it.getDouble("y").toFloat(),
+                w = it.getDouble("w").toFloat(),
+                h = it.getDouble("h").toFloat(),
+            )
+        }
         Thread {
             try {
-                val result = processThermalFrames(frames)
+                val result = processThermalFrames(frames, crop)
                 val map = Arguments.createMap()
                 map.putString("displayPngB64",    result.displayPngB64)
                 map.putString("isolatedPngB64",   result.isolatedPngB64)
@@ -443,7 +454,21 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val log:             List<String>,
     )
 
-    private fun processThermalFrames(frames: List<ByteArray>): ThermalResult {
+    /** Foot-frame region of interest from the live UI, normalized [0..1]. */
+    private data class CropRoi(val x: Float, val y: Float, val w: Float, val h: Float)
+
+    /** Crop a bitmap by a normalized ROI, with safety clamping. */
+    private fun cropBitmapByRoi(src: Bitmap, roi: CropRoi): Bitmap {
+        val srcW = src.width
+        val srcH = src.height
+        val x = (roi.x * srcW).toInt().coerceIn(0, srcW - 1)
+        val y = (roi.y * srcH).toInt().coerceIn(0, srcH - 1)
+        val w = (roi.w * srcW).toInt().coerceAtLeast(1).coerceAtMost(srcW - x)
+        val h = (roi.h * srcH).toInt().coerceAtLeast(1).coerceAtMost(srcH - y)
+        return Bitmap.createBitmap(src, x, y, w, h)
+    }
+
+    private fun processThermalFrames(frames: List<ByteArray>, crop: CropRoi? = null): ThermalResult {
         val log = mutableListOf<String>()
         log.add("Received ${frames.size} frame(s)")
 
@@ -533,11 +558,12 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+        val displayBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
         val pngOut = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.PNG, 100, pngOut)
-        bmp.recycle()
+        displayBmp.compress(Bitmap.CompressFormat.PNG, 100, pngOut)
+        displayBmp.recycle()
         val displayPngB64 = Base64.encodeToString(pngOut.toByteArray(), Base64.NO_WRAP)
-        log.add("Display PNG encoded (mode=$displayMode palette=$palette)")
+        log.add("Display PNG encoded (mode=$displayMode palette=$palette" + (if (crop != null) " · cropped to ROI" else "") + ")")
 
         // 16-bit TIFF (always radiometric Kelvin×100, independent of display mode)
         val tiffBytes = encodeTiff16(rawAvg, cols, rows)
@@ -547,9 +573,9 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
         // Foot isolation
         val mask             = isolateFootMask(filtered, rows, cols)
-        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range)
+        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range, crop)
         val maskedCsvContent = buildMaskedCsv(filtered, mask, rows, cols)
-        log.add("Foot isolation complete")
+        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else ""))
 
         return ThermalResult(
             displayPngB64    = displayPngB64,
@@ -710,7 +736,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     private fun buildIsolatedPng(
         filtered: FloatArray, mask: BooleanArray,
-        rows: Int, cols: Int, p1: Float, range: Float
+        rows: Int, cols: Int, p1: Float, range: Float,
+        crop: CropRoi? = null
     ): String {
         val pixels = IntArray(rows * cols)
         for (i in 0 until rows * cols) {
@@ -724,9 +751,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+        val outBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
         val out = ByteArrayOutputStream()
-        bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-        bmp.recycle()
+        outBmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        outBmp.recycle()
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 

@@ -231,16 +231,17 @@ export default function ThermalLiveFeedScreen({
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      const result = await processFrames(rawImageUri)
-      //If the user has the framing rectangle visible, crop the temperature
-      //CSVs (full-frame and masked) to its bounds before persisting. The
-      //downstream classifier receives only the framed region; the raw image
-      //path keeps the full sensor view for the bundle viewer.
-      const finalResult: ProcessedCapture = roiVisible
+      //Pass the ROI to native so the displayPng + isolatedPng come back
+      //already cropped to the framing rectangle. CSVs come back full-frame
+      //from native; we crop them to the same rect on the JS side to keep
+      //all four artifacts aligned.
+      const cropArg = roiVisible ? roiRect : null
+      const result = await processFrames(rawImageUri, cropArg)
+      const finalResult: ProcessedCapture = cropArg
         ? {
             ...result,
-            csvContent:       cropCsvText(result.csvContent,       roiRect),
-            maskedCsvContent: cropCsvText(result.maskedCsvContent, roiRect),
+            csvContent:       cropCsvText(result.csvContent,       cropArg),
+            maskedCsvContent: cropCsvText(result.maskedCsvContent, cropArg),
           }
         : result
       await onCapture(finalResult, step, footArg)

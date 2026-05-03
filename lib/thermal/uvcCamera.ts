@@ -184,9 +184,14 @@ export interface NativeProcessResult {
   log:              string[]
 }
 
-export async function processCapture(): Promise<NativeProcessResult> {
+/** Optional foot-frame ROI passed to the native processor. Coordinates are
+ *  normalized [0..1] over the sensor matrix. When provided, the display PNG
+ *  and isolated PNG are cropped to this rect before encoding. */
+export interface NativeCropRoi { x: number; y: number; w: number; h: number }
+
+export async function processCapture(crop?: NativeCropRoi | null): Promise<NativeProcessResult> {
   if (!UVCCamera) throw new Error('UVCCamera native module not available. Use expo run:android.')
-  return UVCCamera.processCapture() as Promise<NativeProcessResult>
+  return UVCCamera.processCapture(crop ?? null) as Promise<NativeProcessResult>
 }
 
 

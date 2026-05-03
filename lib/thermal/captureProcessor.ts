@@ -2,7 +2,7 @@
 // Thin JS wrapper around the native Kotlin thermal processor.
 // All heavy computation (averaging, median filter, isolation, TIFF encoding) runs on a Kotlin thread.
 
-import { processCapture as nativeProcess } from './uvcCamera'
+import { processCapture as nativeProcess, type NativeCropRoi } from './uvcCamera'
 
 export interface ProcessedCapture {
   rawImageUri:     string   // JPEG snapshot taken before processing (live display frame)
@@ -18,8 +18,8 @@ export interface ProcessedCapture {
   log:             string[]
 }
 
-export async function processFrames(rawImageUri: string): Promise<ProcessedCapture> {
-  const r = await nativeProcess()
+export async function processFrames(rawImageUri: string, crop?: NativeCropRoi | null): Promise<ProcessedCapture> {
+  const r = await nativeProcess(crop)
 
   return {
     rawImageUri,
