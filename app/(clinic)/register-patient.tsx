@@ -30,6 +30,16 @@ import { Patient } from "../../types";
 
 type DiabetesType = "type1" | "type2" | "gestational" | "unknown";
 
+//Patient ID auto-mask: XXX-YYYYMMDD-HHMM-NN (17 clean chars + 3 dashes)
+const cleanPatientId = (raw: string) =>
+  raw.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 17);
+const formatPatientId = (clean: string) => {
+  if (clean.length <= 3)  return clean;
+  if (clean.length <= 11) return clean.slice(0, 3) + "-" + clean.slice(3);
+  if (clean.length <= 15) return clean.slice(0, 3) + "-" + clean.slice(3, 11) + "-" + clean.slice(11);
+  return clean.slice(0, 3) + "-" + clean.slice(3, 11) + "-" + clean.slice(11, 15) + "-" + clean.slice(15);
+};
+
 const DIABETES_OPTIONS: { value: DiabetesType; label: string }[] = [
   { value: "type1",       label: "Type 1" },
   { value: "type2",       label: "Type 2" },
@@ -117,7 +127,10 @@ export default function RegisterPatientScreen() {
   const [saving, setSaving] = useState(false);
 
   const handleLookup = async () => {
-    const q = code.trim().toUpperCase();
+    //Patient ID is stored clean (no dashes) — re-insert them for the lookup.
+    const q = code.length === 17
+      ? `${code.slice(0, 3)}-${code.slice(3, 11)}-${code.slice(11, 15)}-${code.slice(15)}`
+      : code.trim().toUpperCase();
     if (!q) {
       Alert.alert("Required", "Enter the patient's ID to look them up.");
       return;
@@ -125,21 +138,20 @@ export default function RegisterPatientScreen() {
     setSearching(true);
     setLookupError(null);
     setProfile(null);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, patient_code, full_name, first_name, middle_name, last_name, sex, date_of_birth, contact_number, role")
-      .eq("patient_code", q)
-      .maybeSingle();
+    //SECURITY DEFINER RPC bypasses RLS so this works for any clinic operator,
+    //including for patients not yet linked to this clinic.
+    const { data, error } = await supabase.rpc("find_patient_by_code", { p_code: q });
     setSearching(false);
     if (error) {
       setLookupError("Lookup failed. Check your connection and try again.");
       return;
     }
-    if (!data || data.role !== "patient") {
+    const row = (data as Array<ProfileLookup> | null)?.[0];
+    if (!row) {
       setLookupError("No patient found with that ID. Make sure they've signed up first.");
       return;
     }
-    setProfile(data as ProfileLookup);
+    setProfile(row);
   };
 
   const handleSubmit = async () => {
@@ -234,8 +246,8 @@ export default function RegisterPatientScreen() {
             style={[styles.input, styles.lookupInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
             placeholder="e.g. JGS-20260502-1617-00"
             placeholderTextColor={colors.textSec}
-            value={code}
-            onChangeText={(v) => { setCode(v); setLookupError(null); setProfile(null); }}
+            value={formatPatientId(code)}
+            onChangeText={(v) => { setCode(cleanPatientId(v)); setLookupError(null); setProfile(null); }}
             autoCapitalize="characters"
             autoCorrect={false}
           />

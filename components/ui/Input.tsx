@@ -12,7 +12,7 @@ import {
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 
-export type InputFormat = "date" | "phone" | "doh-lto";
+export type InputFormat = "date" | "phone" | "doh-lto" | "patient-id";
 
 interface InputProps {
   /** Floating label. Falls back to `placeholder` if omitted. */
@@ -90,6 +90,19 @@ const formatDoh = (clean: string) => {
   return clean.slice(0, 2) + "-" + clean.slice(2, 5) + "-" + clean.slice(5, 7) + "-" + clean.slice(7, 9) + "-" + clean.slice(9);
 };
 
+//Patient ID: XXX-YYYYMMDD-HHMM-NN (17 chars + 3 dashes = 20). Allows
+//alphanumeric (positions 0/2 are letters, position 1 may be 0 or letter,
+//rest are digits — but we don't enforce per-position here since the trigger
+//is the source of truth for what was generated).
+const cleanPatientId = (raw: string) =>
+  raw.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 17);
+const formatPatientId = (clean: string) => {
+  if (clean.length <= 3)  return clean;
+  if (clean.length <= 11) return clean.slice(0, 3) + "-" + clean.slice(3);
+  if (clean.length <= 15) return clean.slice(0, 3) + "-" + clean.slice(3, 11) + "-" + clean.slice(11);
+  return clean.slice(0, 3) + "-" + clean.slice(3, 11) + "-" + clean.slice(11, 15) + "-" + clean.slice(15);
+};
+
 export default function Input({
   label,
   placeholder,
@@ -148,6 +161,10 @@ export default function Input({
       onChangeText(cleanDoh(text));
       return;
     }
+    if (format === "patient-id") {
+      onChangeText(cleanPatientId(text));
+      return;
+    }
     onChangeText(text);
   };
 
@@ -155,7 +172,8 @@ export default function Input({
     format === "date" ? formatDate(value)
       : format === "phone" ? formatPhone(value)
         : format === "doh-lto" ? formatDoh(value)
-          : value;
+          : format === "patient-id" ? formatPatientId(value)
+            : value;
 
   const effectiveKeyboardType =
     format === "date" ? "numeric"
@@ -163,7 +181,7 @@ export default function Input({
         : keyboardType ?? "default";
 
   const effectiveAutoCapitalize =
-    format === "doh-lto" ? "characters" : autoCapitalize;
+    format === "doh-lto" || format === "patient-id" ? "characters" : autoCapitalize;
 
   const borderColor = focused ? accent : error ? colors.error : colors.border;
 

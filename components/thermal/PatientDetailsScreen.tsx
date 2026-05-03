@@ -18,6 +18,7 @@ import {
 import Header from "../layout/Header";
 import ScreenWrapper from "../layout/ScreenWrapper";
 import Button from "../ui/Button";
+import Input from "../ui/Input";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
@@ -117,32 +118,38 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
   const [lookupError, setLookupError] = useState<string | null>(null);
 
   const handleLookup = async () => {
-    const q = code.trim().toUpperCase();
+    //Patient ID is stored clean (no dashes) — re-insert them for the lookup
+    const q = code.length === 17
+      ? `${code.slice(0, 3)}-${code.slice(3, 11)}-${code.slice(11, 15)}-${code.slice(15)}`
+      : code.trim().toUpperCase();
     if (!q) { setLookupError("Enter the Patient ID."); return; }
     setSearching(true);
     setLookupError(null);
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, role, first_name, middle_name, last_name, sex, date_of_birth")
-      .eq("patient_code", q)
-      .maybeSingle();
+    //SECURITY DEFINER RPC bypasses the profiles_select_clinic RLS policy so a
+    //clinic operator can resolve a patient they haven't yet linked.
+    const { data, error } = await supabase.rpc("find_patient_by_code", { p_code: q });
     setSearching(false);
     if (error) { setLookupError("Lookup failed. Check your connection."); return; }
-    if (!data || data.role !== "patient") {
+    const row = (data as Array<{
+      id: string; first_name: string; middle_name: string | null;
+      last_name: string; sex: "male" | "female" | "other" | null;
+      date_of_birth: string | null;
+    }> | null)?.[0];
+    if (!row) {
       setLookupError("No patient found with that ID.");
       return;
     }
     setForm((prev) => ({
       ...prev,
       ...profileToForm({
-        first_name:    data.first_name,
-        middle_name:   data.middle_name,
-        last_name:     data.last_name,
-        sex:           data.sex,
-        date_of_birth: data.date_of_birth,
+        first_name:    row.first_name,
+        middle_name:   row.middle_name,
+        last_name:     row.last_name,
+        sex:           row.sex,
+        date_of_birth: row.date_of_birth,
       }),
     }));
-    setProfileId(data.id);
+    setProfileId(row.id);
   };
 
   const update = (field: keyof FormState) => (value: string) =>
@@ -393,11 +400,12 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           {mode === "clinic" ? (
             <View style={styles.lookupRow}>
               <View style={{ flex: 1 }}>
-                <PatientIdInput
+                <Input
                   label="Patient ID"
                   value={code}
                   onChangeText={(v) => { setCode(v); setLookupError(null); }}
-                  colors={colors}
+                  format="patient-id"
+                  placeholder="XXX-YYYYMMDD-HHMM-NN"
                 />
               </View>
               <TouchableOpacity
@@ -416,44 +424,58 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
             <Text style={[styles.lookupError, { color: colors.error }]}>{lookupError}</Text>
           ) : null}
 
-          {/* Form */}
+          {/* Form. Identity fields lock as soon as a subject is resolved
+               (patient mode: on mount; clinic mode: after a successful lookup). */}
           <View style={styles.form}>
-            <FloatInput label="First Name"  value={form.firstName}  onChangeText={update("firstName")}  colors={colors} />
-            <FloatInput label="Middle Name" value={form.middleName} onChangeText={update("middleName")} colors={colors} />
-            <FloatInput label="Last Name"   value={form.lastName}   onChangeText={update("lastName")}   colors={colors} />
+            {(() => {
+              const identityLocked = profileId !== null;
+              return (
+                <>
+                  <FloatInput label="First Name"  value={form.firstName}  onChangeText={update("firstName")}  colors={colors} disabled={identityLocked} />
+                  <FloatInput label="Middle Name" value={form.middleName} onChangeText={update("middleName")} colors={colors} disabled={identityLocked} />
+                  <FloatInput label="Last Name"   value={form.lastName}   onChangeText={update("lastName")}   colors={colors} disabled={identityLocked} />
 
-            {/* Sex */}
-            <View style={styles.fieldGroup}>
-              <Text style={[styles.groupLabel, { color: colors.textSec }]}>Sex</Text>
-              <View style={styles.sexRow}>
-                {(["Male", "Female"] as Sex[]).map((s) => {
-                  const active = form.sex === s;
-                  return (
-                    <TouchableOpacity
-                      key={s}
-                      onPress={() => setSex(s)}
-                      style={[
-                        styles.sexBtn,
-                        { borderColor: active ? colors.accent : colors.border },
-                        active && { backgroundColor: `${colors.accent}1A` },
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.sexBtnText, { color: active ? colors.accent : colors.textSec }]}>{s}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
+                  {/* Sex */}
+                  <View style={[styles.fieldGroup, identityLocked && { opacity: 0.7 }]}>
+                    <Text style={[styles.groupLabel, { color: colors.textSec }]}>Sex</Text>
+                    <View style={styles.sexRow}>
+                      {(["Male", "Female"] as Sex[]).map((s) => {
+                        const active = form.sex === s;
+                        return (
+                          <TouchableOpacity
+                            key={s}
+                            onPress={() => { if (!identityLocked) setSex(s); }}
+                            disabled={identityLocked}
+                            style={[
+                              styles.sexBtn,
+                              {
+                                borderColor: active ? colors.accent : colors.border,
+                                backgroundColor: identityLocked ? colors.cardAlt : "transparent",
+                              },
+                              active && !identityLocked && { backgroundColor: `${colors.accent}1A` },
+                              active && identityLocked && { backgroundColor: `${colors.accent}26` },
+                            ]}
+                            activeOpacity={identityLocked ? 1 : 0.7}
+                          >
+                            <Text style={[styles.sexBtnText, { color: active ? colors.accent : colors.textSec }]}>{s}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
 
-            <DateInput
-              label="Birthdate"
-              value={form.birthdateDigits}
-              onChangeText={update("birthdateDigits")}
-              colors={colors}
-            />
-            <FloatInput label="Weight (kg)" value={form.weightKg} onChangeText={update("weightKg")} keyboard="decimal-pad" colors={colors} />
-            <FloatInput label="Height (cm)" value={form.heightCm} onChangeText={update("heightCm")} keyboard="decimal-pad" colors={colors} />
+                  <DateInput
+                    label="Birthdate"
+                    value={form.birthdateDigits}
+                    onChangeText={update("birthdateDigits")}
+                    colors={colors}
+                    disabled={identityLocked}
+                  />
+                  <FloatInput label="Weight (kg)" value={form.weightKg} onChangeText={update("weightKg")} keyboard="decimal-pad" colors={colors} />
+                  <FloatInput label="Height (cm)" value={form.heightCm} onChangeText={update("heightCm")} keyboard="decimal-pad" colors={colors} />
+                </>
+              );
+            })()}
 
             {/* Live age / BMI preview */}
             {(age !== null || bmi !== null) ? (
@@ -489,51 +511,13 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
   );
 }
 
-//PatientIdInput — same floating-label visual as FloatInput, with all-caps text
-function PatientIdInput({
-  label, value, onChangeText, colors,
-}: {
-  label: string; value: string; onChangeText: (v: string) => void; colors: ThemeColors;
-}) {
-  const [focused, setFocused] = useState(false);
-  const anim = useRef(new Animated.Value(value !== "" ? 1 : 0)).current;
-  const isUp = focused || value !== "";
-
-  useEffect(() => {
-    Animated.timing(anim, { toValue: isUp ? 1 : 0, duration: 150, useNativeDriver: false }).start();
-  }, [isUp]);
-
-  return (
-    <View style={[floatStyles.container, { borderColor: focused ? colors.accent : colors.border, backgroundColor: colors.surface }]}>
-      <Animated.Text
-        style={[floatStyles.label, {
-          top: anim.interpolate({ inputRange: [0, 1], outputRange: [19, 6] }),
-          fontSize: anim.interpolate({ inputRange: [0, 1], outputRange: [15, 11] }),
-          color: focused ? colors.accent : colors.textSec,
-        }]}
-      >
-        {label}
-      </Animated.Text>
-      <TextInput
-        style={[floatStyles.input, { color: colors.text }]}
-        value={value}
-        onChangeText={onChangeText}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        returnKeyType="search"
-      />
-    </View>
-  );
-}
-
-//FloatInput — standard floating label input
+//FloatInput — standard floating label input. When `disabled`, renders a
+//slightly dimmed background and the TextInput is non-editable.
 function FloatInput({
-  label, value, onChangeText, keyboard, colors,
+  label, value, onChangeText, keyboard, colors, disabled,
 }: {
   label: string; value: string; onChangeText: (v: string) => void;
-  keyboard?: "numeric" | "decimal-pad"; colors: ThemeColors;
+  keyboard?: "numeric" | "decimal-pad"; colors: ThemeColors; disabled?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const anim = useRef(new Animated.Value(value !== "" ? 1 : 0)).current;
@@ -544,7 +528,16 @@ function FloatInput({
   }, [isUp]);
 
   return (
-    <View style={[floatStyles.container, { borderColor: focused ? colors.accent : colors.border, backgroundColor: colors.surface }]}>
+    <View
+      style={[
+        floatStyles.container,
+        {
+          borderColor: focused ? colors.accent : colors.border,
+          backgroundColor: disabled ? colors.cardAlt : colors.surface,
+          opacity: disabled ? 0.7 : 1,
+        },
+      ]}
+    >
       <Animated.Text
         style={[floatStyles.label, {
           top: anim.interpolate({ inputRange: [0, 1], outputRange: [19, 6] }),
@@ -555,7 +548,7 @@ function FloatInput({
         {label}
       </Animated.Text>
       <TextInput
-        style={[floatStyles.input, { color: colors.text }]}
+        style={[floatStyles.input, { color: disabled ? colors.textSec : colors.text }]}
         value={value}
         onChangeText={onChangeText}
         onFocus={() => setFocused(true)}
@@ -563,6 +556,7 @@ function FloatInput({
         keyboardType={keyboard ?? "default"}
         autoCapitalize={keyboard ? "none" : "words"}
         returnKeyType="next"
+        editable={!disabled}
       />
     </View>
   );
@@ -570,9 +564,9 @@ function FloatInput({
 
 //DateInput — floating label with MM/DD/YYYY auto-masking
 function DateInput({
-  label, value, onChangeText, colors,
+  label, value, onChangeText, colors, disabled,
 }: {
-  label: string; value: string; onChangeText: (digits: string) => void; colors: ThemeColors;
+  label: string; value: string; onChangeText: (digits: string) => void; colors: ThemeColors; disabled?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const anim     = useRef(new Animated.Value(value !== "" ? 1 : 0)).current;
@@ -599,7 +593,16 @@ function DateInput({
   const displayed = fmtDateDigits(value);
 
   return (
-    <View style={[floatStyles.container, { borderColor: focused ? colors.accent : colors.border, backgroundColor: colors.surface }]}>
+    <View
+      style={[
+        floatStyles.container,
+        {
+          borderColor: focused ? colors.accent : colors.border,
+          backgroundColor: disabled ? colors.cardAlt : colors.surface,
+          opacity: disabled ? 0.7 : 1,
+        },
+      ]}
+    >
       <Animated.Text
         style={[floatStyles.label, {
           top: anim.interpolate({ inputRange: [0, 1], outputRange: [19, 6] }),
@@ -610,7 +613,7 @@ function DateInput({
         {label}
       </Animated.Text>
       <TextInput
-        style={[floatStyles.input, { color: colors.text }]}
+        style={[floatStyles.input, { color: disabled ? colors.textSec : colors.text }]}
         value={displayed}
         onChangeText={handleChange}
         onFocus={() => setFocused(true)}
@@ -619,6 +622,7 @@ function DateInput({
         returnKeyType="next"
         placeholder={focused ? "MM / DD / YYYY" : ""}
         placeholderTextColor={colors.textSec + "80"}
+        editable={!disabled}
       />
     </View>
   );
