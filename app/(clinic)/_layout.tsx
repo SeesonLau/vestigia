@@ -37,6 +37,7 @@ export default function ClinicLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {

@@ -37,6 +37,7 @@ export default function PatientLayout() {
 
   return (
     <Tabs
+      backBehavior="history"
       screenOptions={{
         headerShown: false,
         tabBarStyle: {

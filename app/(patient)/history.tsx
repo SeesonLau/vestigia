@@ -22,7 +22,7 @@ import { useAuthStore } from "../../store/authStore";
 import { LocalCapture, ScreeningSession } from "../../types";
 
 type DataView = "cloud" | "local";
-type Filter = "all" | "completed" | "failed";
+type Filter = "all" | "analyzed" | "pending";
 
 export default function PatientHistoryScreen() {
   const router = useRouter();
@@ -85,16 +85,16 @@ export default function PatientHistoryScreen() {
     getAllCaptures().then(setLocalCaptures).finally(() => setLocalLoading(false));
   }, [activeView]);
 
-  const filtered = sessions.filter((s) => {
-    if (filter === "completed") return s.status === "completed";
-    if (filter === "failed") return s.status === "failed" || s.status === "discarded";
-    return true;
-  });
-
   const getClassification = (s: ScreeningSession) => {
     const c = s.classification;
     return Array.isArray(c) ? c[0]?.classification : c?.classification;
   };
+
+  const filtered = sessions.filter((s) => {
+    if (filter === "analyzed" && !getClassification(s)) return false;
+    if (filter === "pending"  &&  getClassification(s)) return false;
+    return true;
+  });
   const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
   const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
 
@@ -197,7 +197,7 @@ export default function PatientHistoryScreen() {
             </View>
 
             <View style={styles.filterRow}>
-              {(["all", "completed", "failed"] as Filter[]).map((f) => (
+              {(["all", "analyzed", "pending"] as Filter[]).map((f) => (
                 <TouchableOpacity
                   key={f}
                   onPress={() => setFilter(f)}
@@ -211,7 +211,7 @@ export default function PatientHistoryScreen() {
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                    {f === "all" ? "All" : f === "analyzed" ? "Analyzed" : "Pending"}
                   </Text>
                 </TouchableOpacity>
               ))}
