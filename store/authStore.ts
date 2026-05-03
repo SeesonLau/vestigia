@@ -133,6 +133,24 @@ export const useAuthStore = create<AuthState>((set, get) => {
       };
       dbg("authStore", `${event} — user from JWT, role=${user.role}`);
       set({ user, initialized: true });
+
+      //clinic_id is set on the profiles row (by the clinic-signup edge function),
+      //not in user_metadata. Fetch the profile to enrich on cold start.
+      //patient_code lives on profiles too — same fetch fixes that for free.
+      if (user.role === "clinic" && !user.clinic_id) {
+        supabase.from("profiles").select("*").eq("id", session.user.id).single()
+          .then(({ data }) => {
+            if (data) {
+              set({ user: data as AuthUser });
+              dbg("authStore", `${event} — profile enriched, clinic_id=${(data as AuthUser).clinic_id}`);
+            }
+          });
+      } else if (user.role === "patient" && !user.patient_code) {
+        supabase.from("profiles").select("*").eq("id", session.user.id).single()
+          .then(({ data }) => {
+            if (data) set({ user: data as AuthUser });
+          });
+      }
     } else if (event === "INITIAL_SESSION" && !session) {
       dbg("authStore", "INITIAL_SESSION — no session");
       set({ initialized: true });
