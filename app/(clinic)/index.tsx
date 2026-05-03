@@ -171,6 +171,12 @@ export default function ClinicHomeScreen() {
           onPress={() => router.push("/(clinic)/history")}
         />
         <QuickAction
+          icon="people-outline"
+          title="Manage Patients"
+          subtitle="Patients linked to your clinic + access status"
+          onPress={() => router.push("/(clinic)/manage-patients" as any)}
+        />
+        <QuickAction
           icon="hardware-chip-outline"
           title="Device Pairing"
           subtitle="Connect or register scanner devices"

@@ -1,6 +1,6 @@
 // app/(clinic)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -28,6 +28,8 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
+  //Optional drill-down filter from Manage Patients
+  const { patient_id } = useLocalSearchParams<{ patient_id?: string }>();
 
   const [activeView, setActiveView] = useState<DataView>("cloud");
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
@@ -36,21 +38,38 @@ export default function HistoryScreen() {
   const [filter, setFilter] = useState<Filter>("all");
   const [localCaptures, setLocalCaptures] = useState<LocalCapture[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
+  //Patient label for the header subtitle when drilled in
+  const [drillLabel, setDrillLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.clinic_id) return;
     setCloudLoading(true);
-    supabase
+    let q = supabase
       .from("screening_sessions")
       .select("*, classification: classification_results(*)")
-      .eq("clinic_id", user.clinic_id)
-      .order("started_at", { ascending: false })
+      .eq("clinic_id", user.clinic_id);
+    if (patient_id) q = q.eq("patient_id", patient_id);
+    q.order("started_at", { ascending: false })
       .then(({ data, error: err }) => {
         if (err) setCloudError("Failed to load sessions.");
         else setSessions((data as ScreeningSession[]) ?? []);
         setCloudLoading(false);
       });
-  }, [user?.clinic_id]);
+  }, [user?.clinic_id, patient_id]);
+
+  //Resolve patient label for drill-down header
+  useEffect(() => {
+    if (!patient_id) { setDrillLabel(null); return; }
+    supabase
+      .from("patients")
+      .select("profile:profiles!inner(patient_code, full_name)")
+      .eq("id", patient_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        const p = (data as unknown as { profile: { patient_code: string; full_name: string } } | null)?.profile;
+        if (p) setDrillLabel(`${p.full_name} · ${p.patient_code}`);
+      });
+  }, [patient_id]);
 
   useEffect(() => {
     if ((activeView as string) !== "local") return;
@@ -125,7 +144,15 @@ export default function HistoryScreen() {
   return (
     <ScreenWrapper>
       <Header
-        title="Session History"
+        title={patient_id ? "Patient History" : "Session History"}
+        subtitle={drillLabel ?? undefined}
+        leftIcon={
+          patient_id ? (
+            <TouchableOpacity onPress={() => router.back()}>
+              <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
+            </TouchableOpacity>
+          ) : undefined
+        }
         rightIcon={
           activeView === "cloud" ? (
             <InitialsAvatar
