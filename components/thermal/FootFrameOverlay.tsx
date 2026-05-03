@@ -34,8 +34,6 @@ interface Props {
   frameHeight: number;
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
 export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
   const { colors } = useTheme();
   const rect    = useRoiStore((s) => s.rect);
@@ -65,47 +63,68 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
     scaleAnim.value = withSpring (visible ? 1 : 0.92, { damping: 16, stiffness: 240 });
   }, [visible, opacity, scaleAnim]);
 
-  //Pan gesture — tracks normalized delta against frame size.
-  const panStart = useSharedValue({ x: 0, y: 0 });
+  //Use primitive shared values for the gesture-start state.
+  //Object-typed shared values can crash on Hermes when read during a
+  //high-frequency worklet path; primitives are always safe.
+  const panStartX = useSharedValue(0);
+  const panStartY = useSharedValue(0);
+  const pinchStartW  = useSharedValue(0);
+  const pinchStartCX = useSharedValue(0);
+  const pinchStartCY = useSharedValue(0);
+
+  //Persist final rect to JS-thread store at gesture end. Wrapped so the
+  //worklet only ever calls a stable JS function.
+  const persistRect = (rect: RoiRect) => setRect(rect);
+
   const pan = Gesture.Pan()
     .enabled(!locked && visible)
     .onBegin(() => {
-      panStart.value = { x: x.value, y: y.value };
+      "worklet";
+      panStartX.value = x.value;
+      panStartY.value = y.value;
     })
     .onUpdate((e) => {
+      "worklet";
       const dx = e.translationX / frameWidth;
       const dy = e.translationY / frameHeight;
-      x.value = clamp(panStart.value.x + dx, 0, 1 - w.value);
-      y.value = clamp(panStart.value.y + dy, 0, 1 - h.value);
+      const nx = panStartX.value + dx;
+      const ny = panStartY.value + dy;
+      const maxX = 1 - w.value;
+      const maxY = 1 - h.value;
+      x.value = nx < 0 ? 0 : nx > maxX ? maxX : nx;
+      y.value = ny < 0 ? 0 : ny > maxY ? maxY : ny;
     })
     .onEnd(() => {
-      runOnJS(setRect)({ x: x.value, y: y.value, w: w.value, h: h.value });
+      "worklet";
+      runOnJS(persistRect)({ x: x.value, y: y.value, w: w.value, h: h.value });
     });
 
-  //Pinch gesture — aspect-locked. Anchor the resize at the box center so the
-  //user doesn't lose their alignment while scaling.
-  const pinchStart = useSharedValue({ w: 0, h: 0, cx: 0, cy: 0 });
   const pinch = Gesture.Pinch()
     .enabled(!locked && visible)
     .onBegin(() => {
-      pinchStart.value = {
-        w: w.value,
-        h: h.value,
-        cx: x.value + w.value / 2,
-        cy: y.value + h.value / 2,
-      };
+      "worklet";
+      pinchStartW.value  = w.value;
+      pinchStartCX.value = x.value + w.value / 2;
+      pinchStartCY.value = y.value + h.value / 2;
     })
     .onUpdate((e) => {
-      const target = clamp(pinchStart.value.w * e.scale, ROI_MIN_W, ROI_MAX_W);
-      const newH = Math.min(0.98, target * ROI_ASPECT);
-      const newW = Math.min(target, ROI_MAX_W);
+      "worklet";
+      const scaled = pinchStartW.value * e.scale;
+      const target = scaled < ROI_MIN_W ? ROI_MIN_W : scaled > ROI_MAX_W ? ROI_MAX_W : scaled;
+      const newH   = target * ROI_ASPECT > 0.98 ? 0.98 : target * ROI_ASPECT;
+      const newW   = target;
       w.value = newW;
       h.value = newH;
-      x.value = clamp(pinchStart.value.cx - newW / 2, 0, 1 - newW);
-      y.value = clamp(pinchStart.value.cy - newH / 2, 0, 1 - newH);
+      const nx = pinchStartCX.value - newW / 2;
+      const ny = pinchStartCY.value - newH / 2;
+      const maxX = 1 - newW;
+      const maxY = 1 - newH;
+      x.value = nx < 0 ? 0 : nx > maxX ? maxX : nx;
+      y.value = ny < 0 ? 0 : ny > maxY ? maxY : ny;
     })
     .onEnd(() => {
-      runOnJS(setRect)({ x: x.value, y: y.value, w: w.value, h: h.value });
+      "worklet";
+      runOnJS(persistRect)({ x: x.value, y: y.value, w: w.value, h: h.value });
     });
 
   const composed = Gesture.Simultaneous(pan, pinch);
