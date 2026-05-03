@@ -338,6 +338,18 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
         if (capErr) throw new Error(`Failed to save ${e.foot} thermal capture.`);
       }
 
+      //Per-relationship history-share consent — fire after the capture is
+      //safely stored. Cooldown errors here don't fail the capture itself.
+      if (mode === "clinic" && clinicId && profileId) {
+        const { error: accessErr } = await supabase.rpc("request_clinic_access", {
+          p_clinic_id:          clinicId,
+          p_patient_profile_id: profileId,
+        });
+        if (accessErr && accessErr.code !== "P0001") {
+          console.warn("[clinic_access] request failed:", accessErr.message);
+        }
+      }
+
       setActiveSession({
         id:                 session.id,
         bundle_code:        session.bundle_code ?? null,
