@@ -67,6 +67,7 @@ export default function HistoryScreen() {
   const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
     <SessionCard
       session={item}
+      onPress={() => router.push(`/(clinic)/bundle-detail?session_id=${item.id}` as any)}
     />
   ), [router]);
 

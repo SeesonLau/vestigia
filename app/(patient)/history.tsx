@@ -1,5 +1,6 @@
 // app/(patient)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,6 +25,7 @@ type DataView = "cloud" | "local";
 type Filter = "all" | "completed" | "failed";
 
 export default function PatientHistoryScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
 
@@ -108,8 +110,11 @@ export default function PatientHistoryScreen() {
   const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
 
   const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
-    <SessionCard session={item} />
-  ), []);
+    <SessionCard
+      session={item}
+      onPress={() => router.push(`/(patient)/bundle-detail?session_id=${item.id}` as any)}
+    />
+  ), [router]);
 
   const renderLocalCapture = useCallback(({ item }: { item: LocalCapture }) => (
     <View style={[styles.localCard, { backgroundColor: colors.card, borderColor: colors.border }]}>

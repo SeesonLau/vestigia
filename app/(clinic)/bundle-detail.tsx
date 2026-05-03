@@ -1,15 +1,17 @@
 // app/(clinic)/bundle-detail.tsx
-import { useLocalSearchParams, useRouter } from "expo-router"
-import React from "react"
-import BundleDetailScreen from "../../components/thermal/BundleDetailScreen"
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
+import OnlineBundleDetailScreen from "../../components/thermal/OnlineBundleDetailScreen";
 
 export default function ClinicBundleDetailScreen() {
-  const router = useRouter()
-  const { code } = useLocalSearchParams<{ code: string }>()
+  const router = useRouter();
+  const { session_id } = useLocalSearchParams<{ session_id: string }>();
   return (
-    <BundleDetailScreen
-      bundleCode={code ?? ""}
-      onViewCsv={(side) => router.push(`/(clinic)/csv-viewer?code=${code}&side=${side}` as any)}
+    <OnlineBundleDetailScreen
+      sessionId={session_id ?? ""}
+      onViewCsv={(side) =>
+        router.push(`/(clinic)/csv-viewer?session_id=${session_id}&side=${side}` as any)
+      }
     />
-  )
+  );
 }

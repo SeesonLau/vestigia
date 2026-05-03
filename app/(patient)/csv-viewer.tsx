@@ -1,9 +1,9 @@
 // app/(patient)/csv-viewer.tsx
-import { useLocalSearchParams } from "expo-router"
-import React from "react"
-import CsvViewerScreen from "../../components/thermal/CsvViewerScreen"
+import { useLocalSearchParams } from "expo-router";
+import React from "react";
+import OnlineCsvViewerScreen from "../../components/thermal/OnlineCsvViewerScreen";
 
 export default function PatientCsvViewer() {
-  const { code, side } = useLocalSearchParams<{ code: string; side: "left" | "right" }>()
-  return <CsvViewerScreen bundleCode={code ?? ""} side={side ?? "left"} />
+  const { session_id, side } = useLocalSearchParams<{ session_id: string; side: "left" | "right" }>();
+  return <OnlineCsvViewerScreen sessionId={session_id ?? ""} side={side ?? "left"} />;
 }
