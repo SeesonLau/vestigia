@@ -63,9 +63,12 @@ interface FootSigned {
 interface Props {
   sessionId: string;
   onViewCsv?: (side: "left" | "right") => void;
+  /** Patient-only: when this self-capture has no clinic_id yet, show a
+   *  "Submit to a clinic" CTA that calls this. */
+  onSubmitToClinic?: () => void;
 }
 
-export default function OnlineBundleDetailScreen({ sessionId, onViewCsv }: Props) {
+export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmitToClinic }: Props) {
   const router   = useRouter();
   const { colors } = useTheme();
 
@@ -221,6 +224,20 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv }: Props
             {new Date(session.started_at).toLocaleString()}
           </Text>
         </View>
+
+        {/* Submit-to-clinic CTA (patient self-captures only) */}
+        {onSubmitToClinic && session.capture_mode === "patient_self" && !session.clinic ? (
+          <TouchableOpacity
+            onPress={onSubmitToClinic}
+            activeOpacity={0.85}
+            style={[styles.submitCta, { backgroundColor: colors.accent }]}
+          >
+            <Ionicons name="paper-plane-outline" size={16} color={colors.textInverse} />
+            <Text style={[styles.submitCtaText, { color: colors.textInverse }]}>
+              Submit to a clinic
+            </Text>
+          </TouchableOpacity>
+        ) : null}
 
         {/* Thermal images */}
         <Section title="Thermal Images" colors={colors}>
@@ -380,4 +397,10 @@ const styles = StyleSheet.create({
   tempStat:   { alignItems: "center", gap: 2 },
   tempLabel:  { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1 },
   tempValue:  { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.mono },
+
+  submitCta: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: Spacing.md, borderRadius: Radius.md,
+  },
+  submitCtaText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
 });

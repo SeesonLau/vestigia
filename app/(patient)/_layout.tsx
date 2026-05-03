@@ -110,9 +110,10 @@ export default function PatientLayout() {
       <Tabs.Screen name="privacy-policy"  options={{ href: null as any }} />
       <Tabs.Screen name="terms-of-service" options={{ href: null as any }} />
       <Tabs.Screen name="contact-support"  options={{ href: null as any }} />
-      <Tabs.Screen name="patient-details" options={{ href: null as any }} />
-      <Tabs.Screen name="bundle-detail"   options={{ href: null as any }} />
-      <Tabs.Screen name="csv-viewer"      options={{ href: null as any }} />
+      <Tabs.Screen name="patient-details"   options={{ href: null as any }} />
+      <Tabs.Screen name="bundle-detail"     options={{ href: null as any }} />
+      <Tabs.Screen name="csv-viewer"        options={{ href: null as any }} />
+      <Tabs.Screen name="submit-to-clinic"  options={{ href: null as any }} />
     </Tabs>
   );
 }

@@ -12,6 +12,9 @@ export default function PatientBundleDetailScreen() {
       onViewCsv={(side) =>
         router.push(`/(patient)/csv-viewer?session_id=${session_id}&side=${side}` as any)
       }
+      onSubmitToClinic={() =>
+        router.push(`/(patient)/submit-to-clinic?session_id=${session_id}` as any)
+      }
     />
   );
 }
