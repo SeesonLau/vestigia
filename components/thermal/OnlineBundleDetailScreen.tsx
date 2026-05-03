@@ -50,6 +50,11 @@ interface SessionRow {
   started_at: string;
   completed_at: string | null;
   clinic: { facility_name: string } | null;
+  classification?: {
+    classification: "POSITIVE" | "NEGATIVE" | "INCONCLUSIVE";
+    confidence_score: number;
+    classified_at: string;
+  }[] | null;
 }
 
 interface FootSigned {
@@ -66,9 +71,12 @@ interface Props {
   /** Patient-only: when this self-capture has no clinic_id yet, show a
    *  "Submit to a clinic" CTA that calls this. */
   onSubmitToClinic?: () => void;
+  /** Clinic-only: when there's no classification_results row yet, show
+   *  a "Run DPN assessment" CTA that calls this. */
+  onAssess?: () => void;
 }
 
-export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmitToClinic }: Props) {
+export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmitToClinic, onAssess }: Props) {
   const router   = useRouter();
   const { colors } = useTheme();
 
@@ -89,7 +97,8 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             .select(`
               id, bundle_code, capture_mode, status,
               patient_snapshot, started_at, completed_at,
-              clinic:clinics ( facility_name )
+              clinic:clinics ( facility_name ),
+              classification:classification_results ( classification, confidence_score, classified_at )
             `)
             .eq("id", sessionId)
             .maybeSingle(),
@@ -238,6 +247,50 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             </Text>
           </TouchableOpacity>
         ) : null}
+
+        {/* Classification result -- if assessed */}
+        {(() => {
+          const cls = Array.isArray(session.classification)
+            ? session.classification[0]
+            : null;
+          if (!cls) return null;
+          const isPos = cls.classification === "POSITIVE";
+          const accent = isPos ? colors.error : colors.success;
+          return (
+            <View style={[styles.classCard, { backgroundColor: `${accent}1A`, borderColor: `${accent}66` }]}>
+              <View style={styles.inlineRow}>
+                <Ionicons
+                  name={isPos ? "alert-circle" : "checkmark-circle"}
+                  size={18}
+                  color={accent}
+                />
+                <Text style={[styles.classTitle, { color: accent }]}>
+                  DPN {cls.classification}
+                </Text>
+              </View>
+              <Text style={[styles.classMeta, { color: colors.textSec }]}>
+                {(cls.confidence_score * 100).toFixed(1)}% confidence · {new Date(cls.classified_at).toLocaleDateString()}
+              </Text>
+            </View>
+          );
+        })()}
+
+        {/* Assess CTA -- clinic only, when there's no classification yet */}
+        {onAssess
+          && session.status === "completed"
+          && !(Array.isArray(session.classification) && session.classification[0])
+          ? (
+            <TouchableOpacity
+              onPress={onAssess}
+              activeOpacity={0.85}
+              style={[styles.submitCta, { backgroundColor: colors.accent }]}
+            >
+              <Ionicons name="pulse-outline" size={16} color={colors.textInverse} />
+              <Text style={[styles.submitCtaText, { color: colors.textInverse }]}>
+                Run DPN Assessment
+              </Text>
+            </TouchableOpacity>
+          ) : null}
 
         {/* Thermal images */}
         <Section title="Thermal Images" colors={colors}>
@@ -403,4 +456,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md, borderRadius: Radius.md,
   },
   submitCtaText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
+
+  classCard: {
+    borderWidth: 1, borderRadius: Radius.md,
+    padding: Spacing.md, gap: 4,
+  },
+  classTitle: {
+    fontSize: Typography.sizes.lg,
+    fontFamily: Typography.fonts.heading,
+    letterSpacing: 0.5,
+  },
+  classMeta: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.mono,
+    marginTop: 2,
+  },
 });
