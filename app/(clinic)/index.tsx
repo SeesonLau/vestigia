@@ -162,7 +162,7 @@ export default function ClinicHomeScreen() {
           icon="camera-outline"
           title="New Screening"
           subtitle="Start a new thermal capture session"
-          onPress={() => router.push("/(clinic)/patient-select" as any)}
+          onPress={() => router.push("/(clinic)/live-feed" as any)}
         />
         <QuickAction
           icon="time-outline"
