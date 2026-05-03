@@ -95,6 +95,29 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
     sex: "", birthdateDigits: "", weightKg: "", heightCm: "",
   });
   const [profileId, setProfileId] = useState<string | null>(null);
+  //Clinic-mode badge: history-access status with this patient
+  type AccessStatus = "none" | "pending" | "accepted" | "rejected" | "revoked";
+  const [accessStatus, setAccessStatus] = useState<AccessStatus>("none");
+
+  //Refresh history-access status whenever a clinic-mode lookup sets profileId
+  useEffect(() => {
+    if (mode !== "clinic" || !profileId || !user?.clinic_id) {
+      setAccessStatus("none");
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("clinic_access")
+      .select("status")
+      .eq("clinic_id", user.clinic_id)
+      .eq("patient_profile_id", profileId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setAccessStatus(((data?.status as AccessStatus) ?? "none"));
+      });
+    return () => { cancelled = true; };
+  }, [mode, profileId, user?.clinic_id]);
 
   //Patient mode: auto-fill from the signed-in user once on mount
   useEffect(() => {
@@ -436,6 +459,11 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
             <Text style={[styles.lookupError, { color: colors.error }]}>{lookupError}</Text>
           ) : null}
 
+          {/* Clinic-mode: history-access badge once a patient is matched */}
+          {mode === "clinic" && profileId ? (
+            <AccessBadge status={accessStatus} colors={colors} />
+          ) : null}
+
           {/* Form. Identity fields lock as soon as a subject is resolved
                (patient mode: on mount; clinic mode: after a successful lookup). */}
           <View style={styles.form}>
@@ -636,6 +664,75 @@ function DateInput({
         placeholderTextColor={colors.textSec + "80"}
         editable={!disabled}
       />
+    </View>
+  );
+}
+
+//AccessBadge — clinic-mode banner showing the operator's history-access status
+//for the currently identified patient.
+function AccessBadge({
+  status, colors,
+}: {
+  status: "none" | "pending" | "accepted" | "rejected" | "revoked";
+  colors: ThemeColors;
+}) {
+  const cfg = (() => {
+    switch (status) {
+      case "accepted":
+        return { color: colors.success, icon: "checkmark-circle" as const,
+                 title: "History access: approved",
+                 body:  "You can view this patient's full screening history." };
+      case "pending":
+        return { color: colors.warning, icon: "time-outline" as const,
+                 title: "History access: pending",
+                 body:  "Awaiting approval from the patient." };
+      case "rejected":
+        return { color: colors.error, icon: "close-circle-outline" as const,
+                 title: "History access: disapproved",
+                 body:  "A new request will be sent when you save (5-minute cooldown applies)." };
+      case "revoked":
+        return { color: colors.error, icon: "remove-circle-outline" as const,
+                 title: "History access: revoked",
+                 body:  "A new request will be sent when you save." };
+      default:
+        return { color: colors.accent, icon: "send-outline" as const,
+                 title: "First-time capture",
+                 body:  "An access request will be sent to the patient when you save." };
+    }
+  })();
+
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        gap: Spacing.sm,
+        alignItems: "flex-start",
+        padding: Spacing.md,
+        borderWidth: 1,
+        borderRadius: Radius.md,
+        backgroundColor: `${cfg.color}1A`,
+        borderColor:     `${cfg.color}66`,
+      }}
+    >
+      <Ionicons name={cfg.icon} size={18} color={cfg.color} style={{ marginTop: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={{
+          color: cfg.color,
+          fontSize: Typography.sizes.sm,
+          fontFamily: Typography.fonts.heading,
+        }}>
+          {cfg.title}
+        </Text>
+        <Text style={{
+          color: colors.textSec,
+          fontSize: Typography.sizes.xs,
+          fontFamily: Typography.fonts.body,
+          marginTop: 2,
+          lineHeight: 16,
+        }}>
+          {cfg.body}
+        </Text>
+      </View>
     </View>
   );
 }
