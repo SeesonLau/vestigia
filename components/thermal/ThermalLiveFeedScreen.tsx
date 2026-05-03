@@ -7,14 +7,17 @@ import {
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native"
 import { useThermalStore } from "../../store/sessionStore"
+import { ROI_MIN_W, useRoiStore } from "../../store/roiStore"
 import Header from "../layout/Header"
 import ScreenWrapper from "../layout/ScreenWrapper"
 import CameraStatusPanel from "./CameraStatusPanel"
+import FootFrameOverlay from "./FootFrameOverlay"
 import Button from "../ui/Button"
 import { useTheme } from "../../constants/ThemeContext"
 import { Radius, Spacing, Typography } from "../../constants/theme"
 import { processFrames } from "../../lib/thermal/captureProcessor"
 import type { ProcessedCapture } from "../../lib/thermal/captureProcessor"
+import { cropCsvText } from "../../store/roiStore"
 import {
   connectCamera, disconnectCamera,
   onCameraConnected, onCameraDisconnected, onCameraFormats, onDisplayFrame,
@@ -90,6 +93,15 @@ export default function ThermalLiveFeedScreen({
 
   //Settings
   const [showSettings, setShowSettings] = useState(false)
+
+  //Foot-framing rectangle
+  const roiRect    = useRoiStore((s) => s.rect)
+  const roiLocked  = useRoiStore((s) => s.locked)
+  const roiVisible = useRoiStore((s) => s.visible)
+  const setRoiLocked  = useRoiStore((s) => s.setLocked)
+  const setRoiVisible = useRoiStore((s) => s.setVisible)
+  const resetRoi      = useRoiStore((s) => s.reset)
+  const roiTooSmall = roiRect.w < ROI_MIN_W + 0.005
 
   //Readiness
   const [readiness, setReadiness] = useState<ReadinessState>({ variance: 0, frameDiff: 0, frameIndex: 0 })
@@ -220,7 +232,18 @@ export default function ThermalLiveFeedScreen({
 
     try {
       const result = await processFrames(rawImageUri)
-      await onCapture(result, step, footArg)
+      //If the user has the framing rectangle visible, crop the temperature
+      //CSVs (full-frame and masked) to its bounds before persisting. The
+      //downstream classifier receives only the framed region; the raw image
+      //path keeps the full sensor view for the bundle viewer.
+      const finalResult: ProcessedCapture = roiVisible
+        ? {
+            ...result,
+            csvContent:       cropCsvText(result.csvContent,       roiRect),
+            maskedCsvContent: cropCsvText(result.maskedCsvContent, roiRect),
+          }
+        : result
+      await onCapture(finalResult, step, footArg)
 
       if (isBilateral) {
         if (captureStep === "left") {
@@ -257,7 +280,9 @@ export default function ThermalLiveFeedScreen({
     ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 160×120`
     : ""
 
-  const captureDisabled = cameraStatus !== "connected" || !displayUri || capturing || cameraPaused
+  //Disable capture when the framing rectangle is collapsed below the
+  //minimum usable size (the model needs enough pixels post-resample).
+  const captureDisabled = cameraStatus !== "connected" || !displayUri || capturing || cameraPaused || (roiVisible && roiTooSmall)
   const captureColor = captureMode === "bilateral" && captureStep === "right" ? colors.warning : colors.accent
 
   return (
@@ -329,6 +354,9 @@ export default function ThermalLiveFeedScreen({
             ]}
           >
             <Image source={{ uri: displayUri }} style={{ width: MAP_W, height: MAP_H }} resizeMode="contain" fadeDuration={0} />
+            {!allDone && (
+              <FootFrameOverlay frameWidth={MAP_W} frameHeight={MAP_H} />
+            )}
             {cameraPaused && (
               <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
                 <Ionicons name="pause-circle-outline" size={36} color="#fff" />
@@ -351,6 +379,43 @@ export default function ThermalLiveFeedScreen({
               </View>
             )}
           </Animated.View>
+        )}
+
+        {/* Foot-frame controls — lock / hide / reset the rectangle */}
+        {cameraStatus === "connected" && !allDone && (
+          <View style={[styles.roiBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.roiHint, { color: roiTooSmall ? colors.error : colors.textSec }]}>
+              {!roiVisible
+                ? "Frame hidden"
+                : roiTooSmall
+                  ? "Frame too small for accurate analysis"
+                  : roiLocked
+                    ? "Frame locked"
+                    : "Pinch to resize · drag to position"}
+            </Text>
+            <View style={styles.roiBtnRow}>
+              <RoiBtn
+                icon={roiLocked ? "lock-closed" : "lock-open-outline"}
+                active={roiLocked}
+                onPress={() => setRoiLocked(!roiLocked)}
+                colors={colors}
+                accessibilityLabel={roiLocked ? "Unlock frame" : "Lock frame"}
+              />
+              <RoiBtn
+                icon={roiVisible ? "eye-outline" : "eye-off-outline"}
+                active={!roiVisible}
+                onPress={() => setRoiVisible(!roiVisible)}
+                colors={colors}
+                accessibilityLabel={roiVisible ? "Hide frame" : "Show frame"}
+              />
+              <RoiBtn
+                icon="refresh-outline"
+                onPress={resetRoi}
+                colors={colors}
+                accessibilityLabel="Reset frame"
+              />
+            </View>
+          </View>
         )}
 
         {/* Control panel: mode tabs + camera toggle + palette */}
@@ -500,9 +565,9 @@ export default function ThermalLiveFeedScreen({
           <Text style={[styles.hint, { color: colors.textSec }]}>
             {captureMode === "bilateral"
               ? captureStep === "left"
-                ? "Position the LEFT foot in view, then tap Capture."
-                : "Left foot captured. Now position the RIGHT foot."
-              : "Position the foot(s) in view, then tap Capture."}
+                ? "Frame the LEFT foot inside the rectangle, then tap Capture."
+                : "Left foot captured. Frame the RIGHT foot inside the rectangle."
+              : "Frame the foot inside the rectangle, then tap Capture."}
           </Text>
         )}
       </ScrollView>
@@ -567,6 +632,41 @@ export default function ThermalLiveFeedScreen({
   )
 }
 
+function RoiBtn({
+  icon, active, onPress, colors, accessibilityLabel,
+}: {
+  icon: keyof typeof Ionicons.glyphMap
+  active?: boolean
+  onPress: () => void
+  colors: import("../../constants/theme").ThemeColors
+  accessibilityLabel: string
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+      activeOpacity={0.75}
+      style={[
+        roiBtnStyles.btn,
+        {
+          borderColor: active ? colors.accent : colors.border,
+          backgroundColor: active ? `${colors.accent}1F` : "transparent",
+        },
+      ]}
+    >
+      <Ionicons name={icon} size={16} color={active ? colors.accent : colors.textSec} />
+    </TouchableOpacity>
+  )
+}
+
+const roiBtnStyles = StyleSheet.create({
+  btn: {
+    width: 32, height: 32,
+    borderRadius: Radius.full, borderWidth: 1,
+    alignItems: "center", justifyContent: "center",
+  },
+})
+
 function StepDot({ label, done, active, colors }: {
   label: string; done: boolean; active: boolean
   colors: import("../../constants/theme").ThemeColors
@@ -608,6 +708,15 @@ const styles = StyleSheet.create({
   overlayLabel: { fontSize: 12, fontFamily: Typography.fonts.heading, color: "#fff", letterSpacing: 3 },
   badgeOverlay: { position: "absolute", top: 8, right: 8, borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText:    { fontSize: 10, fontFamily: Typography.fonts.heading, color: "#fff", letterSpacing: 1.5 },
+
+  roiBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    borderWidth: 1, borderRadius: Radius.lg,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  roiHint:   { fontSize: 11, fontFamily: Typography.fonts.body, flex: 1, marginRight: Spacing.sm },
+  roiBtnRow: { flexDirection: "row", gap: 6 },
 
   controlPanel: { borderWidth: 1, borderRadius: Radius.lg, padding: Spacing.sm, marginBottom: Spacing.md, gap: Spacing.xs },
   modeRow:      { flexDirection: "row", gap: Spacing.xs, alignItems: "center" },

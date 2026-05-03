@@ -3,6 +3,7 @@ import { Stack, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useInactivityTimeout } from "../hooks/useInactivityTimeout";
 import { supabase } from "../lib/supabase";
 import { ThemeProvider, useTheme } from "../constants/ThemeContext";
@@ -85,10 +86,12 @@ function AppStack() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <LightboxProvider>
-        <AppStack />
-      </LightboxProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <LightboxProvider>
+          <AppStack />
+        </LightboxProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
