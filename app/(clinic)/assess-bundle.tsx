@@ -20,11 +20,13 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import {
   scanPatient,
-  type AsymmetryResult,
   type DPNScanResponse,
-  type FootResult,
-  type RegionMeans,
 } from "../../lib/dpnApi";
+import {
+  STORED_CLASSIFICATION_COLUMNS,
+  hydrateFromStored,
+  type StoredClassification,
+} from "../../lib/dpnHydrate";
 import { supabase } from "../../lib/supabase";
 
 type Phase = "loading" | "scanning" | "saving" | "done" | "error";
@@ -61,59 +63,6 @@ function csvToMatrix(csv: string): number[][] {
   );
 }
 
-//Convert a stored classification_results row back into the API response shape.
-type StoredResult = {
-  classification: "POSITIVE" | "NEGATIVE";
-  confidence_score: number | null;
-  max_asymmetry_c: number | null;
-  per_angiosome_asymmetry: RegionMeans | null;
-  left_regions: RegionMeans | null;
-  right_regions: RegionMeans | null;
-  mean_asymmetry: number | null;
-  left_foot_mean_temp_c: number | null;
-  right_foot_mean_temp_c: number | null;
-  model_version: string | null;
-};
-
-function hydrateFromStored(row: StoredResult): DPNScanResponse {
-  const isPositive = row.classification === "POSITIVE";
-  const conf = Number(row.confidence_score ?? 0);
-  const positiveProb = isPositive ? conf : 100 - conf;
-  const probs = { Control: 100 - positiveProb, Diabetic: positiveProb };
-
-  const foot = (regions: RegionMeans | null): FootResult => ({
-    prediction: isPositive ? "DPN Positive" : "DPN Negative",
-    confidence: conf,
-    is_diabetic: isPositive,
-    probabilities: probs,
-    regions: regions ?? null,
-  });
-
-  const asym: AsymmetryResult = {
-    mean_asymmetry:        Number(row.mean_asymmetry ?? 0),
-    max_asymmetry:         Number(row.max_asymmetry_c ?? 0),
-    left_foot_mean_temp:   Number(row.left_foot_mean_temp_c ?? 0),
-    right_foot_mean_temp:  Number(row.right_foot_mean_temp_c ?? 0),
-    mean_temp_difference:  Number(row.mean_asymmetry ?? 0),
-    asymmetry_significant: false,
-    threshold_used:        2.2,
-    region_asymmetry:      row.per_angiosome_asymmetry ?? null,
-  };
-  asym.asymmetry_significant = asym.max_asymmetry > asym.threshold_used;
-
-  return {
-    success: true,
-    is_valid_foot: true,
-    rejection_reason: null,
-    combined_prediction: isPositive ? "DPN Positive" : "DPN Negative",
-    combined_confidence: conf,
-    is_diabetic: isPositive,
-    left_foot:  foot(row.left_regions),
-    right_foot: foot(row.right_regions),
-    asymmetry:  asym,
-    diagnosis_factors: [],
-  };
-}
 
 export default function AssessBundleScreen() {
   const router = useRouter();
@@ -152,16 +101,12 @@ export default function AssessBundleScreen() {
       // 0. Reuse existing classification if present.
       const existing = await supabase
         .from("classification_results")
-        .select(
-          "classification, confidence_score, max_asymmetry_c, per_angiosome_asymmetry, " +
-          "left_regions, right_regions, mean_asymmetry, " +
-          "left_foot_mean_temp_c, right_foot_mean_temp_c, model_version",
-        )
+        .select(STORED_CLASSIFICATION_COLUMNS)
         .eq("session_id", session_id)
         .maybeSingle();
       if (existing.error) throw existing.error;
       if (existing.data) {
-        setResult(hydrateFromStored(existing.data as unknown as StoredResult));
+        setResult(hydrateFromStored(existing.data as unknown as StoredClassification));
         setPhase("done");
         return;
       }

@@ -11,12 +11,19 @@ import {
   ActivityIndicator, Image as RNImage, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import DpnResultView from "./DpnResultView";
 import ZoomableImage from "./ZoomableImage";
 import Header from "../layout/Header";
 import ScreenWrapper from "../layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
+import type { DPNScanResponse } from "../../lib/dpnApi";
+import {
+  STORED_CLASSIFICATION_COLUMNS,
+  hydrateFromStored,
+  type StoredClassification,
+} from "../../lib/dpnHydrate";
 import { calculateAge, calculateBMI, bmiCategory } from "../../lib/thermal/bundleUtils";
 import { supabase } from "../../lib/supabase";
 
@@ -85,6 +92,10 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
   const [right,   setRight]   = useState<FootSigned | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  //Full DPN result hydrated from classification_results so we can render
+  //the same detailed verdict / per-foot / asymmetry UI as the assessment
+  //screen, inline below the bundle status pill.
+  const [dpnResult, setDpnResult] = useState<DPNScanResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,21 +176,33 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  //Light refetch on focus — only the classification row, so the Analyzed
-  //pill / verdict card stay in sync after the user runs an assessment
-  //and comes back to this screen. Skips the (expensive) URL-signing step.
+  //Light refetch on focus — pull the full classification row so the
+  //Analyzed pill, the small summary, and the inline DpnResultView all
+  //stay in sync after the user runs an assessment and comes back here.
+  //Skips the (expensive) URL-signing step.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       (async () => {
         const { data, error } = await supabase
           .from("classification_results")
-          .select("classification, confidence_score, classified_at")
+          .select(STORED_CLASSIFICATION_COLUMNS + ", classified_at")
           .eq("session_id", sessionId)
           .maybeSingle();
         if (cancelled || error) return;
         if (data) {
-          setSession((prev) => prev ? { ...prev, classification: [data] } : prev);
+          const stored = data as unknown as StoredClassification & { classified_at: string };
+          setSession((prev) => prev ? {
+            ...prev,
+            classification: [{
+              classification:   stored.classification,
+              confidence_score: Number(stored.confidence_score ?? 0),
+              classified_at:    stored.classified_at,
+            }],
+          } : prev);
+          setDpnResult(hydrateFromStored(stored));
+        } else {
+          setDpnResult(null);
         }
       })();
       return () => { cancelled = true; };
@@ -281,32 +304,27 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
           </TouchableOpacity>
         ) : null}
 
-        {/* Classification result -- if assessed */}
-        {(() => {
-          const cls = Array.isArray(session.classification)
-            ? session.classification[0]
-            : null;
-          if (!cls) return null;
-          const isPos = cls.classification === "POSITIVE";
-          const accent = isPos ? colors.error : colors.success;
-          return (
-            <View style={[styles.classCard, { backgroundColor: `${accent}1A`, borderColor: `${accent}66` }]}>
-              <View style={styles.inlineRow}>
-                <Ionicons
-                  name={isPos ? "alert-circle" : "checkmark-circle"}
-                  size={18}
-                  color={accent}
-                />
-                <Text style={[styles.classTitle, { color: accent }]}>
-                  DPN {cls.classification}
-                </Text>
-              </View>
-              <Text style={[styles.classMeta, { color: colors.textSec }]}>
-                {Number(cls.confidence_score).toFixed(1)}% confidence · {new Date(cls.classified_at).toLocaleDateString()}
-              </Text>
+        {/* Full DPN result — rendered when an assessment has been saved.
+            Wraps DpnResultView (the same component used on the standalone
+            Assessment screen) inside an "Analysis Details" section so the
+            user can see verdict + per-foot + asymmetry + factors right
+            here on the bundle. */}
+        {dpnResult ? (
+          <View style={styles.section}>
+            <View style={styles.analysisHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.textSec }]}>ANALYSIS DETAILS</Text>
+              {(() => {
+                const cls = Array.isArray(session.classification) ? session.classification[0] : null;
+                return cls ? (
+                  <Text style={[styles.classMeta, { color: colors.textSec }]}>
+                    {new Date(cls.classified_at).toLocaleDateString()}
+                  </Text>
+                ) : null;
+              })()}
             </View>
-          );
-        })()}
+            <DpnResultView result={dpnResult} />
+          </View>
+        ) : null}
 
         {/* Assess CTA -- clinic only, when there's no classification yet */}
         {onAssess
@@ -520,6 +538,10 @@ const styles = StyleSheet.create({
   },
   submitCtaText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading },
 
+  analysisHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingLeft: 2, marginBottom: Spacing.xs,
+  },
   classCard: {
     borderWidth: 1, borderRadius: Radius.md,
     padding: Spacing.md, gap: 4,
