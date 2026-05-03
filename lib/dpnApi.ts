@@ -83,13 +83,26 @@ export async function scanPatient(data: DPNScanRequest): Promise<DPNScanResponse
       signal: controller.signal,
     });
 
+    //Try to surface the server's `detail` field so we don't lie to the
+    //user with a generic message when the API actually told us why.
+    const readDetail = async (): Promise<string | null> => {
+      try {
+        const body = await res.json() as { detail?: string; message?: string };
+        return body.detail ?? body.message ?? null;
+      } catch { return null; }
+    };
+
     if (res.status === 400) {
-      throw Object.assign(new Error("Invalid scan data, please retake the scan"), { status: 400 });
+      const detail = await readDetail();
+      throw Object.assign(
+        new Error(detail ?? "Invalid scan data, please retake the scan"),
+        { status: 400 },
+      );
     }
     if (res.status === 422) {
-      const body = await res.json().catch(() => ({})) as { message?: string };
+      const detail = await readDetail();
       throw Object.assign(
-        new Error(body.message ?? "Image validation failed. Please submit a real thermal foot image."),
+        new Error(detail ?? "Image validation failed. Please submit a real thermal foot image."),
         { status: 422 },
       );
     }
@@ -97,7 +110,11 @@ export async function scanPatient(data: DPNScanRequest): Promise<DPNScanResponse
       throw Object.assign(new Error("AI server is starting up, please retry in 30 seconds"), { status: 503 });
     }
     if (res.status === 500) {
-      throw Object.assign(new Error("Analysis failed, please retake the scan"), { status: 500 });
+      const detail = await readDetail();
+      throw Object.assign(
+        new Error(detail ?? "Analysis failed, please retake the scan"),
+        { status: 500 },
+      );
     }
     if (!res.ok) {
       throw Object.assign(new Error(`Unexpected error: ${res.status}`), { status: res.status });

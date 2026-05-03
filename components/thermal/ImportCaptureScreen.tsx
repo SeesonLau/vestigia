@@ -110,11 +110,28 @@ export default function ImportCaptureScreen() {
         readText(slots.leftCsv.uri),
         readText(slots.rightCsv.uri),
       ]);
+      const leftMatrix  = csvToMatrix(leftCsvText);
+      const rightMatrix = csvToMatrix(rightCsvText);
+      //Diagnostic — visible in `npx react-native log-android` when debugging
+      //input shape mismatches that cause the API to 500.
+      console.log("[importCapture] left  png b64=", leftB64.length,
+        "csv rows=", leftMatrix.length, "cols=", leftMatrix[0]?.length ?? 0);
+      console.log("[importCapture] right png b64=", rightB64.length,
+        "csv rows=", rightMatrix.length, "cols=", rightMatrix[0]?.length ?? 0);
+      if (leftB64.length === 0 || rightB64.length === 0) {
+        throw new Error("Could not read one of the image files (empty bytes). Try re-picking from local storage.");
+      }
+      if (leftMatrix.length < 10 || (leftMatrix[0]?.length ?? 0) < 10) {
+        throw new Error(`Left CSV looks malformed (${leftMatrix.length}x${leftMatrix[0]?.length ?? 0}). Expected a comma-separated 2D temperature grid.`);
+      }
+      if (rightMatrix.length < 10 || (rightMatrix[0]?.length ?? 0) < 10) {
+        throw new Error(`Right CSV looks malformed (${rightMatrix.length}x${rightMatrix[0]?.length ?? 0}). Expected a comma-separated 2D temperature grid.`);
+      }
       const r = await scanPatient({
         left_image_b64:     leftB64,
         right_image_b64:    rightB64,
-        left_temperatures:  csvToMatrix(leftCsvText),
-        right_temperatures: csvToMatrix(rightCsvText),
+        left_temperatures:  leftMatrix,
+        right_temperatures: rightMatrix,
       });
       setResult(r);
     } catch (e: unknown) {
