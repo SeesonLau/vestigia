@@ -164,7 +164,7 @@ DOCS: update memory bank and session logs
 ---
 
 ## MCP — Supabase Connection
-- Project ref: `yqgpykyogvoawlffkeoq`
+- Project ref: `siunxsktgvjlvycvkrzo`
 - Pooler: `aws-1-ap-northeast-2.pooler.supabase.com:5432`
 - MCP server configured in `.mcp.json` (postgres stdio)
 

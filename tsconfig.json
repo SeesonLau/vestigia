@@ -3,17 +3,10 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }
 
 /*
@@ -34,5 +27,12 @@ npx expo run:android
 BUILD
 
 npx expo run:android --variant release
+
+
+cd C:\Users\PotatoIV\Desktop\SD3\vestigia\android
+gradlew assembleRelease
+
+set PATH=%PATH%;C:\Users\PotatoIV\AppData\Local\Android\Sdk\platform-tools
+adb install -r app\build\outputs\apk\release\LumenAI-release.apk
 
 */

@@ -41,7 +41,16 @@
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -d -s ThermalUVC:V UVCModule:V ReactNativeJS:V 2>&1 | Select-Object -Last 100)",
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\")",
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" 2>&1; Write-Host \"EXIT: $LASTEXITCODE\")",
-      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices; Get-Item \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" | Select-Object LastWriteTime)"
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices; Get-Item \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" | Select-Object LastWriteTime)",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__list_migrations",
+      "mcp__supabase__list_edge_functions",
+      "mcp__supabase__deploy_edge_function",
+      "Read(//tmp/**)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "additionalDirectories": [
       "c:\\Users\\PotatoIV\\Desktop\\UVCCamera"

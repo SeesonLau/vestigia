@@ -1,5 +1,5 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-04-08 (v0.9.4)
+**Last verified:** 2026-05-02 (v0.9.9)
 
 ---
 
@@ -184,6 +184,17 @@
 
 ---
 
+## Thermal Isolation
+
+| ID | File | Issue | Severity | Status |
+|---|---|---|---|---|
+| ~~ISO-01~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Cold subject isolation inverted — `>= threshold` polarity assumption kept warm background and discarded the cold object | High | ✅ Fixed v0.9.9 — border polarity check selects subject by fewest border pixels |
+| ~~ISO-02~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Thin structure (e.g., dumbbell handle) not isolated — BFS ran before morphological closing, severing thin connections | High | ✅ Fixed v0.9.9 — closing now runs before BFS |
+| ~~ISO-03~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Coloured fringe residue around finger edges — near-threshold boundary pixels included in mask | Medium | ✅ Fixed v0.9.9 — opening trim (erode 2 → dilate 2) applied after BFS |
+| ISO-04 | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Variance guardrail threshold `10.0` is empirical — may trigger on low-contrast real scans or miss blank frames | Low | Open — monitor during device testing; tune if needed |
+
+---
+
 ## Tracking
 
 | Area | Total | Open | Fixed | Deferred |
@@ -197,6 +208,7 @@
 | Navigation | 4 | 1 | 3 | 0 |
 | Auth | 16 | 0 | 16 | 0 |
 | Schema / DB | 8 | 0 | 6 | 2 |
-| **Total** | **101** | **3** | **91** | **6** |
+| Thermal Isolation | 4 | 1 | 3 | 0 |
+| **Total** | **105** | **4** | **94** | **6** |
 
-**Overall QA Status: 97% Complete** — 3 open items (2 cosmetic code quality, 1 nav by-design). 6 deferred (all hardware/API dependent).
+**Overall QA Status: 96% Complete** — 4 open items (2 cosmetic code quality, 1 nav by-design, 1 isolation tuning). 6 deferred (all hardware/API dependent).

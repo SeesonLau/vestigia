@@ -1,5 +1,5 @@
 # Roadmap & Suggestions — Vestigia
-**Last updated:** 2026-04-08 (v0.9.4)
+**Last updated:** 2026-05-02 (v0.9.9)
 
 > This file is the single source of truth for planned work, improvement ideas, and intentionally deferred items.
 > It is read at `/start-session` and updated at `/end-session`.
@@ -10,7 +10,7 @@
 
 | # | ID | Task | Est. | Notes |
 |---|---|---|---|---|
-| 1 | — | `npx expo run:android` rebuild + physical device test: bilateral FLIR capture → isolation → bundle save → CSV viewer → BundleDetailScreen 3-image display | 1–2 hrs | All Kotlin + JS changes in v0.9.7 and v0.9.8 need a native rebuild before testing. |
+| 1 | — | `npx expo run:android` rebuild + physical device test: bilateral FLIR capture → isolation → bundle save → CSV viewer → BundleDetailScreen 3-image display | 1–2 hrs | All Kotlin + JS changes in v0.9.7, v0.9.8, and v0.9.9 need a native rebuild before testing. Also test with a cold object to verify polarity detection. |
 | 2 | — | Verify Y16 temperature calibration on physical device | 30 min | Check TLINEAR mode (raw/100 − 273.15) vs uncalibrated RAW14; confirm 160×120 not 160×121 (telemetry row). |
 | 3 | — | End-to-end DPN API test with real thermal data | 1–2 hrs | Bilateral FLIR capture → assessment → DPN result → save to cloud. |
 | 4 | CLEAN | Delete `components/thermal/CsvViewerModal.tsx` | 5 min | Dead code — replaced by CsvViewerScreen, not imported anywhere. |
@@ -231,8 +231,9 @@ If the AI API already returns a `risk_level`, use that directly instead.
 | v0.9.2 | Supabase: profiles.avatar_url column + avatars Storage bucket (public=true) + 4 RLS policies | 2026-04-07 |
 | v0.9.2 | expo-image-picker installed with dynamic import pattern (prevents native crash before rebuild) | 2026-04-07 |
 | v0.9.7 | Y16 JNI bridge — UVC_FRAME_FORMAT_GRAY16 added to libuvc; Y16 GUID registered; UVCPreview.cpp 3-way mode switch; AAR rebuilt | 2026-04-25 |
+| v0.9.9 | Isolation pipeline rewrite — variance guardrail; closing before BFS; border polarity check (cold + warm subjects); opening trim; helper functions extracted | 2026-05-02 |
 | v0.9.8 | Kotlin foot isolation — Otsu threshold + BFS + morphological closing (dilate 5 / erode 2); buildIsolatedPng + buildMaskedCsv | 2026-05-01 |
 | v0.9.8 | Bundle capture overhaul — savePngToDevice/saveCsvToDevice React methods; FootData redesign; bundle-code filenames | 2026-05-01 |
 | v0.9.8 | BundleDetailScreen 3-image display — UNPROCESSED, POST-PROCESSED, ISOLATED per foot | 2026-05-01 |
-| v0.9.8 | CsvViewerScreen — WebView HTML ironbow grid; CELL_PX=44; pinch-to-zoom; csv-viewer routes in all 3 groups | 2026-05-01 |
+| v0.9.8 | CsvViewerScreen — WebView HTML ironbow grid; CELL_PX=56; pinch-to-zoom; csv-viewer routes in all 3 groups | 2026-05-01 |
 | v0.9.8 | LOW_SIGNAL_MIN 6.0 → 2.5°C² — fixes "No Subject" false positive indoors | 2026-05-01 |

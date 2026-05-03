@@ -569,87 +569,118 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     // ── Foot isolation ────────────────────────────────────────────────────────
 
+    // Works for both hot subjects (warm foot on cold floor) and cold subjects (cold dumbbell on warm table).
     private fun isolateFootMask(filtered: FloatArray, rows: Int, cols: Int): BooleanArray {
-        // Otsu's threshold — finds the temp that maximises between-class variance
-        val threshold = otsuThreshold(filtered)
-        val hot = BooleanArray(rows * cols) { filtered[it] >= threshold }
+        val (threshold, bestVar) = otsuThresholdWithVariance(filtered)
 
-        // BFS flood fill — label connected components (4-connectivity)
+        // Guardrail kept very loose — only catches truly uniform frames; even mild bimodality passes.
+        if (bestVar < 1.0) return BooleanArray(rows * cols) { false }
+
+        val hotRaw  = BooleanArray(rows * cols) { filtered[it] >= threshold }
+        val coldRaw = BooleanArray(rows * cols) { !hotRaw[it] }
+
+        // Close BOTH masks independently — closing only the hot mask would erase a cold subject
+        // (it appears as a "hole" in the hot region); closing each separately fills internal holes
+        // in whichever class is the subject without destroying the other.
+        val closedHot  = morphClose(hotRaw,  rows, cols, 5, 5)
+        val closedCold = morphClose(coldRaw, rows, cols, 5, 5)
+
+        // BFS on both classes — largest component + border pixel count + size
+        val (hotMask,  hotBorder,  hotSize)  = largestComponentWithBorderCount(closedHot,  rows, cols)
+        val (coldMask, coldBorder, coldSize) = largestComponentWithBorderCount(closedCold, rows, cols)
+
+        // Border-to-area ratio: background hugs the perimeter (high ratio), subject is compact (low).
+        // More robust than raw border count when the subject touches one edge of the frame.
+        val hotRatio  = if (hotSize  > 0) hotBorder.toDouble()  / hotSize  else Double.MAX_VALUE
+        val coldRatio = if (coldSize > 0) coldBorder.toDouble() / coldSize else Double.MAX_VALUE
+
+        val subjectMask = if (hotRatio <= coldRatio) hotMask else coldMask
+
+        // Opening (erode 2 → dilate 2) — trims ragged boundary fringe pixels
+        return morphDilate(morphErode(subjectMask, rows, cols, 2), rows, cols, 2)
+    }
+
+    private fun morphDilate(src: BooleanArray, rows: Int, cols: Int, r: Int): BooleanArray {
+        val dst = BooleanArray(rows * cols)
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                if (!src[row * cols + col]) continue
+                for (dr in -r..r) {
+                    for (dc in -r..r) {
+                        val nr = row + dr; val nc = col + dc
+                        if (nr in 0 until rows && nc in 0 until cols) dst[nr * cols + nc] = true
+                    }
+                }
+            }
+        }
+        return dst
+    }
+
+    private fun morphErode(src: BooleanArray, rows: Int, cols: Int, r: Int): BooleanArray {
+        val dst = BooleanArray(rows * cols)
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                if (!src[row * cols + col]) continue
+                var keep = true
+                outer@ for (dr in -r..r) {
+                    for (dc in -r..r) {
+                        val nr = row + dr; val nc = col + dc
+                        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !src[nr * cols + nc]) {
+                            keep = false; break@outer
+                        }
+                    }
+                }
+                dst[row * cols + col] = keep
+            }
+        }
+        return dst
+    }
+
+    private fun morphClose(src: BooleanArray, rows: Int, cols: Int, dilateR: Int, erodeR: Int): BooleanArray =
+        morphErode(morphDilate(src, rows, cols, dilateR), rows, cols, erodeR)
+
+    private fun largestComponentWithBorderCount(mask: BooleanArray, rows: Int, cols: Int): Triple<BooleanArray, Int, Int> {
         val labels = IntArray(rows * cols) { -1 }
         val sizes  = mutableListOf<Int>()
+        val borderCounts = mutableListOf<Int>()
         val queue  = IntArray(rows * cols)
 
         for (r in 0 until rows) {
             for (c in 0 until cols) {
                 val i = r * cols + c
-                if (!hot[i] || labels[i] >= 0) continue
-                val label = sizes.size; sizes.add(0)
+                if (!mask[i] || labels[i] >= 0) continue
+                val label = sizes.size; sizes.add(0); borderCounts.add(0)
                 var head = 0; var tail = 0
                 queue[tail++] = i; labels[i] = label
                 while (head < tail) {
                     val cur = queue[head++]
                     val cr = cur / cols; val cc = cur % cols
                     sizes[label] = sizes[label] + 1
+                    if (cr == 0 || cr == rows - 1 || cc == 0 || cc == cols - 1)
+                        borderCounts[label] = borderCounts[label] + 1
                     val up    = if (cr > 0)      (cr-1)*cols+cc else -1
                     val down  = if (cr < rows-1) (cr+1)*cols+cc else -1
                     val left  = if (cc > 0)      cr*cols+(cc-1) else -1
                     val right = if (cc < cols-1) cr*cols+(cc+1) else -1
                     for (ni in intArrayOf(up, down, left, right)) {
-                        if (ni < 0 || !hot[ni] || labels[ni] >= 0) continue
+                        if (ni < 0 || !mask[ni] || labels[ni] >= 0) continue
                         labels[ni] = label; queue[tail++] = ni
                     }
                 }
             }
         }
 
-        if (sizes.isEmpty()) return hot
+        if (sizes.isEmpty()) return Triple(BooleanArray(rows * cols), 0, 0)
         val best = sizes.indices.maxByOrNull { sizes[it] } ?: 0
-        val clean = BooleanArray(rows * cols) { labels[it] == best }
-
-        // Morphological closing: dilate 5px then erode 2px.
-        // Net effect: fills finger-gap holes (closing) with ~3px outward expansion.
-        val DILATE = 5
-        val ERODE  = 2
-
-        val dilated = BooleanArray(rows * cols)
-        for (r in 0 until rows) {
-            for (c in 0 until cols) {
-                if (!clean[r * cols + c]) continue
-                for (dr in -DILATE..DILATE) {
-                    for (dc in -DILATE..DILATE) {
-                        val nr = r + dr; val nc = c + dc
-                        if (nr in 0 until rows && nc in 0 until cols)
-                            dilated[nr * cols + nc] = true
-                    }
-                }
-            }
-        }
-
-        val closed = BooleanArray(rows * cols)
-        for (r in 0 until rows) {
-            for (c in 0 until cols) {
-                if (!dilated[r * cols + c]) continue
-                var keep = true
-                outer@ for (dr in -ERODE..ERODE) {
-                    for (dc in -ERODE..ERODE) {
-                        val nr = r + dr; val nc = c + dc
-                        if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !dilated[nr * cols + nc]) {
-                            keep = false; break@outer
-                        }
-                    }
-                }
-                closed[r * cols + c] = keep
-            }
-        }
-        return closed
+        return Triple(BooleanArray(rows * cols) { labels[it] == best }, borderCounts[best], sizes[best])
     }
 
-    // Otsu's method: finds the threshold that maximises between-class variance over 256 bins.
-    private fun otsuThreshold(temps: FloatArray): Float {
+    // Otsu's method: finds the threshold + between-class variance over 256 bins.
+    private fun otsuThresholdWithVariance(temps: FloatArray): Pair<Float, Double> {
         var minT = Float.MAX_VALUE; var maxT = -Float.MAX_VALUE
         for (v in temps) { if (v < minT) minT = v; if (v > maxT) maxT = v }
         val range = maxT - minT
-        if (range <= 0f) return minT
+        if (range <= 0f) return Pair(minT, 0.0)
 
         val BINS = 256
         val hist = IntArray(BINS)
@@ -674,7 +705,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
             val bv   = (w0 / n) * (w1 / n) * diff * diff
             if (bv > bestVar) { bestVar = bv; bestBin = t }
         }
-        return minT + (bestBin.toFloat() / (BINS - 1)) * range
+        return Pair(minT + (bestBin.toFloat() / (BINS - 1)) * range, bestVar)
     }
 
     private fun buildIsolatedPng(

@@ -4,12 +4,16 @@
 
 import { matrixToRgbaPngUri } from './thermalBitmap'
 
-// Returns a boolean mask: true = foot pixel, false = background.
+// Returns a boolean mask: true = subject pixel, false = background.
+// Works for both hot subjects (warm foot on cold floor) and cold subjects (cold dumbbell on warm table).
 // Algorithm:
-//   1. Otsu's threshold — maximises between-class variance (background vs subject)
-//   2. BFS flood fill to label connected components (4-connectivity)
-//   3. Keep only the largest component (the foot)
-//   4. Morphological closing: dilate 5px then erode 2px — fills finger gaps, ~3px net expansion
+//   1. Otsu threshold + variance guardrail — skip if histogram is essentially uniform (blank scene)
+//   2. Close BOTH masks independently — closing fills holes in each class on its own mask;
+//      closing only the hot mask would erase a cold subject (it appears as a hole in the hot region)
+//   3. BFS on each closed mask — largest component + border pixel count + size
+//   4. Border-to-area ratio polarity check — background hugs the perimeter (high ratio),
+//      subject is compact (low ratio); pick the class with the lower ratio
+//   5. Opening (erode 2, dilate 2) — trims ragged boundary fringe pixels on the chosen subject
 export function isolateFootMask(matrix: number[][]): boolean[][] {
   const rows = matrix.length
   const cols = matrix[0]?.length ?? 0
@@ -18,41 +22,98 @@ export function isolateFootMask(matrix: number[][]): boolean[][] {
   const flat: number[] = []
   for (const row of matrix) for (const v of row) flat.push(v)
 
-  // Otsu's threshold
-  const threshold = otsuThreshold(flat)
+  const [threshold, bestVar] = otsuThresholdWithVariance(flat)
+  // Guardrail kept very loose — only catches truly uniform frames; even mild bimodality passes.
+  if (bestVar < 1.0) return Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false))
 
-  // Initial binary mask
-  const hot: boolean[][] = matrix.map(row => row.map(v => v >= threshold))
+  const hotRaw:  boolean[] = flat.map(v => v >= threshold)
+  const coldRaw: boolean[] = hotRaw.map(v => !v)
 
-  // BFS flood fill — label connected components
+  const closedHot  = morphClose(hotRaw,  rows, cols, 5, 5)
+  const closedCold = morphClose(coldRaw, rows, cols, 5, 5)
+
+  const [hotMask,  hotBorder,  hotSize]  = largestComponentWithBorderCount(closedHot,  rows, cols)
+  const [coldMask, coldBorder, coldSize] = largestComponentWithBorderCount(closedCold, rows, cols)
+
+  const hotRatio  = hotSize  > 0 ? hotBorder  / hotSize  : Number.MAX_VALUE
+  const coldRatio = coldSize > 0 ? coldBorder / coldSize : Number.MAX_VALUE
+
+  const subjectFlat = hotRatio <= coldRatio ? hotMask : coldMask
+
+  const trimmed = morphDilate(morphErode(subjectFlat, rows, cols, 2), rows, cols, 2)
+
+  return Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c) => trimmed[r * cols + c])
+  )
+}
+
+function morphDilate(src: boolean[], rows: number, cols: number, r: number): boolean[] {
+  const dst = new Array<boolean>(rows * cols).fill(false)
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (!src[row * cols + col]) continue
+      for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          const nr = row + dr; const nc = col + dc
+          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) dst[nr * cols + nc] = true
+        }
+      }
+    }
+  }
+  return dst
+}
+
+function morphErode(src: boolean[], rows: number, cols: number, r: number): boolean[] {
+  const dst = new Array<boolean>(rows * cols).fill(false)
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (!src[row * cols + col]) continue
+      let keep = true
+      outer: for (let dr = -r; dr <= r; dr++) {
+        for (let dc = -r; dc <= r; dc++) {
+          const nr = row + dr; const nc = col + dc
+          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !src[nr * cols + nc]) { keep = false; break outer }
+        }
+      }
+      dst[row * cols + col] = keep
+    }
+  }
+  return dst
+}
+
+function morphClose(src: boolean[], rows: number, cols: number, dilateR: number, erodeR: number): boolean[] {
+  return morphErode(morphDilate(src, rows, cols, dilateR), rows, cols, erodeR)
+}
+
+function largestComponentWithBorderCount(mask: boolean[], rows: number, cols: number): [boolean[], number, number] {
   const labels = new Int32Array(rows * cols).fill(-1)
   const sizes: number[] = []
+  const borderCounts: number[] = []
   const queue: number[] = []
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const i = r * cols + c
-      if (!hot[r][c] || labels[i] >= 0) continue
-
+      if (!mask[i] || labels[i] >= 0) continue
       const label = sizes.length
       sizes.push(0)
+      borderCounts.push(0)
       queue.length = 0
       queue.push(i)
       labels[i] = label
-
       let head = 0
       while (head < queue.length) {
         const cur = queue[head++]
         const cr = Math.floor(cur / cols)
         const cc = cur % cols
         sizes[label]++
-        // 4-connectivity
+        if (cr === 0 || cr === rows - 1 || cc === 0 || cc === cols - 1) borderCounts[label]++
         for (let d = 0; d < 4; d++) {
           const nr = cr + (d === 0 ? -1 : d === 1 ? 1 : 0)
           const nc = cc + (d === 2 ? -1 : d === 3 ? 1 : 0)
           if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
           const ni = nr * cols + nc
-          if (!hot[nr][nc] || labels[ni] >= 0) continue
+          if (!mask[ni] || labels[ni] >= 0) continue
           labels[ni] = label
           queue.push(ni)
         }
@@ -60,58 +121,17 @@ export function isolateFootMask(matrix: number[][]): boolean[][] {
     }
   }
 
-  if (sizes.length === 0) return hot
-
-  // Largest component
+  if (sizes.length === 0) return [new Array<boolean>(rows * cols).fill(false), 0, 0]
   let best = 0
   for (let l = 1; l < sizes.length; l++) if (sizes[l] > sizes[best]) best = l
-
-  const clean: boolean[][] = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false))
-  for (let i = 0; i < rows * cols; i++) {
-    if (labels[i] === best) clean[Math.floor(i / cols)][i % cols] = true
-  }
-
-  // Morphological closing: dilate 5px then erode 2px — fills finger gaps, ~3px net expansion
-  const DILATE = 5
-  const ERODE  = 2
-
-  const dilated: boolean[][] = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false))
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (!clean[r][c]) continue
-      for (let dr = -DILATE; dr <= DILATE; dr++) {
-        for (let dc = -DILATE; dc <= DILATE; dc++) {
-          const nr = r + dr; const nc = c + dc
-          if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) dilated[nr][nc] = true
-        }
-      }
-    }
-  }
-
-  const closed: boolean[][] = Array.from({ length: rows }, () => new Array<boolean>(cols).fill(false))
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      if (!dilated[r][c]) continue
-      let keep = true
-      outer: for (let dr = -ERODE; dr <= ERODE; dr++) {
-        for (let dc = -ERODE; dc <= ERODE; dc++) {
-          const nr = r + dr; const nc = c + dc
-          if (nr < 0 || nr >= rows || nc < 0 || nc >= cols || !dilated[nr][nc]) { keep = false; break outer }
-        }
-      }
-      closed[r][c] = keep
-    }
-  }
-
-  return closed
+  return [Array.from({ length: rows * cols }, (_, i) => labels[i] === best), borderCounts[best], sizes[best]]
 }
 
-// Otsu's threshold — finds the value that maximises between-class variance over 256 bins.
-function otsuThreshold(flat: number[]): number {
+function otsuThresholdWithVariance(flat: number[]): [number, number] {
   let minV = Infinity, maxV = -Infinity
   for (const v of flat) { if (v < minV) minV = v; if (v > maxV) maxV = v }
   const range = maxV - minV
-  if (range <= 0) return minV
+  if (range <= 0) return [minV, 0]
 
   const BINS = 256
   const hist = new Float64Array(BINS)
@@ -134,7 +154,7 @@ function otsuThreshold(flat: number[]): number {
     const bv  = (w0 / n) * (w1 / n) * (mu0 - mu1) ** 2
     if (bv > bestVar) { bestVar = bv; bestBin = t }
   }
-  return minV + (bestBin / (BINS - 1)) * range
+  return [minV + (bestBin / (BINS - 1)) * range, bestVar]
 }
 
 // Returns a data:image/png;base64,... URI with transparent background.
