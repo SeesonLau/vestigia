@@ -1,7 +1,9 @@
 // lib/dpnApi.ts
 const BASE_URL = "https://charlesgaid-dpn-classification-api.hf.space";
 
-//Types
+//Types — match the FastAPI server at api/main.py exactly.
+//Confidences and probabilities are PERCENTAGES (0–100), not 0–1.
+
 export interface DPNScanRequest {
   left_image_b64: string;
   right_image_b64: string;
@@ -9,35 +11,54 @@ export interface DPNScanRequest {
   right_temperatures: number[][];
 }
 
+export type Prediction = "DPN Positive" | "DPN Negative" | "Unknown";
+
+export interface ProbDist { Control: number; Diabetic: number }
+
+export type RegionMeans = { MPA: number; LPA: number; MCA: number; LCA: number };
+
 export interface FootResult {
-  prediction: "Diabetic" | "Control";
-  confidence: number;
+  prediction: Prediction;
+  confidence: number;                       //percentage 0–100
   is_diabetic: boolean;
-  probabilities: { Control: number; Diabetic: number };
+  probabilities: ProbDist;                  //percentages 0–100
+  yolo_probabilities?: ProbDist | null;
+  sklearn_probabilities?: ProbDist | null;
+  fusion_method?: string | null;
+  regions?: RegionMeans | null;             //per-angiosome mean degC
 }
 
 export interface AsymmetryResult {
+  mean_asymmetry: number;
+  max_asymmetry: number;
+  left_foot_mean_temp: number;
+  right_foot_mean_temp: number;
   mean_temp_difference: number;
   asymmetry_significant: boolean;
   threshold_used: number;
+  region_asymmetry?: RegionMeans | null;    //per-angiosome |L-R| degC
 }
 
 export interface DPNScanResponse {
   success: boolean;
+  is_valid_foot?: boolean;
+  rejection_reason?: string | null;
+  combined_prediction: Prediction;
+  combined_confidence: number;              //percentage 0–100
   is_diabetic: boolean;
-  combined_prediction: "Diabetic" | "Control";
-  combined_confidence: number;
+  left_foot: FootResult | null;
+  right_foot: FootResult | null;
+  asymmetry: AsymmetryResult | null;
   diagnosis_factors: string[];
-  left_foot: FootResult;
-  right_foot: FootResult;
-  asymmetry: AsymmetryResult;
 }
 
 export interface HealthResponse {
   status: string;
   image_model_loaded: boolean;
+  image_model_type: string;
   sklearn_model_loaded: boolean;
   fusion_model_loaded: boolean;
+  foot_detector_loaded: boolean;
 }
 
 //API

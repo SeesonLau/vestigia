@@ -69,15 +69,6 @@ export default function PatientLayout() {
         }}
       />
       <Tabs.Screen
-        name="import"
-        options={{
-          tabBarAccessibilityLabel: "Import Capture",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon="folder-open-outline" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="history"
         options={{
           tabBarAccessibilityLabel: "My History",
@@ -114,6 +105,7 @@ export default function PatientLayout() {
       <Tabs.Screen name="bundle-detail"     options={{ href: null as any }} />
       <Tabs.Screen name="csv-viewer"        options={{ href: null as any }} />
       <Tabs.Screen name="submit-to-clinic"  options={{ href: null as any }} />
+      <Tabs.Screen name="import"            options={{ href: null as any }} />
     </Tabs>
   );
 }

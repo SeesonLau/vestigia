@@ -227,7 +227,7 @@ export default function PatientDashboardScreen() {
             <Text style={[styles.confidenceText, { color: colors.textSec }]}>
               AI Confidence:{" "}
               {latestResult.confidence_score != null
-                ? `${(latestResult.confidence_score * 100).toFixed(1)}%`
+                ? `${Number(latestResult.confidence_score).toFixed(1)}%`
                 : "—"}
             </Text>
           </View>

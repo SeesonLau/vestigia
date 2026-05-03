@@ -69,15 +69,6 @@ export default function ClinicLayout() {
         }}
       />
       <Tabs.Screen
-        name="import"
-        options={{
-          tabBarAccessibilityLabel: "Import Capture",
-          tabBarIcon: ({ focused }) => (
-            <TabIcon icon="folder-open-outline" focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="history"
         options={{
           tabBarAccessibilityLabel: "Session History",
@@ -112,6 +103,7 @@ export default function ClinicLayout() {
       <Tabs.Screen name="patient-details"  options={{ href: null as any }} />
       <Tabs.Screen name="bundle-detail"    options={{ href: null as any }} />
       <Tabs.Screen name="csv-viewer"       options={{ href: null as any }} />
+      <Tabs.Screen name="import"           options={{ href: null as any }} />
     </Tabs>
   );
 }

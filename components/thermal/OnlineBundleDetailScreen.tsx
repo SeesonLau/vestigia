@@ -222,17 +222,29 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
         </Section>
 
         {/* Status */}
-        <View style={[styles.metaRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.inlineRow}>
-            <Ionicons name="cloud-done-outline" size={14} color={colors.success} />
-            <Text style={[styles.metaText, { color: colors.success }]}>
-              {session.status === "completed" ? "Saved" : session.status}
-            </Text>
-          </View>
-          <Text style={[styles.metaText, { color: colors.textSec }]}>
-            {new Date(session.started_at).toLocaleString()}
-          </Text>
-        </View>
+        {(() => {
+          const analyzed = !!(Array.isArray(session.classification)
+            ? session.classification[0]
+            : session.classification);
+          const tagColor = analyzed ? colors.success : colors.warning;
+          return (
+            <View style={[styles.metaRow, { backgroundColor: colors.surface, borderColor: tagColor }]}>
+              <View style={styles.inlineRow}>
+                <Ionicons
+                  name={analyzed ? "checkmark-circle" : "alert-circle-outline"}
+                  size={14}
+                  color={tagColor}
+                />
+                <Text style={[styles.metaText, { color: tagColor }]}>
+                  {analyzed ? "Analyzed" : "Not Analyzed"}
+                </Text>
+              </View>
+              <Text style={[styles.metaText, { color: colors.textSec }]}>
+                {new Date(session.started_at).toLocaleString()}
+              </Text>
+            </View>
+          );
+        })()}
 
         {/* Submit-to-clinic CTA (patient self-captures only) */}
         {onSubmitToClinic && session.capture_mode === "patient_self" && !session.clinic ? (
@@ -269,7 +281,7 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
                 </Text>
               </View>
               <Text style={[styles.classMeta, { color: colors.textSec }]}>
-                {(cls.confidence_score * 100).toFixed(1)}% confidence · {new Date(cls.classified_at).toLocaleDateString()}
+                {Number(cls.confidence_score).toFixed(1)}% confidence · {new Date(cls.classified_at).toLocaleDateString()}
               </Text>
             </View>
           );

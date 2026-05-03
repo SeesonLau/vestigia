@@ -41,27 +41,47 @@ export function SessionCard({ session, onPress, style }: SessionCardProps) {
   const cfg = statusConfig[session.status];
   const date = new Date(session.started_at);
   const classification = session.classification?.classification;
+  const analyzed = !!classification;
 
+  //Border + accent bar reflect analysis state.
+  // Analyzed → green; not analyzed → amber.
+  // POSITIVE result overrides the accent bar to red so it pops in the list.
+  const borderColor = analyzed ? colors.success : colors.warning;
   const accentBarColor =
     classification === "POSITIVE" ? colors.error
     : classification === "NEGATIVE" ? colors.success
-    : colors.border;
+    : colors.warning;
 
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.75}
-      style={[cardStyles.container, { backgroundColor: colors.card, borderColor: colors.border }, style]}
+      style={[cardStyles.container, { backgroundColor: colors.card, borderColor }, style]}
     >
       <View style={[cardStyles.accentBar, { backgroundColor: accentBarColor }]} />
 
       <View style={cardStyles.content}>
         <View style={cardStyles.topRow}>
           <Text style={[cardStyles.sessionId, { color: colors.textSec }]}>Session</Text>
-          <View style={[cardStyles.statusPill, { backgroundColor: cfg.bg(colors) }]}>
-            <Text style={[cardStyles.statusText, { color: cfg.color(colors) }]}>
-              {cfg.label}
-            </Text>
+          <View style={cardStyles.pillGroup}>
+            <View style={[
+              cardStyles.statusPill,
+              {
+                backgroundColor: analyzed ? `${colors.success}26` : `${colors.warning}26`,
+              },
+            ]}>
+              <Text style={[
+                cardStyles.statusText,
+                { color: analyzed ? colors.success : colors.warning },
+              ]}>
+                {analyzed ? "Analyzed" : "Not Analyzed"}
+              </Text>
+            </View>
+            <View style={[cardStyles.statusPill, { backgroundColor: cfg.bg(colors) }]}>
+              <Text style={[cardStyles.statusText, { color: cfg.color(colors) }]}>
+                {cfg.label}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -87,7 +107,7 @@ export function SessionCard({ session, onPress, style }: SessionCardProps) {
             </Text>
             {session.classification?.confidence_score != null && (
               <Text style={[cardStyles.confidence, { color: colors.textSec }]}>
-                {(session.classification.confidence_score * 100).toFixed(0)}%
+                {Number(session.classification.confidence_score).toFixed(1)}%
               </Text>
             )}
           </View>
@@ -116,6 +136,10 @@ const cardStyles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 4,
+  },
+  pillGroup: {
+    flexDirection: "row",
+    gap: 4,
   },
   sessionId: {
     fontSize: Typography.sizes.xs,

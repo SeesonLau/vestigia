@@ -122,6 +122,17 @@ export default function PatientSettingsScreen() {
           />
         </View>
 
+        {/* Data & Sync */}
+        <SectionHeader label={S.settings.sectionDataSync} />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow
+            icon="folder-open-outline"
+            label="Import Capture"
+            subtitle="Analyze a thermal capture from PNG + CSV files"
+            onPress={() => router.push("/(patient)/import" as any)}
+          />
+        </View>
+
         {/* About */}
         <SectionHeader label={S.settings.sectionAbout} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

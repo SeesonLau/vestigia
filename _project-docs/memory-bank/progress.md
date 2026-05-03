@@ -1,6 +1,6 @@
 # Progress — Lumen AI (formerly Vestigia)
-**Current version:** 0.9.8
-**Last verified:** 2026-05-01
+**Current version:** 0.12.0
+**Last verified:** 2026-05-03
 
 > Detailed checklists: `_project-docs/progress/`
 > Bug report: `_project-docs/progress/qa-bugs.md`
@@ -10,6 +10,7 @@
 ## Version History
 | Version | Date | Description |
 |---|---|---|
+| 0.9.9 | 2026-05-02 | Isolation pipeline rewrite — variance guardrail, closing-before-BFS, border polarity check, opening trim; handles cold subjects and thin structures |
 | 0.9.8 | 2026-05-01 | Kotlin isolation pipeline (Otsu + BFS + closing); bundle detail 3-image display; CsvViewerScreen WebView; file naming; LOW_SIGNAL_MIN fix |
 | 0.9.7 | 2026-04-25 | Y16 JNI bridge — UVC_FRAME_FORMAT_GRAY16 added to libuvc; Y16 GUID registered; UVCPreview.cpp mode=2 raw path; AAR rebuilt |
 | 0.9.6 | 2026-04-25 | FIX: live-feed crash (UVC mode 6 + Animated.loop cleanup); CameraStatusPanel with Y16 sanity check + FPS + retry; UVC event name fix; hardware reference doc |
@@ -114,6 +115,7 @@
 - **CsvViewerScreen (v0.9.8)** — dedicated screen (`components/thermal/CsvViewerScreen.tsx`); WebView HTML table; 160×120 grid with CELL_PX=44; 256 ironbow CSS classes; `device-width` viewport; background cells dimmed; pinch-to-zoom; thin wrapper routes in clinic/patient/offline groups
 - **LOW_SIGNAL_MIN fix (v0.9.8)** — lowered from 6.0°C² to 2.5°C² in `ReadinessIndicator.tsx`; fixes "No Subject" false positive when hand/foot occupies ~15% of frame at indoor ambient
 - **JS foot isolation improved (v0.9.8)** — `lib/thermal/footIsolation.ts`: Otsu threshold replaces 60th-percentile; closing (dilate 5 + erode 2) replaces pure dilation
+- **Isolation pipeline rewrite (v0.9.9)** — both `UVCModule.kt` and `lib/thermal/footIsolation.ts`: (1) variance guardrail skips unimodal frames; (2) morphological closing runs BEFORE BFS to bridge thin structures; (3) border-intersection polarity check handles cold subjects; (4) opening trim (erode 2 → dilate 2) removes fringe pixels; helpers `morphDilate/Erode/Close/largestComponentWithBorderCount` extracted; `otsuThresholdWithVariance` returns bestVar alongside threshold
 
 ## In Progress 🔄
 - Physical device end-to-end test: bilateral FLIR capture → bundle save → CSV viewer → BundleDetailScreen 3-image display → DPN API → classification

@@ -177,6 +177,13 @@ export default function SettingsScreen() {
         <SectionHeader label={S.settings.sectionDataSync} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow
+            icon="folder-open-outline"
+            label="Import Capture"
+            subtitle="Analyze a thermal capture from PNG + CSV files"
+            onPress={() => router.push("/(clinic)/import" as any)}
+          />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow
             icon="cloud-upload-outline"
             label={S.settings.autoUpload}
             subtitle={S.settings.autoUploadSubtitle}

@@ -3,6 +3,24 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [0.12.0] — 2026-05-03
+
+### Changed — DPN API integration
+- [lib/dpnApi.ts](lib/dpnApi.ts) types now match the FastAPI server at `catnipp9/transistors-thermal-dpn-ai` exactly: `prediction` is `"DPN Positive" / "DPN Negative" / "Unknown"`, all confidences and probabilities are percentages (0–100), and the response carries `is_valid_foot`, `rejection_reason`, per-foot `regions`, `yolo_probabilities`, `sklearn_probabilities`, `fusion_method`, plus full `AsymmetryResult` (`mean_asymmetry`, `max_asymmetry`, `left/right_foot_mean_temp`, `region_asymmetry`).
+
+### DB schema
+- Dropped unused per-region columns from `thermal_captures` (`mpa_mean_c / lpa_mean_c / mca_mean_c / lca_mean_c`) — the angiosome means come from the classifier, not the camera.
+- Added to `classification_results`: `left_regions jsonb`, `right_regions jsonb`, `mean_asymmetry numeric`, `left_foot_mean_temp_c numeric`, `right_foot_mean_temp_c numeric`. `per_angiosome_asymmetry jsonb` is reused for `region_asymmetry`. `max_asymmetry_c` keeps the max-Δ slot.
+
+### Added — DPN result UI
+- [components/thermal/DpnResultView.tsx](components/thermal/DpnResultView.tsx) renders the full classifier response: verdict + combined confidence, per-foot card with probability bar, YOLO/sklearn breakdown, fusion method, MPA/LPA/MCA/LCA region temps; asymmetry block with mean/max Δ°C, threshold pill, per-foot mean temps, per-angiosome |L−R| bars; diagnosis-factor list. Rejection branch shows the API's `rejection_reason`.
+- [app/(clinic)/assess-bundle.tsx](app/(clinic)/assess-bundle.tsx) rewritten — hydrates from a stored `classification_results` row when revisited, otherwise runs the full sign → download → classify → persist pipeline and writes every new field.
+- [components/thermal/ImportCaptureScreen.tsx](components/thermal/ImportCaptureScreen.tsx) now reuses `DpnResultView`; previous inline result block (which double-multiplied confidence by 100) removed.
+
+### Added — Analyzed / Not Analyzed tag
+- [components/session/index.tsx](components/session/index.tsx) `SessionCard` shows a green "Analyzed" pill + green border when a `classification_results` row exists; amber "Not Analyzed" + amber border otherwise. Confidence stops the spurious `* 100`.
+- [components/thermal/OnlineBundleDetailScreen.tsx](components/thermal/OnlineBundleDetailScreen.tsx) header strip mirrors the same green/amber treatment.
+
 ## [0.11.0] — 2026-05-03
 
 ### Added — PSGC reference data

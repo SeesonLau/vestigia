@@ -1,6 +1,51 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-05-03 — v0.12.0] — Move angiosome data to classification_results
+**Type:** Schema change
+**Tables affected:** `thermal_captures`, `classification_results`
+
+### What was done
+The DPN classifier's per-angiosome statistics live entirely on the analysis side. They were previously scaffolded as columns on `thermal_captures` (where they were never populated, since the FLIR camera produces only raw temperatures, not Hernandez-Contreras region means). Moved everything onto `classification_results` in two migrations.
+
+### SQL executed
+```sql
+-- migration: move_angiosome_data_to_classification_results
+alter table public.thermal_captures
+  drop column if exists mpa_mean_c,
+  drop column if exists lpa_mean_c,
+  drop column if exists mca_mean_c,
+  drop column if exists lca_mean_c;
+
+alter table public.classification_results
+  add column if not exists left_regions          jsonb,
+  add column if not exists right_regions         jsonb,
+  add column if not exists mean_asymmetry        numeric,
+  add column if not exists max_asymmetry         numeric,
+  add column if not exists left_foot_mean_temp_c numeric,
+  add column if not exists right_foot_mean_temp_c numeric;
+
+comment on column public.classification_results.left_regions is
+  'Per-angiosome mean temperatures (degC) for the left foot: {MPA, LPA, MCA, LCA}';
+comment on column public.classification_results.right_regions is
+  'Per-angiosome mean temperatures (degC) for the right foot: {MPA, LPA, MCA, LCA}';
+comment on column public.classification_results.per_angiosome_asymmetry is
+  'Per-angiosome absolute |L-R| temperature differences (degC): {MPA, LPA, MCA, LCA}';
+
+-- migration: drop_redundant_max_asymmetry
+-- max_asymmetry_c already covers the maximum Δ in degC; drop the new dup.
+alter table public.classification_results
+  drop column if exists max_asymmetry;
+```
+
+### Why
+- Captures are raw camera output. Angiosome means are derived only by the API (`/predict/patient/mobile` returns `FootResult.regions`), so leaving null columns on `thermal_captures` was just noise.
+- `classification_results` is now the single source of truth for everything the classifier returns. The mobile client persists the full response shape there: per-foot regions, per-angiosome asymmetry, mean/max Δ°C, and per-foot mean temps.
+
+### Result
+Both migrations applied via MCP `apply_migration`. Confirmed via `information_schema.columns`: `thermal_captures` no longer exposes the four region columns; `classification_results` now carries `left_regions`, `right_regions`, `mean_asymmetry`, `left_foot_mean_temp_c`, `right_foot_mean_temp_c`. `max_asymmetry_c` and `per_angiosome_asymmetry` retained.
+
+---
 ## [2026-05-03 — v0.11.0] — PSGC seed + clinic-signup Edge Function
 
 **Type:** Reference data + RLS amendment + Edge Function
