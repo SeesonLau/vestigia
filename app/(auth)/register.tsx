@@ -35,7 +35,16 @@ const FACILITY_TYPES: PickerOption[] = [
 ];
 
 const NCR_REGION_CODE = "130000000";
-const DOH_LTO_RE = /^[0-9]{2}-[0-9]{3}-[0-9]{2}-[A-Z]{2}-[0-9]$/;
+//Input format='doh-lto' returns the clean 10-char string (digits + letters, no
+//dashes). Per-position validity is enforced by the Input itself, so the
+//validator only needs to check length. The DB CHECK constraint and the
+//clinic-signup Edge Function expect the DASHED form (NN-NNN-NN-LL-N), so we
+//run dohLtoToDashed before submission.
+const DOH_LTO_CLEAN_RE = /^[0-9]{7}[A-Z]{2}[0-9]$/;
+const dohLtoToDashed = (clean: string) =>
+  clean.length === 10
+    ? `${clean.slice(0, 2)}-${clean.slice(2, 5)}-${clean.slice(5, 7)}-${clean.slice(7, 9)}-${clean.slice(9)}`
+    : clean;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Role = "patient" | "clinic";
@@ -556,7 +565,7 @@ function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => vo
 
     if (!facilityName.trim()) e.facilityName = "Required";
     if (!facilityType) e.facilityType = "Select one";
-    if (!DOH_LTO_RE.test(dohLto)) e.dohLto = "Format: NN-NNN-NN-LL-N";
+    if (!DOH_LTO_CLEAN_RE.test(dohLto)) e.dohLto = "Format: NN-NNN-NN-LL-N";
 
     if (!regionCode) e.regionCode = "Select region";
     if (!isNCR && !provinceCode) e.provinceCode = "Select province";
@@ -582,7 +591,7 @@ function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => vo
       password,
       facility_name: facilityName,
       facility_type: facilityType!,
-      doh_lto_number: dohLto,
+      doh_lto_number: dohLtoToDashed(dohLto),
       region_code: regionCode!,
       province_code: isNCR ? null : provinceCode,
       city_code: cityCode!,
@@ -664,13 +673,13 @@ function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => vo
           accentColor={accent}
         />
         <Input
-          label="DOH LTO Number"
+          label="License Number"
           value={dohLto}
           onChangeText={setDohLto}
           format="doh-lto"
           error={errors.dohLto}
           accentColor={accent}
-          hint="Format: NN-NNN-NN-LL-N (e.g. 12-345-67-AB-8)"
+          hint="Format: NN-NNN-NN-LL-N (e.g. 09-183-56-TH-0)"
         />
       </View>
 
