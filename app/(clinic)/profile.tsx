@@ -69,7 +69,9 @@ export default function ProfileScreen() {
 
   const [clinicName, setClinicName] = useState<string>("—");
   const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState(user?.full_name ?? "");
+  const [firstName, setFirstName]   = useState(user?.first_name ?? "");
+  const [middleName, setMiddleName] = useState(user?.middle_name ?? "");
+  const [lastName, setLastName]     = useState(user?.last_name ?? "");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -184,23 +186,36 @@ export default function ProfileScreen() {
     }
   };
 
-  //Name edit
+  //Name edit. profiles.full_name is generated; update the parts.
+  const composeFullName = (f: string, m: string, l: string) =>
+    [f, m, l].map((s) => s.trim()).filter(Boolean).join(" ").trim();
+
   const handleSaveName = async () => {
-    const trimmed = nameInput.trim();
-    if (!trimmed) { setSaveError("Name cannot be empty."); return; }
-    if (trimmed === user?.full_name) { setEditingName(false); return; }
+    const f = firstName.trim();
+    const m = middleName.trim();
+    const l = lastName.trim();
+    if (!f) { setSaveError("First name is required."); return; }
+    if (!l) { setSaveError("Last name is required."); return; }
     setSaving(true);
     setSaveError(null);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: trimmed, updated_at: new Date().toISOString() })
+      .update({
+        first_name:  f,
+        middle_name: m || null,
+        last_name:   l,
+        updated_at:  new Date().toISOString(),
+      })
       .eq("id", user!.id);
     setSaving(false);
     if (error) {
       setSaveError("Failed to update name. Try again.");
     } else {
+      const nextFull = composeFullName(f, m, l);
       useAuthStore.setState((s) => ({
-        user: s.user ? { ...s.user, full_name: trimmed } : s.user,
+        user: s.user
+          ? { ...s.user, first_name: f, middle_name: m || null, last_name: l, full_name: nextFull }
+          : s.user,
       }));
       setEditingName(false);
       setSaveSuccess(true);
@@ -209,7 +224,9 @@ export default function ProfileScreen() {
   };
 
   const handleCancelEdit = () => {
-    setNameInput(user?.full_name ?? "");
+    setFirstName(user?.first_name ?? "");
+    setMiddleName(user?.middle_name ?? "");
+    setLastName(user?.last_name ?? "");
     setEditingName(false);
     setSaveError(null);
   };
@@ -291,16 +308,33 @@ export default function ProfileScreen() {
           </View>
 
           {/* Edit Name */}
-          <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Display Name</Text>
+          <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Name</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {editingName ? (
               <View style={styles.editBlock}>
                 <TextInput
                   style={[styles.nameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
-                  value={nameInput}
-                  onChangeText={(v) => { setNameInput(v); setSaveError(null); }}
+                  value={firstName}
+                  onChangeText={(v) => { setFirstName(v); setSaveError(null); }}
                   autoFocus
-                  placeholder="Your full name"
+                  autoCapitalize="words"
+                  placeholder="First name"
+                  placeholderTextColor={colors.textSec}
+                />
+                <TextInput
+                  style={[styles.nameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                  value={middleName}
+                  onChangeText={(v) => { setMiddleName(v); setSaveError(null); }}
+                  autoCapitalize="words"
+                  placeholder="Middle name (optional)"
+                  placeholderTextColor={colors.textSec}
+                />
+                <TextInput
+                  style={[styles.nameInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+                  value={lastName}
+                  onChangeText={(v) => { setLastName(v); setSaveError(null); }}
+                  autoCapitalize="words"
+                  placeholder="Last name"
                   placeholderTextColor={colors.textSec}
                 />
                 {saveError ? (
@@ -455,6 +489,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     fontSize: Typography.sizes.base,
     fontFamily: Typography.fonts.body,
+    marginBottom: Spacing.sm,
   },
   errorText: {
     fontSize: Typography.sizes.xs,
