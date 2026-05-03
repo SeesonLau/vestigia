@@ -5,8 +5,8 @@
 //from the offline viewer.
 
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
@@ -164,6 +164,27 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
     })();
     return () => { cancelled = true; };
   }, [sessionId]);
+
+  //Light refetch on focus — only the classification row, so the Analyzed
+  //pill / verdict card stay in sync after the user runs an assessment
+  //and comes back to this screen. Skips the (expensive) URL-signing step.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        const { data, error } = await supabase
+          .from("classification_results")
+          .select("classification, confidence_score, classified_at")
+          .eq("session_id", sessionId)
+          .maybeSingle();
+        if (cancelled || error) return;
+        if (data) {
+          setSession((prev) => prev ? { ...prev, classification: [data] } : prev);
+        }
+      })();
+      return () => { cancelled = true; };
+    }, [sessionId]),
+  );
 
   const patient = session?.patient_snapshot;
   const fullName = useMemo(() => {

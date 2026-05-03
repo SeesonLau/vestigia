@@ -121,6 +121,14 @@ export default function ThermalLiveFeedScreen({
         setFoot("left")
         setAllDone(false)
         setCapturing(false)
+        //Drop the stale last frame so the user doesn't see a frozen
+        //image while waiting for new frames to arrive.
+        setDisplayUri(null)
+        capturedRef.current = false
+        //Force a fresh camera connection so frames start streaming again
+        //(otherwise we're still on the post-capture pause from the prior
+        //session and the live feed stays frozen).
+        setRetryKey((k) => k + 1)
       }
     }, [leftStatsForFocus, rightStatsForFocus]),
   )
@@ -453,6 +461,23 @@ export default function ThermalLiveFeedScreen({
                   size={18}
                   color={cameraPaused ? colors.error : colors.success}
                 />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  //Hard refresh: drop the stale frame, disconnect, and
+                  //bump the retryKey so the camera lifecycle effect
+                  //re-runs from scratch.
+                  setDisplayUri(null)
+                  capturedRef.current = false
+                  setReadiness({ variance: 0, frameDiff: 0, frameIndex: 0 })
+                  disconnectCamera()
+                  setRetryKey((k) => k + 1)
+                }}
+                style={[styles.camToggle, { borderColor: colors.accent }]}
+                activeOpacity={0.7}
+                accessibilityLabel="Refresh camera"
+              >
+                <Ionicons name="refresh-outline" size={18} color={colors.accent} />
               </TouchableOpacity>
             </View>
 

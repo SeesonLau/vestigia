@@ -1,6 +1,6 @@
 // app/(patient)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -41,42 +41,36 @@ export default function PatientHistoryScreen() {
   const [localCaptures, setLocalCaptures] = useState<LocalCapture[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
 
-  //Fetch cloud sessions — RLS automatically restricts to this patient's own data
-  useEffect(() => {
+  //Refetch on focus so the Analyzed pill updates after running an assessment.
+  const fetchSessions = useCallback(async () => {
     if (!user?.id) return;
     setCloudLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("screening_sessions")
+        .select("*, classification:classification_results(*)")
+        .eq("subject_profile_id", user.id)
+        .order("started_at", { ascending: false });
 
-    const fetchSessions = async () => {
-      try {
-        //Post-redesign: every session for this patient is reachable via
-        //subject_profile_id = self -- no need to resolve a clinic-side
-        //patients row first.
-        const { data, error } = await supabase
-          .from("screening_sessions")
-          .select("*, classification:classification_results(*)")
-          .eq("subject_profile_id", user.id)
-          .order("started_at", { ascending: false });
+      dbg("patient/history", `sessions fetch — error=${error?.code ?? "none"}`);
+      if (error) throw new Error("Failed to load sessions.");
 
-        dbg("patient/history", `sessions fetch — error=${error?.code ?? "none"}`);
-        if (error) throw new Error("Failed to load sessions.");
-
-        setSessions(
-          (data as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
-            ...s,
-            classification: Array.isArray(s.classification)
-              ? s.classification[0] ?? undefined
-              : s.classification ?? undefined,
-          })) as ScreeningSession[]
-        );
-      } catch (err: unknown) {
-        setCloudError(err instanceof Error ? err.message : "Failed to load sessions.");
-      } finally {
-        setCloudLoading(false);
-      }
-    };
-
-    fetchSessions();
+      setSessions(
+        (data as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
+          ...s,
+          classification: Array.isArray(s.classification)
+            ? s.classification[0] ?? undefined
+            : s.classification ?? undefined,
+        })) as ScreeningSession[]
+      );
+    } catch (err: unknown) {
+      setCloudError(err instanceof Error ? err.message : "Failed to load sessions.");
+    } finally {
+      setCloudLoading(false);
+    }
   }, [user?.id]);
+
+  useFocusEffect(useCallback(() => { fetchSessions(); }, [fetchSessions]));
 
   //Fetch local captures when local tab is opened
   useEffect(() => {

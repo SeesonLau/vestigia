@@ -1,6 +1,6 @@
 // app/(clinic)/history.tsx
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -49,12 +49,13 @@ export default function HistoryScreen() {
   //Patient label for the header subtitle when drilled in
   const [drillLabel, setDrillLabel] = useState<string | null>(null);
 
-  useEffect(() => {
+  //Refetch on focus so the Analyzed pill updates as soon as the user comes
+  //back from the assessment screen.
+  const fetchSessions = useCallback(() => {
     if (!user?.clinic_id) return;
     setCloudLoading(true);
-    //Don't filter by clinic_id here -- RLS already gates visibility, AND
-    //it includes patient self-captures shared via clinic_access. Filtering
-    //client-side by clinic_id would hide those granted-access sessions.
+    //RLS already gates visibility AND includes self-captures shared via
+    //clinic_access; filtering client-side by clinic_id would hide them.
     let q = supabase
       .from("screening_sessions")
       .select("*, classification: classification_results(*)");
@@ -66,6 +67,8 @@ export default function HistoryScreen() {
         setCloudLoading(false);
       });
   }, [user?.clinic_id, patient_id]);
+
+  useFocusEffect(useCallback(() => { fetchSessions(); }, [fetchSessions]));
 
   //Resolve patient label for drill-down header
   useEffect(() => {
