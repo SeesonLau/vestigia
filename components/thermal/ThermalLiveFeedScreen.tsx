@@ -1,10 +1,12 @@
 // components/thermal/ThermalLiveFeedScreen.tsx
 import { Ionicons } from "@expo/vector-icons"
+import { useFocusEffect } from "expo-router"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Alert, Animated, Dimensions, Image, Modal,
   ScrollView, StyleSheet, Text, TouchableOpacity, View,
 } from "react-native"
+import { useThermalStore } from "../../store/sessionStore"
 import Header from "../layout/Header"
 import ScreenWrapper from "../layout/ScreenWrapper"
 import CameraStatusPanel from "./CameraStatusPanel"
@@ -91,6 +93,25 @@ export default function ThermalLiveFeedScreen({
 
   //Readiness
   const [readiness, setReadiness] = useState<ReadinessState>({ variance: 0, frameDiff: 0, frameIndex: 0 })
+
+  //Reset local capture UI whenever this screen regains focus and the thermal
+  //store no longer holds any capture (i.e. the parent cleared it after a save).
+  //Without this, returning to live-feed after a save keeps the stale "Discard /
+  //Continue" prompt and last-foot thumbnail.
+  const leftStatsForFocus  = useThermalStore((s) => s.leftStats)
+  const rightStatsForFocus = useThermalStore((s) => s.rightStats)
+  useFocusEffect(
+    useCallback(() => {
+      if (leftStatsForFocus === null && rightStatsForFocus === null) {
+        setCaptureStep("left")
+        setLeftCaptured(false)
+        setRightCaptured(false)
+        setFoot("left")
+        setAllDone(false)
+        setCapturing(false)
+      }
+    }, [leftStatsForFocus, rightStatsForFocus]),
+  )
 
   const frameTimestamps = useRef<number[]>([])
   const pulseAnim       = useRef(new Animated.Value(1)).current
