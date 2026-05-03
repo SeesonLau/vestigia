@@ -77,7 +77,6 @@ function AppStack() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(clinic)" />
         <Stack.Screen name="(patient)" />
-        <Stack.Screen name="(admin)" />
         <Stack.Screen name="index" />
       </Stack>
     </View>
