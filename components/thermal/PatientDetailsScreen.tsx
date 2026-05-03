@@ -385,11 +385,14 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
         status:             "uploading",
         started_at:         startedAt,
       });
-      clearBilateral();
 
       if (mode === "clinic") {
+        //Don't clear the thermal store yet -- the assessment screen needs the
+        //matrices + B64s for the DPN call. dpn-result.cleanup() clears at the
+        //end of the flow.
         router.replace("/(clinic)/assessment");
       } else {
+        clearBilateral();
         Alert.alert(
           "Capture Saved",
           "Your thermal capture has been saved to your account.",
