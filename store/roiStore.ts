@@ -34,13 +34,20 @@ export const ROI_DEFAULT: RoiRect = (() => {
   return { x: (1 - w) / 2, y: (1 - h) / 2, w, h };
 })();
 
+/** Background fill for the isolated PNG.
+ *   "transparent" → background pixels alpha 0 (default; current behavior).
+ *   "black"       → background pixels solid black (#000 opaque). */
+export type IsolatedBg = "transparent" | "black";
+
 interface RoiState {
   rect: RoiRect;
   locked: boolean;
   visible: boolean;
+  isolatedBg: IsolatedBg;
   setRect: (rect: RoiRect) => void;
   setLocked: (locked: boolean) => void;
   setVisible: (visible: boolean) => void;
+  setIsolatedBg: (bg: IsolatedBg) => void;
   reset: () => void;
 }
 
@@ -48,9 +55,11 @@ export const useRoiStore = create<RoiState>((set) => ({
   rect: ROI_DEFAULT,
   locked: false,
   visible: true,
+  isolatedBg: "transparent",
   setRect: (rect) => set({ rect }),
   setLocked: (locked) => set({ locked }),
   setVisible: (visible) => set({ visible }),
+  setIsolatedBg: (isolatedBg) => set({ isolatedBg }),
   reset: () => set({ rect: ROI_DEFAULT, locked: false, visible: true }),
 }));
 

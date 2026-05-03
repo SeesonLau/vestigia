@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, ScrollView,
+  ActivityIndicator, Image as RNImage, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import ZoomableImage from "./ZoomableImage";
@@ -417,13 +417,30 @@ function ImageCell({
 }: {
   label: string; uri: string | null; icon: keyof typeof Ionicons.glyphMap; colors: ThemeColors;
 }) {
+  //Resolve the image's natural aspect so the cell matches the actual
+  //dimensions (raw is 160x120, but processed/isolated PNGs are cropped
+  //to the user's framing rectangle and are typically portrait).
+  const [aspect, setAspect] = useState<number>(160 / 120);
+  useEffect(() => {
+    if (!uri) return;
+    let cancelled = false;
+    RNImage.getSize(
+      uri,
+      (w, h) => { if (!cancelled && w > 0 && h > 0) setAspect(w / h); },
+      () => {/* keep default */},
+    );
+    return () => { cancelled = true; };
+  }, [uri]);
   return (
     <View style={styles.imageCell}>
       <Text style={[styles.imageLabel, { color: colors.textSec }]}>{label}</Text>
       {uri ? (
         <ZoomableImage
           uri={uri}
-          style={[styles.footImage, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          style={[
+            styles.footImage,
+            { aspectRatio: aspect, borderColor: colors.border, backgroundColor: colors.surface },
+          ]}
           resizeMode="contain"
         />
       ) : (
@@ -476,7 +493,9 @@ const styles = StyleSheet.create({
   imageRow:   { flexDirection: "row", gap: Spacing.xs },
   imageCell:  { flex: 1, gap: 3 },
   imageLabel: { fontSize: 7, fontFamily: Typography.fonts.label, letterSpacing: 0.5, textAlign: "center" },
-  footImage:  { width: "100%", aspectRatio: 160 / 120, borderRadius: Radius.sm, borderWidth: 1 },
+  footImage:  { width: "100%", aspectRatio: 160 / 120, borderRadius: Radius.sm, borderWidth: 1 } as any,
+  //(aspectRatio above is just the fallback for the empty placeholder cell;
+  // ImageCell overrides aspectRatio with the image's natural ratio)
   noImage:    { alignItems: "center", justifyContent: "center" },
 
   tempRow:    { flexDirection: "row", justifyContent: "space-around" },

@@ -189,9 +189,20 @@ export interface NativeProcessResult {
  *  and isolated PNG are cropped to this rect before encoding. */
 export interface NativeCropRoi { x: number; y: number; w: number; h: number }
 
-export async function processCapture(crop?: NativeCropRoi | null): Promise<NativeProcessResult> {
+/** Optional capture-time options forwarded to the native processor. */
+export interface NativeCaptureOptions {
+  crop?: NativeCropRoi | null
+  /** Background fill for the isolated PNG. Default 'transparent'. */
+  isolatedBg?: 'transparent' | 'black'
+}
+
+export async function processCapture(opts?: NativeCaptureOptions | null): Promise<NativeProcessResult> {
   if (!UVCCamera) throw new Error('UVCCamera native module not available. Use expo run:android.')
-  return UVCCamera.processCapture(crop ?? null) as Promise<NativeProcessResult>
+  const params = {
+    crop: opts?.crop ?? null,
+    isolatedBg: opts?.isolatedBg ?? 'transparent',
+  }
+  return UVCCamera.processCapture(params) as Promise<NativeProcessResult>
 }
 
 

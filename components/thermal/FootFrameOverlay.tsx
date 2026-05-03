@@ -56,7 +56,19 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
   const [draft, setDraft] = useState(rect);
   useEffect(() => { setDraft(rect); }, [rect]);
 
-  //Pinch / pan starting state (refs so the responder closures stay stable).
+  //Refs that mirror the live state so the PanResponder callbacks (created
+  //ONCE) always read the current values instead of a stale closure. This
+  //is the root cause of the previous "drag from the original rect" bug.
+  const draftRef       = useRef(draft);
+  const interactiveRef = useRef(true);
+  const frameWRef      = useRef(frameWidth);
+  const frameHRef      = useRef(frameHeight);
+  useEffect(() => { draftRef.current       = draft;          }, [draft]);
+  useEffect(() => { interactiveRef.current = !locked && visible; }, [locked, visible]);
+  useEffect(() => { frameWRef.current      = frameWidth;     }, [frameWidth]);
+  useEffect(() => { frameHRef.current      = frameHeight;    }, [frameHeight]);
+
+  //Pinch / pan starting state.
   const startRef = useRef({ x: 0, y: 0, w: 0, h: 0, dist: 0, mode: "idle" as "idle" | "pan" | "pinch" });
 
   //Show/hide animation (plain Animated, no Reanimated worklets).
@@ -69,16 +81,15 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
     ]).start();
   }, [visible, opacity, scale]);
 
-  const interactive = !locked && visible;
-
   const responder = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => interactive,
-    onMoveShouldSetPanResponder:  () => interactive,
+    onStartShouldSetPanResponder: () => interactiveRef.current,
+    onMoveShouldSetPanResponder:  () => interactiveRef.current,
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: (e) => {
       const t = e.nativeEvent.touches;
+      const d = draftRef.current;
       startRef.current = {
-        x: draft.x, y: draft.y, w: draft.w, h: draft.h,
+        x: d.x, y: d.y, w: d.w, h: d.h,
         dist: t.length >= 2 ? distance(t) : 0,
         mode: t.length >= 2 ? "pinch" : "pan",
       };
@@ -86,12 +97,13 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
     onPanResponderMove: (e, gesture) => {
       const start = startRef.current;
       const t = e.nativeEvent.touches;
+      const cur = draftRef.current;
 
       //Switch to pinch the moment a second finger lands.
       if (start.mode === "pan" && t.length >= 2) {
         start.mode = "pinch";
         start.dist = distance(t);
-        start.x = draft.x; start.y = draft.y; start.w = draft.w; start.h = draft.h;
+        start.x = cur.x; start.y = cur.y; start.w = cur.w; start.h = cur.h;
         return;
       }
 
@@ -105,25 +117,31 @@ export default function FootFrameOverlay({ frameWidth, frameHeight }: Props) {
         const newH = Math.min(0.98, newW * ROI_ASPECT);
         const newX = clamp(cx - newW / 2, 0, 1 - newW);
         const newY = clamp(cy - newH / 2, 0, 1 - newH);
-        setDraft({ x: newX, y: newY, w: newW, h: newH });
+        const next = { x: newX, y: newY, w: newW, h: newH };
+        draftRef.current = next;
+        setDraft(next);
         return;
       }
 
-      //Single-finger pan.
-      const dx = gesture.dx / frameWidth;
-      const dy = gesture.dy / frameHeight;
+      //Single-finger pan. Clamp uses the START dimensions which equal the
+      //CURRENT box size (single-finger pan never resizes), so the box can
+      //pan all the way until its bottom/right edges hit the frame edges.
+      const dx = gesture.dx / frameWRef.current;
+      const dy = gesture.dy / frameHRef.current;
       const newX = clamp(start.x + dx, 0, 1 - start.w);
       const newY = clamp(start.y + dy, 0, 1 - start.h);
-      setDraft((d) => ({ ...d, x: newX, y: newY }));
+      const next = { x: newX, y: newY, w: start.w, h: start.h };
+      draftRef.current = next;
+      setDraft(next);
     },
     onPanResponderRelease: () => {
       startRef.current.mode = "idle";
       //Persist final draft to the store so the capture pipeline reads it.
-      setRect(draft);
+      setRect(draftRef.current);
     },
     onPanResponderTerminate: () => {
       startRef.current.mode = "idle";
-      setRect(draft);
+      setRect(draftRef.current);
     },
   })).current;
 

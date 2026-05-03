@@ -175,14 +175,16 @@ class UVCModule(reactContext: ReactApplicationContext) :
     }
 
     @ReactMethod
-    fun processCapture(cropMap: ReadableMap?, promise: Promise) {
+    fun processCapture(opts: ReadableMap?, promise: Promise) {
         val frames = synchronized(frameBufferLock) { frameBuffer.toList() }
         if (frames.isEmpty()) {
             promise.reject("NO_FRAMES", "No thermal frames buffered. Ensure the camera is streaming in Y16 mode.")
             return
         }
-        //Optional foot-frame ROI from the live feed UI. Coordinates are
-        //normalized [0..1] over the sensor matrix; null means full frame.
+        //Optional capture-time options:
+        //  crop        ROI rect, normalized [0..1] over the sensor matrix
+        //  isolatedBg  "transparent" (default) or "black" for the bg fill
+        val cropMap = opts?.takeIf { it.hasKey("crop") && !it.isNull("crop") }?.getMap("crop")
         val crop: CropRoi? = cropMap?.let {
             CropRoi(
                 x = it.getDouble("x").toFloat(),
@@ -191,9 +193,11 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 h = it.getDouble("h").toFloat(),
             )
         }
+        val isolatedBgBlack = opts?.takeIf { it.hasKey("isolatedBg") }
+            ?.getString("isolatedBg") == "black"
         Thread {
             try {
-                val result = processThermalFrames(frames, crop)
+                val result = processThermalFrames(frames, crop, isolatedBgBlack)
                 val map = Arguments.createMap()
                 map.putString("displayPngB64",    result.displayPngB64)
                 map.putString("isolatedPngB64",   result.isolatedPngB64)
@@ -468,7 +472,11 @@ class UVCModule(reactContext: ReactApplicationContext) :
         return Bitmap.createBitmap(src, x, y, w, h)
     }
 
-    private fun processThermalFrames(frames: List<ByteArray>, crop: CropRoi? = null): ThermalResult {
+    private fun processThermalFrames(
+        frames: List<ByteArray>,
+        crop: CropRoi? = null,
+        isolatedBgBlack: Boolean = false,
+    ): ThermalResult {
         val log = mutableListOf<String>()
         log.add("Received ${frames.size} frame(s)")
 
@@ -573,9 +581,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
         // Foot isolation
         val mask             = isolateFootMask(filtered, rows, cols)
-        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range, crop)
+        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range, crop, isolatedBgBlack)
         val maskedCsvContent = buildMaskedCsv(filtered, mask, rows, cols)
-        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else ""))
+        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
+            + (if (isolatedBgBlack) " · black bg" else ""))
 
         return ThermalResult(
             displayPngB64    = displayPngB64,
@@ -737,12 +746,15 @@ class UVCModule(reactContext: ReactApplicationContext) :
     private fun buildIsolatedPng(
         filtered: FloatArray, mask: BooleanArray,
         rows: Int, cols: Int, p1: Float, range: Float,
-        crop: CropRoi? = null
+        crop: CropRoi? = null,
+        bgBlack: Boolean = false,
     ): String {
+        //Background fill: 0 (transparent) by default, opaque black when bgBlack=true.
+        val bgPixel = if (bgBlack) (0xFF shl 24) else 0
         val pixels = IntArray(rows * cols)
         for (i in 0 until rows * cols) {
             if (!mask[i]) {
-                pixels[i] = 0
+                pixels[i] = bgPixel
             } else {
                 val t = ((filtered[i] - p1) / range).coerceIn(0f, 1f)
                 val (r, g, b) = paletteRgb(t, palette)

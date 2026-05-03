@@ -95,11 +95,13 @@ export default function ThermalLiveFeedScreen({
   const [showSettings, setShowSettings] = useState(false)
 
   //Foot-framing rectangle
-  const roiRect    = useRoiStore((s) => s.rect)
-  const roiLocked  = useRoiStore((s) => s.locked)
-  const roiVisible = useRoiStore((s) => s.visible)
+  const roiRect       = useRoiStore((s) => s.rect)
+  const roiLocked     = useRoiStore((s) => s.locked)
+  const roiVisible    = useRoiStore((s) => s.visible)
+  const isolatedBg    = useRoiStore((s) => s.isolatedBg)
   const setRoiLocked  = useRoiStore((s) => s.setLocked)
   const setRoiVisible = useRoiStore((s) => s.setVisible)
+  const setIsolatedBg = useRoiStore((s) => s.setIsolatedBg)
   const resetRoi      = useRoiStore((s) => s.reset)
   const roiTooSmall = roiRect.w < ROI_MIN_W + 0.005
 
@@ -239,12 +241,12 @@ export default function ThermalLiveFeedScreen({
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      //Pass the ROI to native so the displayPng + isolatedPng come back
-      //already cropped to the framing rectangle. CSVs come back full-frame
-      //from native; we crop them to the same rect on the JS side to keep
-      //all four artifacts aligned.
+      //Pass the ROI + isolated-bg setting to native so the display PNG and
+      //isolated PNG come back already cropped (and the isolated PNG with
+      //the chosen background fill). CSVs come back full-frame from native;
+      //we crop them on the JS side to keep all four artifacts aligned.
       const cropArg = roiVisible ? roiRect : null
-      const result = await processFrames(rawImageUri, cropArg)
+      const result = await processFrames(rawImageUri, { crop: cropArg, isolatedBg })
       const finalResult: ProcessedCapture = cropArg
         ? {
             ...result,
@@ -422,6 +424,17 @@ export default function ThermalLiveFeedScreen({
                 onPress={resetRoi}
                 colors={colors}
                 accessibilityLabel="Reset frame"
+              />
+              <RoiBtn
+                icon={isolatedBg === "black" ? "square" : "ellipse-outline"}
+                active={isolatedBg === "black"}
+                onPress={() => setIsolatedBg(isolatedBg === "black" ? "transparent" : "black")}
+                colors={colors}
+                accessibilityLabel={
+                  isolatedBg === "black"
+                    ? "Isolated image: black background (tap for transparent)"
+                    : "Isolated image: transparent background (tap for black)"
+                }
               />
             </View>
           </View>
