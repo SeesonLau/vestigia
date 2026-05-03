@@ -6,6 +6,7 @@ import { View } from "react-native";
 import { useInactivityTimeout } from "../hooks/useInactivityTimeout";
 import { supabase } from "../lib/supabase";
 import { ThemeProvider, useTheme } from "../constants/ThemeContext";
+import { LightboxProvider } from "../components/thermal/ImageLightbox";
 
 function AppStack() {
   const router = useRouter();
@@ -86,7 +87,9 @@ function AppStack() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <AppStack />
+      <LightboxProvider>
+        <AppStack />
+      </LightboxProvider>
     </ThemeProvider>
   );
 }

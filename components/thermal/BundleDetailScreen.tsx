@@ -3,9 +3,10 @@ import { Ionicons } from "@expo/vector-icons"
 import { useRouter } from "expo-router"
 import React, { useEffect, useState } from "react"
 import {
-  ActivityIndicator, Image, ScrollView,
+  ActivityIndicator, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native"
+import ZoomableImage from "./ZoomableImage"
 import Header from "../layout/Header"
 import ScreenWrapper from "../layout/ScreenWrapper"
 import { useTheme } from "../../constants/ThemeContext"
@@ -191,8 +192,8 @@ function FootImageCard({
         <View style={styles.imageCell}>
           <Text style={[styles.imageLabel, { color: colors.textSec }]}>UNPROCESSED</Text>
           {hasRaw ? (
-            <Image
-              source={{ uri: "data:image/jpeg;base64," + foot.raw_image_b64 }}
+            <ZoomableImage
+              uri={"data:image/jpeg;base64," + foot.raw_image_b64}
               style={[styles.footImage, { borderColor: colors.border }]}
               resizeMode="contain"
               fadeDuration={0}
@@ -205,8 +206,8 @@ function FootImageCard({
         </View>
         <View style={styles.imageCell}>
           <Text style={[styles.imageLabel, { color: colors.textSec }]}>POST-PROCESSED</Text>
-          <Image
-            source={{ uri: "data:image/png;base64," + foot.processed_image_b64 }}
+          <ZoomableImage
+            uri={"data:image/png;base64," + foot.processed_image_b64}
             style={[styles.footImage, { borderColor: colors.border }]}
             resizeMode="contain"
             fadeDuration={0}
@@ -215,8 +216,8 @@ function FootImageCard({
         <View style={styles.imageCell}>
           <Text style={[styles.imageLabel, { color: colors.textSec }]}>ISOLATED</Text>
           {hasIsolated ? (
-            <Image
-              source={{ uri: "data:image/png;base64," + foot.isolated_image_b64 }}
+            <ZoomableImage
+              uri={"data:image/png;base64," + foot.isolated_image_b64}
               style={[styles.footImage, { borderColor: colors.border, backgroundColor: colors.surface }]}
               resizeMode="contain"
               fadeDuration={0}

@@ -8,9 +8,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Image, ScrollView,
+  ActivityIndicator, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
+import ZoomableImage from "./ZoomableImage";
 import Header from "../layout/Header";
 import ScreenWrapper from "../layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
@@ -305,8 +306,8 @@ function ImageCell({
     <View style={styles.imageCell}>
       <Text style={[styles.imageLabel, { color: colors.textSec }]}>{label}</Text>
       {uri ? (
-        <Image
-          source={{ uri }}
+        <ZoomableImage
+          uri={uri}
           style={[styles.footImage, { borderColor: colors.border, backgroundColor: colors.surface }]}
           resizeMode="contain"
         />
