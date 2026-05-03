@@ -5,7 +5,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -14,6 +13,7 @@ import {
 import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { SessionCard } from "../../components/session/index";
+import InitialsAvatar, { personInitials } from "../../components/ui/InitialsAvatar";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getAllCaptures } from "../../lib/db/offlineCaptures";
@@ -128,18 +128,14 @@ export default function HistoryScreen() {
         title="Session History"
         rightIcon={
           activeView === "cloud" ? (
-            user?.avatar_url ? (
-              <Image
-                source={{ uri: user.avatar_url }}
-                style={styles.headerAvatar}
-              />
-            ) : (
-              <View style={[styles.headerAvatarFallback, { backgroundColor: `${colors.accent}26`, borderColor: `${colors.accent}66` }]}>
-                <Text style={[styles.headerAvatarText, { color: colors.accent }]}>
-                  {(user?.full_name ?? "U").split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)}
-                </Text>
-              </View>
-            )
+            <InitialsAvatar
+              initials={personInitials(user?.first_name, user?.last_name)}
+              seed={user?.clinic_id ?? user?.id ?? "operator"}
+              imageUrl={user?.avatar_url}
+              size={32}
+              borderWidth={1}
+              borderColor={`${colors.accent}66`}
+            />
           ) : undefined
         }
       />
