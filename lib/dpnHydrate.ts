@@ -2,6 +2,15 @@
 //Reconstruct a DPNScanResponse-shaped object from a classification_results
 //row so we can re-render the full result UI without calling the API again.
 //Used by the standalone Assessment screen and the bundle-detail viewer.
+//
+//Source-of-truth precedence:
+// 1. row.result_payload (full API response) -- preferred. Set on every
+//    new insert. No reconstruction, all per-foot probabilities and
+//    diagnosis factors render correctly.
+// 2. Individual columns -- fallback for older rows from before the
+//    result_payload column was added. Reconstructs per-foot fields from
+//    the combined verdict + confidence; sub-model probs, fusion method,
+//    and diagnosis factors come back empty.
 
 import type {
   AsymmetryResult,
@@ -21,15 +30,24 @@ export interface StoredClassification {
   mean_asymmetry: number | null;
   left_foot_mean_temp_c: number | null;
   right_foot_mean_temp_c: number | null;
+  /** Full DPNScanResponse — preferred source. Older rows may not have this. */
+  result_payload: DPNScanResponse | null;
 }
 
 /** Columns to SELECT from `classification_results` to rebuild the result. */
 export const STORED_CLASSIFICATION_COLUMNS =
   "classification, confidence_score, max_asymmetry_c, per_angiosome_asymmetry, " +
   "left_regions, right_regions, mean_asymmetry, " +
-  "left_foot_mean_temp_c, right_foot_mean_temp_c";
+  "left_foot_mean_temp_c, right_foot_mean_temp_c, result_payload";
 
 export function hydrateFromStored(row: StoredClassification): DPNScanResponse {
+  //Preferred path: the full payload was saved at insert time, just return it.
+  if (row.result_payload) return row.result_payload;
+
+  //Fallback for legacy rows: rebuild a degraded DPNScanResponse from the
+  //individual columns. Per-foot probabilities and sub-model breakdowns are
+  //synthesised from the combined verdict + confidence; diagnosis factors
+  //and fusion method are unrecoverable.
   const isPositive = row.classification === "POSITIVE";
   const conf = Number(row.confidence_score ?? 0);
   const positiveProb = isPositive ? conf : 100 - conf;

@@ -68,9 +68,8 @@ export default function DPNResultScreen() {
         left_foot_mean_temp_c:    result.asymmetry?.left_foot_mean_temp ?? null,
         right_foot_mean_temp_c:   result.asymmetry?.right_foot_mean_temp ?? null,
         angiosomes_flagged:       null,
-        left_tci:                 null,
-        right_tci:                null,
-        bilateral_tci:            null,
+        //Full API response for lossless rehydration on the bundle viewer.
+        result_payload:           result,
         model_version:            "dpn-api-v1.1",
         classified_at:            new Date().toISOString(),
       });
