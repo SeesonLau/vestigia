@@ -42,8 +42,8 @@ export const FOOT_PLANTAR_RIGHT: ImageSourcePropType | null =
  *   h  = box height (down to the heel base)
  */
 export const ANGIO_BOX_NORM = {
-  x: 0.22,
-  y: 0.22,
-  w: 0.56,
-  h: 0.66,
+  x: 0.30,   // foot's medial (inner) edge in the image
+  y: 0.24,   // top of the angiosome region — just below the toe pad
+  w: 0.40,   // foot body width at the ball — narrow enough to stay inside
+  h: 0.62,   // ends near the bottom of the heel
 } as const;
