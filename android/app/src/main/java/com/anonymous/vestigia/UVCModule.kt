@@ -580,7 +580,11 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("Processing complete")
 
         // Foot isolation
-        val mask             = isolateFootMask(filtered, rows, cols)
+        // Pass the framing rectangle into isolation so it can sample the
+        // background from outside the ROI (direction-agnostic threshold)
+        // and only mark INSIDE pixels as subject. When crop is null the
+        // function falls back to the Otsu / largest-component approach.
+        val mask             = isolateFootMask(filtered, rows, cols, crop)
         val isolatedPngB64   = buildIsolatedPng(filtered, mask, rows, cols, p1, range, crop, isolatedBgBlack)
         val maskedCsvContent = buildMaskedCsv(filtered, mask, rows, cols)
         log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
@@ -604,8 +608,26 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     // ── Foot isolation ────────────────────────────────────────────────────────
 
-    // Works for both hot subjects (warm foot on cold floor) and cold subjects (cold dumbbell on warm table).
-    private fun isolateFootMask(filtered: FloatArray, rows: Int, cols: Int): BooleanArray {
+    /**
+     * Build a subject mask from the filtered thermal frame.
+     *
+     * When the user has a framing rectangle on the live feed (crop != null),
+     * we use it as ground truth: pixels OUTSIDE the rectangle are guaranteed
+     * background (the user said so by drawing the box around the subject), so
+     * we sample the background reference from there and threshold absolute
+     * deviation INSIDE the rectangle. This is direction-agnostic — it works
+     * whether the subject is hotter or colder than its surroundings, fixing
+     * the previous "warmer = subject" assumption that erased cold subjects
+     * like an aircon against a warmer wall.
+     *
+     * When no rectangle is provided (crop == null), we fall back to the
+     * Otsu / largest-component approach as before.
+     */
+    private fun isolateFootMask(
+        filtered: FloatArray, rows: Int, cols: Int, crop: CropRoi? = null,
+    ): BooleanArray {
+        if (crop != null) return isolateByRoiBackground(filtered, rows, cols, crop)
+
         val (threshold, bestVar) = otsuThresholdWithVariance(filtered)
 
         // Guardrail kept very loose — only catches truly uniform frames; even mild bimodality passes.
@@ -633,6 +655,80 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
         // Opening (erode 2 → dilate 2) — trims ragged boundary fringe pixels
         return morphDilate(morphErode(subjectMask, rows, cols, 2), rows, cols, 2)
+    }
+
+    /**
+     * ROI-aware isolation. Samples the background reference temperature
+     * from pixels OUTSIDE the user's framing rectangle (which the user
+     * has guaranteed as background by drawing the box around the subject)
+     * and marks INSIDE pixels as subject if their |T − T_bg| exceeds a
+     * threshold computed from the background's median absolute deviation.
+     *
+     * Pixels outside the rectangle are always background regardless of
+     * temperature. Pixels inside but near the background reading are
+     * also background (e.g. the empty space surrounding a centred foot).
+     */
+    private fun isolateByRoiBackground(
+        filtered: FloatArray, rows: Int, cols: Int, roi: CropRoi,
+    ): BooleanArray {
+        // ROI bounds in pixel coords.
+        val x0 = (roi.x * cols).toInt().coerceIn(0, cols - 1)
+        val y0 = (roi.y * rows).toInt().coerceIn(0, rows - 1)
+        val x1 = ((roi.x + roi.w) * cols).toInt().coerceIn(x0 + 1, cols)
+        val y1 = ((roi.y + roi.h) * rows).toInt().coerceIn(y0 + 1, rows)
+
+        // Collect background samples from pixels outside the ROI rectangle.
+        val outside = ArrayList<Float>(rows * cols - (y1 - y0) * (x1 - x0))
+        for (r in 0 until rows) {
+            val rowOff = r * cols
+            val inRowBand = r in y0 until y1
+            for (c in 0 until cols) {
+                if (inRowBand && c in x0 until x1) continue
+                outside.add(filtered[rowOff + c])
+            }
+        }
+        // Pathological case: ROI fills the whole frame -- no background to learn from.
+        // Fall back to the Otsu path, which still helps in most setups.
+        if (outside.size < 32) return isolateFootMask(filtered, rows, cols, crop = null)
+
+        // Robust statistics: median (centre) + MAD (spread) of the background.
+        val bgArr = outside.toFloatArray().also { java.util.Arrays.sort(it) }
+        val bgMedian = bgArr[bgArr.size / 2]
+
+        val absDevs = FloatArray(bgArr.size) { Math.abs(bgArr[it] - bgMedian) }
+        java.util.Arrays.sort(absDevs)
+        val mad = absDevs[absDevs.size / 2]
+
+        // Threshold: 3·σ_bg (where σ ≈ 1.4826·MAD), with a floor of 1.0°C so
+        // a rock-steady background with σ near zero doesn't flag every speckle.
+        val sigma     = 1.4826f * mad
+        val threshold = maxOf(1.0f, 3.0f * sigma)
+
+        val mask = BooleanArray(rows * cols)
+        for (r in y0 until y1) {
+            val rowOff = r * cols
+            for (c in x0 until x1) {
+                val i = rowOff + c
+                if (Math.abs(filtered[i] - bgMedian) > threshold) mask[i] = true
+            }
+        }
+
+        // Same morphology as the legacy path: close (dilate→erode) to fill
+        // small interior holes, then open (erode→dilate) to trim fringes.
+        // Operates on the FULL frame so any spillover outside the ROI is
+        // automatically clipped away (we never set those pixels true above).
+        val closed = morphClose(mask, rows, cols, 3, 3)
+        val opened = morphDilate(morphErode(closed, rows, cols, 1), rows, cols, 1)
+
+        // Re-clip to ROI in case morphology dilated past the rectangle edge.
+        for (r in 0 until rows) {
+            val rowOff = r * cols
+            val inRowBand = r in y0 until y1
+            for (c in 0 until cols) {
+                if (!(inRowBand && c in x0 until x1)) opened[rowOff + c] = false
+            }
+        }
+        return opened
     }
 
     private fun morphDilate(src: BooleanArray, rows: Int, cols: Int, r: Int): BooleanArray {

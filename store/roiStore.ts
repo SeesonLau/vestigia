@@ -55,7 +55,7 @@ export const useRoiStore = create<RoiState>((set) => ({
   rect: ROI_DEFAULT,
   locked: false,
   visible: true,
-  isolatedBg: "transparent",
+  isolatedBg: "black",
   setRect: (rect) => set({ rect }),
   setLocked: (locked) => set({ locked }),
   setVisible: (visible) => set({ visible }),
