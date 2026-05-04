@@ -15,6 +15,7 @@ import type {
   FootResult,
   RegionMeans,
 } from "../../lib/dpnApi";
+import FootAngiosomeDiagram from "./FootAngiosomeDiagram";
 
 interface Props { result: DPNScanResponse }
 
@@ -72,6 +73,18 @@ export default function DpnResultView({ result }: Props) {
           {result.combined_confidence.toFixed(1)}% confidence · {result.combined_prediction}
         </Text>
       </View>
+
+      {/* Bilateral angiosome diagram — visualizes the four regions of each
+          foot colored by temperature so warm/cold differences are obvious
+          at a glance. Renders even when only regions are available
+          (older bundles without sub-model probabilities still light up). */}
+      {(result.left_foot?.regions || result.right_foot?.regions) ? (
+        <FootAngiosomeDiagram
+          left={result.left_foot?.regions ?? null}
+          right={result.right_foot?.regions ?? null}
+          asymmetry={result.asymmetry}
+        />
+      ) : null}
 
       {/* Per-foot cards */}
       {result.left_foot ? <FootCard label="Left Foot"  foot={result.left_foot}  colors={colors} /> : null}
