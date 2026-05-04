@@ -405,29 +405,49 @@ function FootSvg({
         {REGION_KEYS.map((key) => {
           const p = labelPos(key);
           const isFlagged = flagged.has(key);
-          return (
-            <G key={key}>
-              <SvgText
-                x={p.x} y={p.y - 5}
-                fontSize={9} fontWeight="bold"
-                fill="#fff" stroke="rgba(0,0,0,0.6)" strokeWidth={0.6}
-                textAnchor="middle"
-              >
-                {key}{isFlagged ? " !" : ""}
-              </SvgText>
-              <SvgText
-                x={p.x} y={p.y + 9}
-                fontSize={11} fontWeight="bold"
-                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
-                textAnchor="middle"
-              >
-                {valText(key)}
-              </SvgText>
-            </G>
-          );
+          return <RegionLabel key={key} keyName={key} isFlagged={isFlagged} value={valText(key)} cx={p.x} cy={p.y} />;
         })}
       </Svg>
     </View>
+  );
+}
+
+//Region label = dark translucent pill + bold white text. The pill gives
+//the labels a consistent contrast no matter what color (bright yellow,
+//pale red, etc.) the underlying angiosome region is filled with.
+function RegionLabel({
+  keyName, isFlagged, value, cx, cy,
+}: {
+  keyName: string; isFlagged: boolean; value: string; cx: number; cy: number;
+}) {
+  const pillW = 40;
+  const pillH = 30;
+  return (
+    <G>
+      <Rect
+        x={cx - pillW / 2}
+        y={cy - pillH / 2}
+        width={pillW}
+        height={pillH}
+        rx={5}
+        ry={5}
+        fill="rgba(0,0,0,0.62)"
+      />
+      <SvgText
+        x={cx} y={cy - 3}
+        fontSize={9.5} fontWeight="bold"
+        fill="#fff" textAnchor="middle"
+      >
+        {keyName}{isFlagged ? " !" : ""}
+      </SvgText>
+      <SvgText
+        x={cx} y={cy + 11}
+        fontSize={12} fontWeight="bold"
+        fill="#fff" textAnchor="middle"
+      >
+        {value}
+      </SvgText>
+    </G>
   );
 }
 
@@ -484,26 +504,7 @@ function FootImageBox({
         {REGION_KEYS.map((key) => {
           const p = imgLabel(key);
           const isFlagged = flagged.has(key);
-          return (
-            <G key={key}>
-              <SvgText
-                x={p.x} y={p.y - 5}
-                fontSize={9} fontWeight="bold"
-                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
-                textAnchor="middle"
-              >
-                {key}{isFlagged ? " !" : ""}
-              </SvgText>
-              <SvgText
-                x={p.x} y={p.y + 9}
-                fontSize={11} fontWeight="bold"
-                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
-                textAnchor="middle"
-              >
-                {valText(key)}
-              </SvgText>
-            </G>
-          );
+          return <RegionLabel key={key} keyName={key} isFlagged={isFlagged} value={valText(key)} cx={p.x} cy={p.y} />;
         })}
       </Svg>
     </View>
