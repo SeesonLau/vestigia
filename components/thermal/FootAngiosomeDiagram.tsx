@@ -14,7 +14,7 @@
 //the canonical right-foot drawing.
 
 import React, { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 import Svg, {
   ClipPath,
   Defs,
@@ -28,6 +28,7 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
 import type { AsymmetryResult, RegionMeans } from "../../lib/dpnApi";
+import { ANGIO_BOX_NORM, FOOT_PLANTAR } from "./footAsset";
 
 interface Props {
   left:  RegionMeans | null | undefined;
@@ -259,6 +260,97 @@ function FootSvg({
   const clipId = `foot-clip-${id}`;
   const stroke = colors.text;
 
+  //---- Image-backed mode -----------------------------------------------
+  //If a foot illustration was supplied via footAsset.ts, render it as the
+  //background and overlay the four colored quadrants (translucent) plus
+  //labels. Quadrant coordinates come from ANGIO_BOX_NORM in image-relative
+  //[0..1] space and are mapped onto the canvas size.
+  if (FOOT_PLANTAR) {
+    const boxX = ANGIO_BOX_NORM.x * VIEW_W;
+    const boxY = ANGIO_BOX_NORM.y * VIEW_H;
+    const boxW = ANGIO_BOX_NORM.w * VIEW_W;
+    const boxH = ANGIO_BOX_NORM.h * VIEW_H;
+
+    const imgQuads: Record<RegionKey, QuadRect> = {
+      MPA: { x: boxX,                           y: boxY,                          w: boxW * W_SPLIT,       h: boxH * H_SPLIT       },
+      LPA: { x: boxX + boxW * W_SPLIT,          y: boxY,                          w: boxW * (1 - W_SPLIT), h: boxH * H_SPLIT       },
+      MCA: { x: boxX,                           y: boxY + boxH * H_SPLIT,         w: boxW * W_SPLIT,       h: boxH * (1 - H_SPLIT) },
+      LCA: { x: boxX + boxW * W_SPLIT,          y: boxY + boxH * H_SPLIT,         w: boxW * (1 - W_SPLIT), h: boxH * (1 - H_SPLIT) },
+    };
+
+    const imgLabel = (key: RegionKey) => {
+      const q = imgQuads[key];
+      const c = { x: q.x + q.w / 2, y: q.y + q.h / 2 };
+      return mirrored ? { x: VIEW_W - c.x, y: c.y } : c;
+    };
+
+    return (
+      <View style={[styles.footWrap, { width: VIEW_W }]}>
+        <Text style={[styles.footLabel, { color: colors.text }]}>{label}</Text>
+        <View style={{ width: VIEW_W, height: VIEW_H }}>
+          <Image
+            source={FOOT_PLANTAR}
+            resizeMode="contain"
+            style={[
+              StyleSheet.absoluteFillObject,
+              mirrored ? { transform: [{ scaleX: -1 }] } : undefined,
+            ]}
+          />
+          <Svg
+            width={VIEW_W} height={VIEW_H}
+            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+            style={StyleSheet.absoluteFillObject}
+          >
+            {/* Translucent colored quadrants over the image. */}
+            <G transform={mirrorTransform} opacity={0.55}>
+              <Rect {...imgQuads.MPA} fill={fill("MPA")} />
+              <Rect {...imgQuads.LPA} fill={fill("LPA")} />
+              <Rect {...imgQuads.MCA} fill={fill("MCA")} />
+              <Rect {...imgQuads.LCA} fill={fill("LCA")} />
+
+              {/* Dashed division lines. */}
+              <Path
+                d={`M ${boxX + boxW * W_SPLIT} ${boxY} V ${boxY + boxH}`}
+                stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
+              />
+              <Path
+                d={`M ${boxX} ${boxY + boxH * H_SPLIT} H ${boxX + boxW}`}
+                stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
+              />
+            </G>
+
+            {/* Labels — outside mirror transform so text stays upright. */}
+            {REGION_KEYS.map((key) => {
+              const p = imgLabel(key);
+              const isFlagged = flagged.has(key);
+              return (
+                <G key={key}>
+                  <SvgText
+                    x={p.x} y={p.y - 5}
+                    fontSize={9} fontWeight="bold"
+                    fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
+                    textAnchor="middle"
+                  >
+                    {key}{isFlagged ? " !" : ""}
+                  </SvgText>
+                  <SvgText
+                    x={p.x} y={p.y + 9}
+                    fontSize={11} fontWeight="bold"
+                    fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
+                    textAnchor="middle"
+                  >
+                    {valText(key)}
+                  </SvgText>
+                </G>
+              );
+            })}
+          </Svg>
+        </View>
+      </View>
+    );
+  }
+
+  //---- SVG-only fallback ----------------------------------------------
   return (
     <View style={styles.footWrap}>
       <Text style={[styles.footLabel, { color: colors.text }]}>{label}</Text>
