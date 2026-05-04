@@ -1,24 +1,24 @@
 // components/thermal/FootAngiosomeDiagram.tsx
 //Bilateral plantar-foot diagram with the four angiosome regions colored
 //by temperature. Geometry follows Hernandez-Contreras 2019:
-//  - bounding box of the angiosome region
-//  - W split at 35% (medial / "internal") and 65% (lateral)
-//  - H split at 60% (upper / forefoot+midfoot) and 40% (lower / heel)
-//Quadrants are colored rectangles clipped to the foot silhouette so the
-//regions take the foot's natural shape. The medial side is drawn on the
-//LEFT of the canvas (matching the reference figure); the LEFT foot is
-//rendered by mirroring the canonical right-foot drawing.
+//  - bounding box of the angiosome region (foot body excluding the toes)
+//  - W split 35% medial / 65% lateral
+//  - H split 60% upper (forefoot+midfoot) / 40% lower (heel)
 //
-//FOOT_PATH below is a hand-traced plantar-view silhouette (toes-up). To
-//swap in a higher-fidelity asset later, replace just FOOT_PATH and the
-//ANGIO_BOX constants -- everything else (clip, color, labels, asymmetry
-//flags) is geometry-driven.
+//The foot is composed as
+//   5 toe ellipses (big toe largest, sized down toward pinky)
+// + a main-body path (forefoot ball, arch, heel)
+//and the four angiosome quadrants are drawn as filled rectangles clipped
+//to the body path so each region takes the foot's natural silhouette.
+//Medial side renders on the LEFT of the canvas; the LEFT foot mirrors
+//the canonical right-foot drawing.
 
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, {
   ClipPath,
   Defs,
+  Ellipse,
   G,
   Path,
   Rect,
@@ -36,32 +36,47 @@ interface Props {
 }
 
 //---- Geometry ---------------------------------------------------------
-const VIEW_W = 110;
-const VIEW_H = 280;
+const VIEW_W = 120;
+const VIEW_H = 300;
 
-//Plantar-view silhouette of a right foot, toes at top. Medial (big-toe)
-//side is on the LEFT of the canvas. Reasonably anatomical without going
-//photoreal -- rounded toe pad on top with a slight medial bulge for the
-//big toe, widest at the ball, narrows over the arch (more on lateral),
-//rounded heel.
-const FOOT_PATH = [
-  "M 32 6",
-  "C 12 8, 4 24, 8 44",
-  "C 0 70, -2 100, 6 124",
-  "C 12 150, 12 178, 8 198",
-  "C 6 226, 18 252, 36 260",
-  "C 50 268, 70 268, 84 260",
-  "C 100 252, 106 226, 102 198",
-  "C 100 178, 100 150, 104 124",
-  "C 110 100, 108 70, 102 44",
-  "C 104 22, 84 6, 60 4",
-  "C 50 2, 38 4, 32 6",
+//5 toes at the top of the canvas. Big toe is largest and sits on the
+//medial side (LEFT of the canvas). Each subsequent toe gets smaller and
+//is shifted right + down to follow the natural toe-line curve.
+interface Toe { cx: number; cy: number; rx: number; ry: number }
+const TOES: Toe[] = [
+  { cx: 16, cy: 22, rx: 13, ry: 19 }, // big toe
+  { cx: 38, cy: 28, rx:  9, ry: 16 }, // 2nd
+  { cx: 56, cy: 34, rx:  8, ry: 14 }, // 3rd
+  { cx: 72, cy: 38, rx:  7, ry: 12 }, // 4th
+  { cx: 86, cy: 42, rx:  6, ry: 11 }, // pinky
+];
+
+//Main foot body, from just under the toes (y ~ 50) to the heel (y ~ 285).
+//Subtle scalloping along the top so the toes attach naturally; widest at
+//the ball, narrowed arch with a medial bulge, rounded heel.
+const BODY_PATH = [
+  // Top edge — five gentle valleys lining up roughly with toe gaps.
+  "M 6 60",
+  "Q 12 52, 22 56",   // under big toe
+  "Q 30 60, 38 56",   // under 2nd toe
+  "Q 46 62, 54 58",   // under 3rd toe
+  "Q 62 64, 70 60",   // under 4th toe
+  "Q 80 66, 90 62",   // under pinky
+  "Q 102 60, 106 70",
+  // Lateral side down to heel.
+  "C 114 92, 116 124, 110 152",
+  "C 106 178, 106 208, 110 234",
+  "C 110 274, 84 296, 60 294",
+  // Medial side back up.
+  "C 36 296, 10 274, 10 234",
+  "C 14 208, 14 178, 10 152",
+  "C 4 124, 6 92, 6 60",
   "Z",
 ].join(" ");
 
-//Bounding box of the four-angiosome region inside the foot (excludes the
-//toe pad above and the very base of the heel below). Tuned to FOOT_PATH.
-const ANGIO_BOX = { x: 4, y: 46, w: 102, h: 210 } as const;
+//Bounding box of the four-angiosome region inside the body. Tuned to
+//BODY_PATH (excludes toes above; clips just inside the heel curve below).
+const ANGIO_BOX = { x: 6, y: 64, w: 110, h: 218 } as const;
 
 //Width split (Internal 35% / Lateral 65%) and height split (Upper 60% /
 //Lower 40%) per the reference figure.
@@ -93,11 +108,12 @@ const QUADS: Record<RegionKey, QuadRect> = (() => {
 //---- Color ------------------------------------------------------------
 type Stop = readonly [number, readonly [number, number, number]];
 const TEMP_STOPS: readonly Stop[] = [
-  //Blue → cyan → yellow → red
-  [0.00, [ 31,  78, 216]],
-  [0.33, [ 32, 164, 214]],
-  [0.66, [242, 201,  76]],
-  [1.00, [224,  58,  58]],
+  //Punchier palette so subtle temperature differences read at a glance.
+  [0.00, [ 30,  90, 220]],   // deep blue
+  [0.25, [ 50, 180, 230]],   // cyan
+  [0.50, [120, 210, 120]],   // green
+  [0.75, [245, 200,  60]],   // amber
+  [1.00, [220,  50,  40]],   // red
 ] as const;
 
 function tempColor(t: number): string {
@@ -160,23 +176,12 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 
       <View style={styles.feetRow}>
         <FootSvg
-          id="left"
-          label="LEFT"
-          regions={left}
-          flagged={flagged}
-          mirrored
-          vmin={vmin}
-          vmax={vmax}
-          colors={colors}
+          id="left"  label="LEFT"  regions={left}  flagged={flagged} mirrored
+          vmin={vmin} vmax={vmax} colors={colors}
         />
         <FootSvg
-          id="right"
-          label="RIGHT"
-          regions={right}
-          flagged={flagged}
-          vmin={vmin}
-          vmax={vmax}
-          colors={colors}
+          id="right" label="RIGHT" regions={right} flagged={flagged}
+          vmin={vmin} vmax={vmax} colors={colors}
         />
       </View>
 
@@ -218,33 +223,41 @@ function FootSvg({
     v == null || vmax === vmin ? 0.5 : (v - vmin) / (vmax - vmin);
 
   const fill = (key: RegionKey): string =>
-    regions ? tempColor(t(Number(regions[key]))) : `${colors.textSec}30`;
+    regions ? tempColor(t(Number(regions[key]))) : `${colors.textSec}40`;
 
   const valText = (key: RegionKey): string =>
     regions && Number.isFinite(Number(regions[key]))
       ? `${Number(regions[key]).toFixed(1)}°`
       : "—";
 
-  //Centroid of each quadrant (local SVG coords). Used for label placement.
+  //Toe color — use the average of the upper-region temps (MPA + LPA) so
+  //the toe pads visually match the warmth of the forefoot below them.
+  const toeFill = useMemo(() => {
+    if (!regions) return `${colors.textSec}40`;
+    const mpa = Number(regions.MPA);
+    const lpa = Number(regions.LPA);
+    const valid = [mpa, lpa].filter((n) => Number.isFinite(n));
+    if (valid.length === 0) return `${colors.textSec}40`;
+    const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+    return tempColor(t(avg));
+  }, [regions, colors.textSec, t]);
+
+  //Centroid of each quadrant in canonical (right-foot) coords.
   const labelXY = (key: RegionKey) => {
     const q = QUADS[key];
     return { x: q.x + q.w / 2, y: q.y + q.h / 2 };
   };
 
-  //Mirroring is applied to the entire <G> so labels remain readable
-  //(otherwise text would render flipped). We render the SVG twice when
-  //mirrored: once for the clipped colored shape (mirrored), once for the
-  //labels (un-mirrored, but at mirrored coordinates).
+  //Mirroring is applied to the full silhouette + clipped region; labels
+  //are drawn AFTER mirroring (in screen coords) so text stays upright.
   const mirrorTransform = mirrored ? `translate(${VIEW_W},0) scale(-1,1)` : undefined;
-
-  //Compute label coords as they appear AFTER mirroring (so text stays
-  //right-side-up and lands in the same visual position as the polygon).
   const labelPos = (key: RegionKey) => {
     const c = labelXY(key);
     return mirrored ? { x: VIEW_W - c.x, y: c.y } : c;
   };
 
   const clipId = `foot-clip-${id}`;
+  const stroke = colors.text;
 
   return (
     <View style={styles.footWrap}>
@@ -252,63 +265,73 @@ function FootSvg({
       <Svg width={VIEW_W} height={VIEW_H} viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
         <Defs>
           <ClipPath id={clipId}>
-            <Path d={FOOT_PATH} />
+            <Path d={BODY_PATH} />
           </ClipPath>
         </Defs>
 
-        {/* Colored angiosome quadrants, clipped to the foot silhouette. */}
-        <G transform={mirrorTransform} clipPath={`url(#${clipId})`}>
-          <Rect {...QUADS.MPA} fill={fill("MPA")} />
-          <Rect {...QUADS.LPA} fill={fill("LPA")} />
-          <Rect {...QUADS.MCA} fill={fill("MCA")} />
-          <Rect {...QUADS.LCA} fill={fill("LCA")} />
-
-          {/* Region division lines + box border. */}
-          <Path
-            d={`M ${ANGIO_BOX.x + ANGIO_BOX.w * W_SPLIT} ${ANGIO_BOX.y} V ${ANGIO_BOX.y + ANGIO_BOX.h}`}
-            stroke="rgba(0,0,0,0.35)"
-            strokeWidth={0.8}
-            strokeDasharray="3 3"
-          />
-          <Path
-            d={`M ${ANGIO_BOX.x} ${ANGIO_BOX.y + ANGIO_BOX.h * H_SPLIT} H ${ANGIO_BOX.x + ANGIO_BOX.w}`}
-            stroke="rgba(0,0,0,0.35)"
-            strokeWidth={0.8}
-            strokeDasharray="3 3"
-          />
-        </G>
-
-        {/* Foot outline drawn on top, also under mirror so the silhouette flips. */}
         <G transform={mirrorTransform}>
-          <Path d={FOOT_PATH} fill="none" stroke={colors.text} strokeWidth={1.5} />
+          {/* Toes — drawn first so the body overlaps their lower edge. */}
+          {TOES.map((toe, i) => (
+            <Ellipse
+              key={i}
+              cx={toe.cx}
+              cy={toe.cy}
+              rx={toe.rx}
+              ry={toe.ry}
+              fill={toeFill}
+              stroke={stroke}
+              strokeWidth={1.4}
+            />
+          ))}
+
+          {/* Body base fill — guarantees the foot has presence even on
+              platforms where the clipped quadrants render faintly. */}
+          <Path d={BODY_PATH} fill={toeFill} opacity={0.35} />
+
+          {/* Colored angiosome quadrants, clipped to the body silhouette. */}
+          <G clipPath={`url(#${clipId})`}>
+            <Rect {...QUADS.MPA} fill={fill("MPA")} />
+            <Rect {...QUADS.LPA} fill={fill("LPA")} />
+            <Rect {...QUADS.MCA} fill={fill("MCA")} />
+            <Rect {...QUADS.LCA} fill={fill("LCA")} />
+
+            {/* Subtle dashed division lines along the 35 / 60 splits. */}
+            <Path
+              d={`M ${ANGIO_BOX.x + ANGIO_BOX.w * W_SPLIT} ${ANGIO_BOX.y} V ${ANGIO_BOX.y + ANGIO_BOX.h}`}
+              stroke="rgba(0,0,0,0.40)"
+              strokeWidth={0.9}
+              strokeDasharray="3 3"
+            />
+            <Path
+              d={`M ${ANGIO_BOX.x} ${ANGIO_BOX.y + ANGIO_BOX.h * H_SPLIT} H ${ANGIO_BOX.x + ANGIO_BOX.w}`}
+              stroke="rgba(0,0,0,0.40)"
+              strokeWidth={0.9}
+              strokeDasharray="3 3"
+            />
+          </G>
+
+          {/* Body outline drawn on top of the colored fill. */}
+          <Path d={BODY_PATH} fill="none" stroke={stroke} strokeWidth={1.6} />
         </G>
 
-        {/* Labels — drawn AFTER mirroring (in screen coords) so text stays upright. */}
+        {/* Labels — outside the mirror transform so they stay upright. */}
         {REGION_KEYS.map((key) => {
           const p = labelPos(key);
           const isFlagged = flagged.has(key);
           return (
             <G key={key}>
               <SvgText
-                x={p.x}
-                y={p.y - 4}
-                fontSize={9}
-                fontWeight="bold"
-                fill="#fff"
-                stroke="rgba(0,0,0,0.4)"
-                strokeWidth={0.5}
+                x={p.x} y={p.y - 5}
+                fontSize={9} fontWeight="bold"
+                fill="#fff" stroke="rgba(0,0,0,0.6)" strokeWidth={0.6}
                 textAnchor="middle"
               >
                 {key}{isFlagged ? " !" : ""}
               </SvgText>
               <SvgText
-                x={p.x}
-                y={p.y + 9}
-                fontSize={11}
-                fontWeight="bold"
-                fill="#fff"
-                stroke="rgba(0,0,0,0.5)"
-                strokeWidth={0.5}
+                x={p.x} y={p.y + 9}
+                fontSize={11} fontWeight="bold"
+                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
                 textAnchor="middle"
               >
                 {valText(key)}
