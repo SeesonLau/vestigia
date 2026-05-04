@@ -36,10 +36,11 @@ interface Props {
 }
 
 //---- Geometry ---------------------------------------------------------
-//SVG viewBox dimensions. The actual rendered size is driven by the
-//parent's flex layout (each foot gets half the row, square aspect),
-//but the viewBox stays fixed so all the quadrant / label coordinates
-//below are stable regardless of the on-screen size.
+//On-screen size of each foot box. Each foot is rendered at exactly
+//FOOT_BOX_SIZE x FOOT_BOX_SIZE pixels. The SVG overlay uses the same
+//pixel dimensions, with viewBox 0..VIEW_W x 0..VIEW_H so the quadrant /
+//label coordinates below are independent of the rendered pixel size.
+const FOOT_BOX_SIZE = 150;
 const VIEW_W = 200;
 const VIEW_H = 200;
 
@@ -453,13 +454,13 @@ function FootImageBox({
       <Image
         source={image}
         resizeMode="contain"
-        style={StyleSheet.absoluteFillObject}
+        style={{ width: FOOT_BOX_SIZE, height: FOOT_BOX_SIZE }}
       />
       <Svg
-        width="100%"
-        height="100%"
+        width={FOOT_BOX_SIZE}
+        height={FOOT_BOX_SIZE}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-        style={StyleSheet.absoluteFillObject}
+        style={styles.overlaySvg}
       >
         {/* Translucent colored quadrants over the image. */}
         <G transform={mirrorTransform} opacity={0.55}>
@@ -525,12 +526,12 @@ const styles = StyleSheet.create({
 
   feetRow: {
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "flex-start",
     gap: Spacing.md,
   },
   footWrap: {
-    flex: 1,
-    alignItems: "stretch",
+    alignItems: "center",
     gap: 4,
   },
   footLabel: {
@@ -539,9 +540,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   imageBox: {
-    width: "100%",
-    aspectRatio: 1,
+    width: FOOT_BOX_SIZE,
+    height: FOOT_BOX_SIZE,
     position: "relative",
+  },
+  overlaySvg: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
 
   legendBox: { gap: 2, marginTop: 4 },
