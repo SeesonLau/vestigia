@@ -36,13 +36,12 @@ interface Props {
 }
 
 //---- Geometry ---------------------------------------------------------
-//Square canvas so a square illustration (e.g. a 1000x1000 PNG with a
-//centered foot) renders at full size with `resizeMode="contain"`.
-//The SVG fallback path is drawn relative to this same square canvas;
-//if you swap in a tall illustration later, bump VIEW_H accordingly and
-//retune BODY_PATH / ANGIO_BOX (the SVG-fallback-only constants).
-const VIEW_W = 150;
-const VIEW_H = 150;
+//SVG viewBox dimensions. The actual rendered size is driven by the
+//parent's flex layout (each foot gets half the row, square aspect),
+//but the viewBox stays fixed so all the quadrant / label coordinates
+//below are stable regardless of the on-screen size.
+const VIEW_W = 200;
+const VIEW_H = 200;
 
 //5 toes at the top of the canvas. Each toe is a tapered "tear-drop"
 //path so it looks like a real toe (rounded tip, narrower base) rather
@@ -323,64 +322,18 @@ function FootSvg({
     };
 
     return (
-      <View style={[styles.footWrap, { width: VIEW_W }]}>
+      <View style={styles.footWrap}>
         <Text style={[styles.footLabel, { color: colors.text }]}>{label}</Text>
-        <View style={{ width: VIEW_W, height: VIEW_H }}>
-          <Image
-            source={image}
-            resizeMode="contain"
-            style={StyleSheet.absoluteFillObject}
-          />
-          <Svg
-            width={VIEW_W} height={VIEW_H}
-            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-            style={StyleSheet.absoluteFillObject}
-          >
-            {/* Translucent colored quadrants over the image. */}
-            <G transform={mirrorTransform} opacity={0.55}>
-              <Rect {...imgQuads.MPA} fill={fill("MPA")} />
-              <Rect {...imgQuads.LPA} fill={fill("LPA")} />
-              <Rect {...imgQuads.MCA} fill={fill("MCA")} />
-              <Rect {...imgQuads.LCA} fill={fill("LCA")} />
-
-              {/* Dashed division lines. */}
-              <Path
-                d={`M ${boxX + boxW * W_SPLIT} ${boxY} V ${boxY + boxH}`}
-                stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
-              />
-              <Path
-                d={`M ${boxX} ${boxY + boxH * H_SPLIT} H ${boxX + boxW}`}
-                stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
-              />
-            </G>
-
-            {/* Labels — outside mirror transform so text stays upright. */}
-            {REGION_KEYS.map((key) => {
-              const p = imgLabel(key);
-              const isFlagged = flagged.has(key);
-              return (
-                <G key={key}>
-                  <SvgText
-                    x={p.x} y={p.y - 5}
-                    fontSize={9} fontWeight="bold"
-                    fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
-                    textAnchor="middle"
-                  >
-                    {key}{isFlagged ? " !" : ""}
-                  </SvgText>
-                  <SvgText
-                    x={p.x} y={p.y + 9}
-                    fontSize={11} fontWeight="bold"
-                    fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
-                    textAnchor="middle"
-                  >
-                    {valText(key)}
-                  </SvgText>
-                </G>
-              );
-            })}
-          </Svg>
-        </View>
+        <FootImageBox
+          image={image}
+          mirrorTransform={mirrorTransform}
+          imgQuads={imgQuads}
+          boxX={boxX} boxY={boxY} boxW={boxW} boxH={boxH}
+          flagged={flagged}
+          fill={fill}
+          valText={valText}
+          imgLabel={imgLabel}
+        />
       </View>
     );
   }
@@ -477,6 +430,85 @@ function FootSvg({
   );
 }
 
+//Self-contained square box: image fills it edge-to-edge under
+//resizeMode="contain", SVG overlay sits on top at full size with a
+//fixed viewBox so the quadrant coordinates stay stable as the box
+//resizes. Width comes from the parent's flex layout; height matches
+//via aspectRatio: 1.
+function FootImageBox({
+  image, mirrorTransform, imgQuads,
+  boxX, boxY, boxW, boxH, flagged, fill, valText, imgLabel,
+}: {
+  image: import("react-native").ImageSourcePropType;
+  mirrorTransform: string | undefined;
+  imgQuads: Record<RegionKey, QuadRect>;
+  boxX: number; boxY: number; boxW: number; boxH: number;
+  flagged: Set<RegionKey>;
+  fill: (k: RegionKey) => string;
+  valText: (k: RegionKey) => string;
+  imgLabel: (k: RegionKey) => { x: number; y: number };
+}) {
+  return (
+    <View style={styles.imageBox}>
+      <Image
+        source={image}
+        resizeMode="contain"
+        style={StyleSheet.absoluteFillObject}
+      />
+      <Svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        style={StyleSheet.absoluteFillObject}
+      >
+        {/* Translucent colored quadrants over the image. */}
+        <G transform={mirrorTransform} opacity={0.55}>
+          <Rect {...imgQuads.MPA} fill={fill("MPA")} />
+          <Rect {...imgQuads.LPA} fill={fill("LPA")} />
+          <Rect {...imgQuads.MCA} fill={fill("MCA")} />
+          <Rect {...imgQuads.LCA} fill={fill("LCA")} />
+
+          {/* Dashed division lines. */}
+          <Path
+            d={`M ${boxX + boxW * W_SPLIT} ${boxY} V ${boxY + boxH}`}
+            stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
+          />
+          <Path
+            d={`M ${boxX} ${boxY + boxH * H_SPLIT} H ${boxX + boxW}`}
+            stroke="rgba(0,0,0,0.55)" strokeWidth={1} strokeDasharray="3 3"
+          />
+        </G>
+
+        {/* Labels — outside the mirror transform so text stays upright. */}
+        {REGION_KEYS.map((key) => {
+          const p = imgLabel(key);
+          const isFlagged = flagged.has(key);
+          return (
+            <G key={key}>
+              <SvgText
+                x={p.x} y={p.y - 5}
+                fontSize={9} fontWeight="bold"
+                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
+                textAnchor="middle"
+              >
+                {key}{isFlagged ? " !" : ""}
+              </SvgText>
+              <SvgText
+                x={p.x} y={p.y + 9}
+                fontSize={11} fontWeight="bold"
+                fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.6}
+                textAnchor="middle"
+              >
+                {valText(key)}
+              </SvgText>
+            </G>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
@@ -493,14 +525,23 @@ const styles = StyleSheet.create({
 
   feetRow: {
     flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "flex-start",
     gap: Spacing.md,
   },
-  footWrap:  { alignItems: "center", gap: 4 },
+  footWrap: {
+    flex: 1,
+    alignItems: "stretch",
+    gap: 4,
+  },
   footLabel: {
     fontSize: 10, fontFamily: Typography.fonts.label,
     letterSpacing: 1.5, textTransform: "uppercase",
+    textAlign: "center",
+  },
+  imageBox: {
+    width: "100%",
+    aspectRatio: 1,
+    position: "relative",
   },
 
   legendBox: { gap: 2, marginTop: 4 },
