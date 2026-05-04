@@ -18,7 +18,6 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import Svg, {
   ClipPath,
   Defs,
-  Ellipse,
   G,
   Path,
   Rect,
@@ -40,44 +39,67 @@ interface Props {
 const VIEW_W = 120;
 const VIEW_H = 300;
 
-//5 toes at the top of the canvas. Big toe is largest and sits on the
-//medial side (LEFT of the canvas). Each subsequent toe gets smaller and
-//is shifted right + down to follow the natural toe-line curve.
-interface Toe { cx: number; cy: number; rx: number; ry: number }
-const TOES: Toe[] = [
-  { cx: 16, cy: 22, rx: 13, ry: 19 }, // big toe
-  { cx: 38, cy: 28, rx:  9, ry: 16 }, // 2nd
-  { cx: 56, cy: 34, rx:  8, ry: 14 }, // 3rd
-  { cx: 72, cy: 38, rx:  7, ry: 12 }, // 4th
-  { cx: 86, cy: 42, rx:  6, ry: 11 }, // pinky
+//5 toes at the top of the canvas. Each toe is a tapered "tear-drop"
+//path so it looks like a real toe (rounded tip, narrower base) rather
+//than an ellipse. The big toe is largest and sits on the medial side
+//(LEFT of canvas). Subsequent toes shrink and step down + outward.
+//Each entry is the toe's path "d" attribute drawn relative to the
+//canonical right-foot canvas (mirrored for the left foot).
+const TOES: { d: string; labelXY: { x: number; y: number } }[] = [
+  // Big toe — rounded oblong, slight medial bulge. Tip at top.
+  { d: "M 14 6 C 4 6, 0 22, 4 36 C 6 46, 28 46, 30 36 C 32 22, 26 6, 14 6 Z",
+    labelXY: { x: 16, y: 26 } },
+  // 2nd toe — slightly tilted, tapered tip.
+  { d: "M 38 12 C 30 12, 28 26, 32 38 C 34 46, 46 46, 46 38 C 48 26, 46 12, 38 12 Z",
+    labelXY: { x: 38, y: 30 } },
+  // 3rd toe.
+  { d: "M 56 18 C 49 18, 48 30, 51 40 C 53 47, 62 47, 62 40 C 64 30, 62 18, 56 18 Z",
+    labelXY: { x: 56, y: 33 } },
+  // 4th toe.
+  { d: "M 72 22 C 66 22, 66 32, 68 42 C 70 48, 77 48, 77 42 C 78 32, 77 22, 72 22 Z",
+    labelXY: { x: 72, y: 36 } },
+  // Pinky.
+  { d: "M 86 26 C 81 26, 81 35, 82 44 C 84 50, 90 50, 90 44 C 91 35, 90 26, 86 26 Z",
+    labelXY: { x: 86, y: 39 } },
 ];
 
-//Main foot body, from just under the toes (y ~ 50) to the heel (y ~ 285).
-//Subtle scalloping along the top so the toes attach naturally; widest at
-//the ball, narrowed arch with a medial bulge, rounded heel.
+//Main foot body — from just under the toes down through the ball, arch,
+//and heel. Tuned for plausible plantar proportions: ball widest, arch
+//narrower with medial bulge (the "foot print" indent on the lateral
+//side), heel rounded.
 const BODY_PATH = [
-  // Top edge — five gentle valleys lining up roughly with toe gaps.
-  "M 6 60",
-  "Q 12 52, 22 56",   // under big toe
-  "Q 30 60, 38 56",   // under 2nd toe
-  "Q 46 62, 54 58",   // under 3rd toe
-  "Q 62 64, 70 60",   // under 4th toe
-  "Q 80 66, 90 62",   // under pinky
-  "Q 102 60, 106 70",
-  // Lateral side down to heel.
-  "C 114 92, 116 124, 110 152",
-  "C 106 178, 106 208, 110 234",
-  "C 110 274, 84 296, 60 294",
-  // Medial side back up.
-  "C 36 296, 10 274, 10 234",
-  "C 14 208, 14 178, 10 152",
-  "C 4 124, 6 92, 6 60",
+  // Top edge — gentle valleys lining up under each toe gap.
+  "M 4 56",
+  "Q 8 48, 18 50",     // under big toe
+  "Q 24 54, 34 50",    // toe-1/2 gap
+  "Q 42 56, 50 52",    // toe-2/3 gap
+  "Q 58 58, 66 54",    // toe-3/4 gap
+  "Q 76 60, 86 58",    // toe-4/pinky gap
+  "Q 96 60, 102 64",
+  "Q 110 72, 112 86",  // forefoot lateral upper
+  // Lateral side down.
+  "C 116 110, 118 138, 112 162",
+  // Lateral arch indent (the classic footprint cut-in).
+  "C 110 178, 108 188, 106 200",
+  // Heel lateral side.
+  "C 108 226, 108 262, 92 282",
+  "C 80 296, 60 296, 56 296",
+  "C 52 296, 30 296, 18 282",
+  // Heel medial side back up.
+  "C 2 262, 2 226, 4 200",
+  // Medial arch — slight bulge inward, less indented than lateral.
+  "C 6 188, 4 178, 2 162",
+  "C -4 138, -2 110, 2 86",
+  "Q 4 72, 4 56",
   "Z",
 ].join(" ");
 
-//Bounding box of the four-angiosome region inside the body. Tuned to
-//BODY_PATH (excludes toes above; clips just inside the heel curve below).
-const ANGIO_BOX = { x: 6, y: 64, w: 110, h: 218 } as const;
+//Subtle decorative arch line on the lateral side, gives the silhouette
+//some "footprint" character without adding fake toe-print details.
+const ARCH_LINE = "M 108 168 C 90 178, 80 192, 86 218";
+
+//Bounding box of the four-angiosome region inside the body.
+const ANGIO_BOX = { x: 4, y: 66, w: 108, h: 220 } as const;
 
 //Width split (Internal 35% / Lateral 65%) and height split (Upper 60% /
 //Lower 40%) per the reference figure.
@@ -364,12 +386,9 @@ function FootSvg({
         <G transform={mirrorTransform}>
           {/* Toes — drawn first so the body overlaps their lower edge. */}
           {TOES.map((toe, i) => (
-            <Ellipse
+            <Path
               key={i}
-              cx={toe.cx}
-              cy={toe.cy}
-              rx={toe.rx}
-              ry={toe.ry}
+              d={toe.d}
               fill={toeFill}
               stroke={stroke}
               strokeWidth={1.4}
@@ -379,6 +398,15 @@ function FootSvg({
           {/* Body base fill — guarantees the foot has presence even on
               platforms where the clipped quadrants render faintly. */}
           <Path d={BODY_PATH} fill={toeFill} opacity={0.35} />
+
+          {/* Subtle arch indent line on the lateral side. */}
+          <Path
+            d={ARCH_LINE}
+            fill="none"
+            stroke="rgba(0,0,0,0.18)"
+            strokeWidth={1}
+          />
+
 
           {/* Colored angiosome quadrants, clipped to the body silhouette. */}
           <G clipPath={`url(#${clipId})`}>
