@@ -1,13 +1,29 @@
 // components/thermal/FootAngiosomeDiagram.tsx
-//Stylised plantar-foot diagram with the four angiosome regions colored
-//by temperature. Two diagrams (left + right) sit side by side; per-region
-//°C values appear in each polygon and a shared thermal scale below
-//indicates the color mapping. Region borders go red when their
-//|L − R| asymmetry exceeds the API's threshold.
+//Bilateral plantar-foot diagram with the four angiosome regions colored
+//by temperature. Geometry follows Hernandez-Contreras 2019:
+//  - bounding box of the angiosome region
+//  - W split at 35% (medial / "internal") and 65% (lateral)
+//  - H split at 60% (upper / forefoot+midfoot) and 40% (lower / heel)
+//Quadrants are colored rectangles clipped to the foot silhouette so the
+//regions take the foot's natural shape. The medial side is drawn on the
+//LEFT of the canvas (matching the reference figure); the LEFT foot is
+//rendered by mirroring the canonical right-foot drawing.
+//
+//FOOT_PATH below is a hand-traced plantar-view silhouette (toes-up). To
+//swap in a higher-fidelity asset later, replace just FOOT_PATH and the
+//ANGIO_BOX constants -- everything else (clip, color, labels, asymmetry
+//flags) is geometry-driven.
 
 import React, { useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import Svg, { G, Path, Text as SvgText } from "react-native-svg";
+import Svg, {
+  ClipPath,
+  Defs,
+  G,
+  Path,
+  Rect,
+  Text as SvgText,
+} from "react-native-svg";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
@@ -19,83 +35,65 @@ interface Props {
   asymmetry?: AsymmetryResult | null;
 }
 
+//---- Geometry ---------------------------------------------------------
 const VIEW_W = 110;
-const VIEW_H = 240;
+const VIEW_H = 280;
 
-//Foot outline plus interior dividing lines. The toes are at the top, heel
-//at the bottom. The lateral edge is on the OUTSIDE of each foot (so the
-//left foot's lateral edge is on the screen-left, and vice versa). We draw
-//one canonical "right foot" oriented this way and mirror it horizontally
-//for the left foot via SVG transform.
-//
-//Polygon points are in canvas coords (origin top-left). The four
-//angiosomes sit in the lower-3/4 of the foot; the toe pad is purely
-//decorative outline.
+//Plantar-view silhouette of a right foot, toes at top. Medial (big-toe)
+//side is on the LEFT of the canvas. Reasonably anatomical without going
+//photoreal -- rounded toe pad on top with a slight medial bulge for the
+//big toe, widest at the ball, narrows over the arch (more on lateral),
+//rounded heel.
+const FOOT_PATH = [
+  "M 32 6",
+  "C 12 8, 4 24, 8 44",
+  "C 0 70, -2 100, 6 124",
+  "C 12 150, 12 178, 8 198",
+  "C 6 226, 18 252, 36 260",
+  "C 50 268, 70 268, 84 260",
+  "C 100 252, 106 226, 102 198",
+  "C 100 178, 100 150, 104 124",
+  "C 110 100, 108 70, 102 44",
+  "C 104 22, 84 6, 60 4",
+  "C 50 2, 38 4, 32 6",
+  "Z",
+].join(" ");
 
-const TOE_TOP    = 6;     //y where the foot starts (top of toe pad)
-const FOREFOOT_Y = 64;    //y where toes meet plantar arch
-const ARCH_Y     = 138;   //horizontal split between plantar (above) and calcaneal (below)
-const HEEL_Y     = 226;   //y at heel bottom
-const MEDIAL_X   = 55;    //x of the vertical medial/lateral split (canvas center)
-const LAT_LEFT_X = 14;    //lateral foot edge (left side of canvas)
-const MED_RIGHT_X= 96;    //medial foot edge (right side of canvas)
+//Bounding box of the four-angiosome region inside the foot (excludes the
+//toe pad above and the very base of the heel below). Tuned to FOOT_PATH.
+const ANGIO_BOX = { x: 4, y: 46, w: 102, h: 210 } as const;
 
-//Foot outline path -- toe pad rounded oval merged into a tapered sole.
-const FOOT_OUTLINE = `
-  M ${MEDIAL_X} ${TOE_TOP}
-  C 25 ${TOE_TOP}, ${LAT_LEFT_X} ${FOREFOOT_Y - 14}, ${LAT_LEFT_X} ${FOREFOOT_Y}
-  L 18 ${ARCH_Y}
-  C 18 ${ARCH_Y + 30}, 22 ${HEEL_Y}, ${MEDIAL_X} ${HEEL_Y}
-  C ${VIEW_W - 22} ${HEEL_Y}, ${VIEW_W - 18} ${ARCH_Y + 30}, ${VIEW_W - 18} ${ARCH_Y}
-  L ${MED_RIGHT_X} ${FOREFOOT_Y}
-  C ${MED_RIGHT_X} ${FOREFOOT_Y - 14}, ${VIEW_W - 25} ${TOE_TOP}, ${MEDIAL_X} ${TOE_TOP}
-  Z
-`;
-
-//Polygon paths for each angiosome region. They tile the lower portion
-//of the foot outline (forefoot + heel) without escaping it. Strokes use
-//the same outline color so the regions read as parts of the foot.
-const PATH_LPA = `
-  M ${LAT_LEFT_X + 4} ${FOREFOOT_Y}
-  L ${MEDIAL_X}       ${FOREFOOT_Y}
-  L ${MEDIAL_X}       ${ARCH_Y}
-  L ${LAT_LEFT_X + 1} ${ARCH_Y}
-  Z
-`;
-const PATH_MPA = `
-  M ${MEDIAL_X}        ${FOREFOOT_Y}
-  L ${MED_RIGHT_X - 4} ${FOREFOOT_Y}
-  L ${VIEW_W - 19}     ${ARCH_Y}
-  L ${MEDIAL_X}        ${ARCH_Y}
-  Z
-`;
-const PATH_LCA = `
-  M ${LAT_LEFT_X + 1} ${ARCH_Y}
-  L ${MEDIAL_X}       ${ARCH_Y}
-  L ${MEDIAL_X}       ${HEEL_Y - 1}
-  C 25 ${HEEL_Y - 1}, 19 ${ARCH_Y + 30}, ${LAT_LEFT_X + 4} ${ARCH_Y}
-  Z
-`;
-const PATH_MCA = `
-  M ${MEDIAL_X}    ${ARCH_Y}
-  L ${VIEW_W - 19} ${ARCH_Y}
-  C ${VIEW_W - 19} ${ARCH_Y + 30}, ${VIEW_W - 25} ${HEEL_Y - 1}, ${MEDIAL_X} ${HEEL_Y - 1}
-  Z
-`;
-
-//Centroid for the °C label inside each region (eyeballed for legibility).
-const LABEL_LPA = { x: (LAT_LEFT_X + MEDIAL_X) / 2 - 1, y: (FOREFOOT_Y + ARCH_Y) / 2 };
-const LABEL_MPA = { x: (MEDIAL_X + MED_RIGHT_X) / 2,    y: (FOREFOOT_Y + ARCH_Y) / 2 };
-const LABEL_LCA = { x: (LAT_LEFT_X + MEDIAL_X) / 2 - 1, y: (ARCH_Y + HEEL_Y) / 2 };
-const LABEL_MCA = { x: (MEDIAL_X + MED_RIGHT_X) / 2,    y: (ARCH_Y + HEEL_Y) / 2 };
+//Width split (Internal 35% / Lateral 65%) and height split (Upper 60% /
+//Lower 40%) per the reference figure.
+const W_SPLIT = 0.35;
+const H_SPLIT = 0.60;
 
 const REGION_KEYS = ["MPA", "LPA", "MCA", "LCA"] as const;
 type RegionKey = typeof REGION_KEYS[number];
 
-//Thermal-palette interpolation: maps t∈[0..1] to a blue→cyan→yellow→red ramp.
+interface QuadRect { x: number; y: number; w: number; h: number }
+
+const QUADS: Record<RegionKey, QuadRect> = (() => {
+  const wMed = ANGIO_BOX.w * W_SPLIT;
+  const wLat = ANGIO_BOX.w * (1 - W_SPLIT);
+  const hUpr = ANGIO_BOX.h * H_SPLIT;
+  const hLwr = ANGIO_BOX.h * (1 - H_SPLIT);
+  const xMed = ANGIO_BOX.x;
+  const xLat = ANGIO_BOX.x + wMed;
+  const yUpr = ANGIO_BOX.y;
+  const yLwr = ANGIO_BOX.y + hUpr;
+  return {
+    MPA: { x: xMed, y: yUpr, w: wMed, h: hUpr },
+    LPA: { x: xLat, y: yUpr, w: wLat, h: hUpr },
+    MCA: { x: xMed, y: yLwr, w: wMed, h: hLwr },
+    LCA: { x: xLat, y: yLwr, w: wLat, h: hLwr },
+  };
+})();
+
+//---- Color ------------------------------------------------------------
 type Stop = readonly [number, readonly [number, number, number]];
 const TEMP_STOPS: readonly Stop[] = [
-  //Blue (cool) → cyan → yellow → red (warm)
+  //Blue → cyan → yellow → red
   [0.00, [ 31,  78, 216]],
   [0.33, [ 32, 164, 214]],
   [0.66, [242, 201,  76]],
@@ -119,11 +117,12 @@ function tempColor(t: number): string {
   return `rgb(${r},${g},${b})`;
 }
 
+//---- Component --------------------------------------------------------
+
 export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) {
   const { colors } = useTheme();
 
-  //Compute the bilateral min/max across all 8 region values so colors are
-  //relative to the patient's own range (more useful than a fixed scale).
+  //Bilateral min/max for relative coloring.
   const { vmin, vmax } = useMemo(() => {
     const vals: number[] = [];
     for (const r of [left, right]) {
@@ -136,13 +135,11 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
     if (vals.length === 0) return { vmin: 25, vmax: 35 };
     const lo = Math.min(...vals);
     const hi = Math.max(...vals);
-    //Avoid div-by-zero when all eight values are identical.
     return hi - lo < 0.1 ? { vmin: lo - 0.5, vmax: lo + 0.5 } : { vmin: lo, vmax: hi };
   }, [left, right]);
 
-  //Asymmetry threshold for highlighting — uses the API value, fallback 2.2°C.
-  const threshold  = asymmetry?.threshold_used ?? 2.2;
-  const flagged    = useMemo(() => {
+  const threshold = asymmetry?.threshold_used ?? 2.2;
+  const flagged   = useMemo(() => {
     const s = new Set<RegionKey>();
     const ra = asymmetry?.region_asymmetry;
     if (!ra) return s;
@@ -163,6 +160,7 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 
       <View style={styles.feetRow}>
         <FootSvg
+          id="left"
           label="LEFT"
           regions={left}
           flagged={flagged}
@@ -172,6 +170,7 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
           colors={colors}
         />
         <FootSvg
+          id="right"
           label="RIGHT"
           regions={right}
           flagged={flagged}
@@ -181,14 +180,11 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
         />
       </View>
 
-      {/* Legend strip — same gradient stops as tempColor(). */}
+      {/* Color legend */}
       <View style={styles.legendBox}>
         <View style={styles.legendBar}>
           {Array.from({ length: 24 }).map((_, i) => (
-            <View
-              key={i}
-              style={{ flex: 1, backgroundColor: tempColor(i / 23) }}
-            />
+            <View key={i} style={{ flex: 1, backgroundColor: tempColor(i / 23) }} />
           ))}
         </View>
         <View style={styles.legendLabels}>
@@ -199,7 +195,7 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 
       {flagged.size > 0 ? (
         <Text style={[styles.flagHint, { color: colors.error }]}>
-          Red border = |L − R| ≥ {threshold.toFixed(1)} °C in that angiosome
+          ! marker = |L − R| ≥ {threshold.toFixed(1)} °C in that angiosome
         </Text>
       ) : null}
     </View>
@@ -207,8 +203,9 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 }
 
 function FootSvg({
-  label, regions, flagged, mirrored, vmin, vmax, colors,
+  id, label, regions, flagged, mirrored, vmin, vmax, colors,
 }: {
+  id: string;
   label: "LEFT" | "RIGHT";
   regions: RegionMeans | null | undefined;
   flagged: Set<RegionKey>;
@@ -220,42 +217,105 @@ function FootSvg({
   const t = (v: number | undefined) =>
     v == null || vmax === vmin ? 0.5 : (v - vmin) / (vmax - vmin);
 
-  const fill = (key: RegionKey) =>
+  const fill = (key: RegionKey): string =>
     regions ? tempColor(t(Number(regions[key]))) : `${colors.textSec}30`;
-  const stroke = (key: RegionKey) =>
-    flagged.has(key) ? colors.error : colors.border;
-  const strokeW = (key: RegionKey) => (flagged.has(key) ? 2 : 1);
-  const valText = (key: RegionKey) =>
+
+  const valText = (key: RegionKey): string =>
     regions && Number.isFinite(Number(regions[key]))
       ? `${Number(regions[key]).toFixed(1)}°`
       : "—";
+
+  //Centroid of each quadrant (local SVG coords). Used for label placement.
+  const labelXY = (key: RegionKey) => {
+    const q = QUADS[key];
+    return { x: q.x + q.w / 2, y: q.y + q.h / 2 };
+  };
+
+  //Mirroring is applied to the entire <G> so labels remain readable
+  //(otherwise text would render flipped). We render the SVG twice when
+  //mirrored: once for the clipped colored shape (mirrored), once for the
+  //labels (un-mirrored, but at mirrored coordinates).
+  const mirrorTransform = mirrored ? `translate(${VIEW_W},0) scale(-1,1)` : undefined;
+
+  //Compute label coords as they appear AFTER mirroring (so text stays
+  //right-side-up and lands in the same visual position as the polygon).
+  const labelPos = (key: RegionKey) => {
+    const c = labelXY(key);
+    return mirrored ? { x: VIEW_W - c.x, y: c.y } : c;
+  };
+
+  const clipId = `foot-clip-${id}`;
 
   return (
     <View style={styles.footWrap}>
       <Text style={[styles.footLabel, { color: colors.text }]}>{label}</Text>
       <Svg width={VIEW_W} height={VIEW_H} viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
-        <G transform={mirrored ? `translate(${VIEW_W},0) scale(-1,1)` : undefined}>
-          {/* Foot outline */}
-          <Path d={FOOT_OUTLINE} fill={`${colors.surface}`} stroke={colors.border} strokeWidth={1.2} />
+        <Defs>
+          <ClipPath id={clipId}>
+            <Path d={FOOT_PATH} />
+          </ClipPath>
+        </Defs>
 
-          {/* Region polygons */}
-          <Path d={PATH_LPA} fill={fill("LPA")} stroke={stroke("LPA")} strokeWidth={strokeW("LPA")} />
-          <Path d={PATH_MPA} fill={fill("MPA")} stroke={stroke("MPA")} strokeWidth={strokeW("MPA")} />
-          <Path d={PATH_LCA} fill={fill("LCA")} stroke={stroke("LCA")} strokeWidth={strokeW("LCA")} />
-          <Path d={PATH_MCA} fill={fill("MCA")} stroke={stroke("MCA")} strokeWidth={strokeW("MCA")} />
+        {/* Colored angiosome quadrants, clipped to the foot silhouette. */}
+        <G transform={mirrorTransform} clipPath={`url(#${clipId})`}>
+          <Rect {...QUADS.MPA} fill={fill("MPA")} />
+          <Rect {...QUADS.LPA} fill={fill("LPA")} />
+          <Rect {...QUADS.MCA} fill={fill("MCA")} />
+          <Rect {...QUADS.LCA} fill={fill("LCA")} />
 
-          {/* Region codes (small) */}
-          <SvgText x={LABEL_LPA.x} y={LABEL_LPA.y - 6} fontSize={8}  fontWeight="bold" fill="#fff" textAnchor="middle">LPA</SvgText>
-          <SvgText x={LABEL_MPA.x} y={LABEL_MPA.y - 6} fontSize={8}  fontWeight="bold" fill="#fff" textAnchor="middle">MPA</SvgText>
-          <SvgText x={LABEL_LCA.x} y={LABEL_LCA.y - 6} fontSize={8}  fontWeight="bold" fill="#fff" textAnchor="middle">LCA</SvgText>
-          <SvgText x={LABEL_MCA.x} y={LABEL_MCA.y - 6} fontSize={8}  fontWeight="bold" fill="#fff" textAnchor="middle">MCA</SvgText>
-
-          {/* °C value (larger) */}
-          <SvgText x={LABEL_LPA.x} y={LABEL_LPA.y + 7} fontSize={11} fontWeight="bold" fill="#fff" textAnchor="middle">{valText("LPA")}</SvgText>
-          <SvgText x={LABEL_MPA.x} y={LABEL_MPA.y + 7} fontSize={11} fontWeight="bold" fill="#fff" textAnchor="middle">{valText("MPA")}</SvgText>
-          <SvgText x={LABEL_LCA.x} y={LABEL_LCA.y + 7} fontSize={11} fontWeight="bold" fill="#fff" textAnchor="middle">{valText("LCA")}</SvgText>
-          <SvgText x={LABEL_MCA.x} y={LABEL_MCA.y + 7} fontSize={11} fontWeight="bold" fill="#fff" textAnchor="middle">{valText("MCA")}</SvgText>
+          {/* Region division lines + box border. */}
+          <Path
+            d={`M ${ANGIO_BOX.x + ANGIO_BOX.w * W_SPLIT} ${ANGIO_BOX.y} V ${ANGIO_BOX.y + ANGIO_BOX.h}`}
+            stroke="rgba(0,0,0,0.35)"
+            strokeWidth={0.8}
+            strokeDasharray="3 3"
+          />
+          <Path
+            d={`M ${ANGIO_BOX.x} ${ANGIO_BOX.y + ANGIO_BOX.h * H_SPLIT} H ${ANGIO_BOX.x + ANGIO_BOX.w}`}
+            stroke="rgba(0,0,0,0.35)"
+            strokeWidth={0.8}
+            strokeDasharray="3 3"
+          />
         </G>
+
+        {/* Foot outline drawn on top, also under mirror so the silhouette flips. */}
+        <G transform={mirrorTransform}>
+          <Path d={FOOT_PATH} fill="none" stroke={colors.text} strokeWidth={1.5} />
+        </G>
+
+        {/* Labels — drawn AFTER mirroring (in screen coords) so text stays upright. */}
+        {REGION_KEYS.map((key) => {
+          const p = labelPos(key);
+          const isFlagged = flagged.has(key);
+          return (
+            <G key={key}>
+              <SvgText
+                x={p.x}
+                y={p.y - 4}
+                fontSize={9}
+                fontWeight="bold"
+                fill="#fff"
+                stroke="rgba(0,0,0,0.4)"
+                strokeWidth={0.5}
+                textAnchor="middle"
+              >
+                {key}{isFlagged ? " !" : ""}
+              </SvgText>
+              <SvgText
+                x={p.x}
+                y={p.y + 9}
+                fontSize={11}
+                fontWeight="bold"
+                fill="#fff"
+                stroke="rgba(0,0,0,0.5)"
+                strokeWidth={0.5}
+                textAnchor="middle"
+              >
+                {valText(key)}
+              </SvgText>
+            </G>
+          );
+        })}
       </Svg>
     </View>
   );
