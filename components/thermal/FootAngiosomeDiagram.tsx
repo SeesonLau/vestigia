@@ -27,7 +27,7 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
 import type { AsymmetryResult, RegionMeans } from "../../lib/dpnApi";
-import { ANGIO_BOX_NORM, FOOT_PLANTAR } from "./footAsset";
+import { ANGIO_BOX_NORM, FOOT_PLANTAR_LEFT, FOOT_PLANTAR_RIGHT } from "./footAsset";
 
 interface Props {
   left:  RegionMeans | null | undefined;
@@ -200,10 +200,12 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
       <View style={styles.feetRow}>
         <FootSvg
           id="left"  label="LEFT"  regions={left}  flagged={flagged} mirrored
+          image={FOOT_PLANTAR_LEFT}
           vmin={vmin} vmax={vmax} colors={colors}
         />
         <FootSvg
           id="right" label="RIGHT" regions={right} flagged={flagged}
+          image={FOOT_PLANTAR_RIGHT}
           vmin={vmin} vmax={vmax} colors={colors}
         />
       </View>
@@ -231,13 +233,17 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 }
 
 function FootSvg({
-  id, label, regions, flagged, mirrored, vmin, vmax, colors,
+  id, label, regions, flagged, mirrored, image, vmin, vmax, colors,
 }: {
   id: string;
   label: "LEFT" | "RIGHT";
   regions: RegionMeans | null | undefined;
   flagged: Set<RegionKey>;
+  /** Mirror the SVG quadrants + labels (canvas-internal medial/lateral
+   *  flip). Does NOT mirror the image — supply already-correct L/R
+   *  illustrations via `image` instead. */
   mirrored?: boolean;
+  image?: import("react-native").ImageSourcePropType | null;
   vmin: number;
   vmax: number;
   colors: ThemeColors;
@@ -283,11 +289,16 @@ function FootSvg({
   const stroke = colors.text;
 
   //---- Image-backed mode -----------------------------------------------
-  //If a foot illustration was supplied via footAsset.ts, render it as the
-  //background and overlay the four colored quadrants (translucent) plus
-  //labels. Quadrant coordinates come from ANGIO_BOX_NORM in image-relative
-  //[0..1] space and are mapped onto the canvas size.
-  if (FOOT_PLANTAR) {
+  //If a foot illustration was supplied via the `image` prop, render it
+  //as the background and overlay the four colored quadrants (translucent)
+  //plus labels. Quadrant coordinates come from ANGIO_BOX_NORM in
+  //image-relative [0..1] space and are mapped onto the canvas size.
+  //
+  //Image is NOT mirrored -- callers pass per-side drawings (L vs R), so
+  //each foot's image already has the correct medial/lateral orientation.
+  //The SVG overlay still respects the `mirrored` flag because the
+  //quadrant labels need to flip so MPA always lands on the medial side.
+  if (image) {
     const boxX = ANGIO_BOX_NORM.x * VIEW_W;
     const boxY = ANGIO_BOX_NORM.y * VIEW_H;
     const boxW = ANGIO_BOX_NORM.w * VIEW_W;
@@ -311,12 +322,9 @@ function FootSvg({
         <Text style={[styles.footLabel, { color: colors.text }]}>{label}</Text>
         <View style={{ width: VIEW_W, height: VIEW_H }}>
           <Image
-            source={FOOT_PLANTAR}
+            source={image}
             resizeMode="contain"
-            style={[
-              StyleSheet.absoluteFillObject,
-              mirrored ? { transform: [{ scaleX: -1 }] } : undefined,
-            ]}
+            style={StyleSheet.absoluteFillObject}
           />
           <Svg
             width={VIEW_W} height={VIEW_H}
