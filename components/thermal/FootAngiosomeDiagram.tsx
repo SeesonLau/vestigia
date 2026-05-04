@@ -36,8 +36,13 @@ interface Props {
 }
 
 //---- Geometry ---------------------------------------------------------
-const VIEW_W = 120;
-const VIEW_H = 300;
+//Square canvas so a square illustration (e.g. a 1000x1000 PNG with a
+//centered foot) renders at full size with `resizeMode="contain"`.
+//The SVG fallback path is drawn relative to this same square canvas;
+//if you swap in a tall illustration later, bump VIEW_H accordingly and
+//retune BODY_PATH / ANGIO_BOX (the SVG-fallback-only constants).
+const VIEW_W = 150;
+const VIEW_H = 150;
 
 //5 toes at the top of the canvas. Each toe is a tapered "tear-drop"
 //path so it looks like a real toe (rounded tip, narrower base) rather

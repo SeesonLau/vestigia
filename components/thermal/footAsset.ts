@@ -31,13 +31,19 @@ export const FOOT_PLANTAR_RIGHT: ImageSourcePropType | null =
 
 /**
  * Bounding box of the four-angiosome region inside the image, in
- * normalized [0..1] image coords. Default tuned for an image where the
- * toe pad occupies the top ~18% and the heel ends at the very bottom.
- * Adjust if your drawing has different proportions.
+ * normalized [0..1] image coords.
+ *
+ * Default tuned for a SQUARE 1000x1000 PNG where the foot is centered
+ * and occupies roughly the middle 60% of the width with toes near the
+ * top. Adjust if your drawing's proportions differ:
+ *   x  = left edge of the four-region box (inside the foot's left edge)
+ *   y  = top edge — just below the toe pads
+ *   w  = box width (matches the foot body's width, not the full image)
+ *   h  = box height (down to the heel base)
  */
 export const ANGIO_BOX_NORM = {
-  x: 0.06,   // left edge of the angiosome box
-  y: 0.18,   // just below the toes
-  w: 0.88,   // width of the angiosome box
-  h: 0.78,   // ends near the bottom of the heel
+  x: 0.22,
+  y: 0.22,
+  w: 0.56,
+  h: 0.66,
 } as const;
