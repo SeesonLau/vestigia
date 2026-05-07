@@ -1,28 +1,29 @@
 // lib/thermal/captureProcessor.ts
 // Thin JS wrapper around the native Kotlin thermal processor.
-// All heavy computation (averaging, median filter, isolation, TIFF encoding) runs on a Kotlin thread.
+// All heavy computation (averaging, median filter, bilinear upscale to 320×240,
+// isolation, TIFF encoding) runs on a Kotlin thread.
 
 import { processCapture as nativeProcess, type NativeCaptureOptions } from './uvcCamera'
 
 export interface ProcessedCapture {
-  rawImageUri:     string   // JPEG snapshot taken before processing (live display frame)
-  displayPngUri:   string   // data:image/png;base64,... — processed palette image
-  isolatedPngUri:  string   // data:image/png;base64,... — RGBA PNG, foot only, transparent bg
-  tiffB64:         string   // base64 TIFF (16-bit radiometric, Kelvin×100)
-  csvContent:      string   // full-frame CSV (°C, 2 dp)
+  rawImageUri:     string   // grayscale render of the upscaled matrix (no palette, no mask)
+  displayPngUri:   string   // data:image/png;base64,... — palette-mapped display image
+  isolatedPngUri:  string   // data:image/png;base64,... — RGBA PNG, foot only, bg removed
+  tiffB64:         string   // base64 TIFF (16-bit radiometric, Kelvin×100, native sensor res)
+  csvContent:      string   // full-frame CSV (°C, 2 dp) — at upscaled resolution (320×240)
   maskedCsvContent:string   // foot-only CSV — background cells = "0.00"
-  width:           number
-  height:          number
+  width:           number   // upscaled width (320 by default)
+  height:          number   // upscaled height (240 by default)
   frameCount:      number
   stats: { min: number; max: number; mean: number }
   log:             string[]
 }
 
-export async function processFrames(rawImageUri: string, opts?: NativeCaptureOptions | null): Promise<ProcessedCapture> {
+export async function processFrames(opts?: NativeCaptureOptions | null): Promise<ProcessedCapture> {
   const r = await nativeProcess(opts)
 
   return {
-    rawImageUri,
+    rawImageUri:      'data:image/png;base64,' + r.unprocessedPngB64,
     displayPngUri:    'data:image/png;base64,' + r.displayPngB64,
     isolatedPngUri:   'data:image/png;base64,' + r.isolatedPngB64,
     tiffB64:          r.tiffB64,

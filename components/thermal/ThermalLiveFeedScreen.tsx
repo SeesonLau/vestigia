@@ -27,6 +27,7 @@ import {
   setPalette as setPaletteNative,
 } from "../../lib/thermal/uvcCamera"
 import type { DisplayMode, PaletteType } from "../../lib/thermal/uvcCamera"
+import { PALETTES } from "../../lib/thermal/palettes"
 import ReadinessIndicator from "./ReadinessIndicator"
 import type { ReadinessState } from "./ReadinessIndicator"
 
@@ -34,15 +35,7 @@ const { width: SCREEN_W } = Dimensions.get("window")
 const MAP_W = SCREEN_W - Spacing.lg * 2
 const MAP_H = Math.round(MAP_W * (120 / 160))
 
-export const PALETTES: { id: PaletteType; label: string; swatch: string; desc: string }[] = [
-  { id: "ironbow",    label: "Ironbow",    swatch: "#FF4500", desc: "Heated metal: black→red→orange→white" },
-  { id: "rainbow",    label: "Rainbow",    swatch: "#00BFFF", desc: "Full spectrum: blue (cold) → red (hot)" },
-  { id: "rainbow_hc", label: "Rainbow HC", swatch: "#FF00FF", desc: "High-contrast 6-band · fine Δ°C" },
-  { id: "white_hot",  label: "White Hot",  swatch: "#FFFFFF", desc: "Grayscale · white = warmest" },
-  { id: "black_hot",  label: "Black Hot",  swatch: "#444444", desc: "Inverted grayscale · black = warmest" },
-  { id: "arctic",     label: "Arctic",     swatch: "#4488FF", desc: "Cold=blue, warm=golden yellow" },
-  { id: "sepia",      label: "Sepia",      swatch: "#C4933F", desc: "Warm brown tones · low eye fatigue" },
-]
+export { PALETTES }
 
 type CameraStatus = "disconnected" | "connecting" | "connected" | "error"
 export type Foot = "left" | "right" | "bilateral"
@@ -238,20 +231,19 @@ export default function ThermalLiveFeedScreen({
     triggerPulse()
     setCapturing(true)
 
-    // Snapshot the live frame URI before processFrames() pauses/processes
-    const rawImageUri = displayUri
-
     const isBilateral = captureMode === "bilateral"
     const step: CaptureStep = isBilateral ? captureStep : "single"
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      //Pass the ROI + isolated-bg setting to native so the display PNG and
-      //isolated PNG come back already cropped (and the isolated PNG with
-      //the chosen background fill). CSVs come back full-frame from native;
-      //we crop them on the JS side to keep all four artifacts aligned.
+      //Pass the ROI + isolated-bg setting to native. The native processor
+      //runs the full pipeline (average → median → bilinear upscale to
+      //320×240 → palette → isolation) and returns the four artifacts
+      //already cropped to the framing rect when one is supplied. CSVs come
+      //back full-frame at the upscaled resolution; we crop them on the JS
+      //side so the cell coordinates stay aligned with the cropped images.
       const cropArg = roiVisible ? roiRect : null
-      const result = await processFrames(rawImageUri, { crop: cropArg, isolatedBg })
+      const result = await processFrames({ crop: cropArg, isolatedBg })
       const finalResult: ProcessedCapture = cropArg
         ? {
             ...result,

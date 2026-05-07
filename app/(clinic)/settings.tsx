@@ -159,6 +159,13 @@ export default function SettingsScreen() {
           />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingRow
+            icon="flame-outline"
+            label="Thermal Preview"
+            subtitle="Live processed feed · view-only"
+            onPress={() => router.push("/(clinic)/processed-live" as any)}
+          />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow
             icon="laptop-outline"
             label={S.settings.registerUsbDevice}
             onPress={() => router.push("/(clinic)/pairing")}

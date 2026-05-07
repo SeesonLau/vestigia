@@ -126,6 +126,13 @@ export default function PatientSettingsScreen() {
         <SectionHeader label={S.settings.sectionDataSync} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow
+            icon="flame-outline"
+            label="Thermal Preview"
+            subtitle="Live processed feed · view-only"
+            onPress={() => router.push("/(patient)/processed-live" as any)}
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <SettingRow
             icon="folder-open-outline"
             label="Import Capture"
             subtitle="Analyze a thermal capture from PNG + CSV files"

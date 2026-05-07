@@ -107,6 +107,7 @@ export default function PatientLayout() {
       <Tabs.Screen name="csv-viewer"        options={{ href: null as any }} />
       <Tabs.Screen name="submit-to-clinic"  options={{ href: null as any }} />
       <Tabs.Screen name="import"            options={{ href: null as any }} />
+      <Tabs.Screen name="processed-live"    options={{ href: null as any }} />
     </Tabs>
   );
 }

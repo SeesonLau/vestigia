@@ -105,6 +105,7 @@ export default function ClinicLayout() {
       <Tabs.Screen name="bundle-detail"    options={{ href: null as any }} />
       <Tabs.Screen name="csv-viewer"       options={{ href: null as any }} />
       <Tabs.Screen name="import"           options={{ href: null as any }} />
+      <Tabs.Screen name="processed-live"   options={{ href: null as any }} />
     </Tabs>
   );
 }

@@ -21,6 +21,8 @@ export type PaletteType =
   | 'ironbow'
   | 'rainbow'
   | 'rainbow_hc'
+  | 'rainbow3'
+  | 'lepton'
   | 'white_hot'
   | 'black_hot'
   | 'arctic'
@@ -170,14 +172,15 @@ export async function resumeCamera(): Promise<void> {
 // processCapture — temporal average + median filter + foot isolation + TIFF/CSV encode on a Kotlin thread.
 // Does NOT auto-save to device; call savePngToDevice / saveCsvToDevice with the final bundle filename.
 export interface NativeProcessResult {
-  displayPngB64:    string   // base64 PNG (current palette / display mode)
-  isolatedPngB64:   string   // base64 RGBA PNG — foot only, transparent background
-  tiffB64:          string   // base64 TIFF (16-bit radiometric, Kelvin×100)
-  csvContent:       string   // full-frame CSV (°C, 2 dp) — all pixels
+  displayPngB64:    string   // base64 PNG (palette-mapped, current display mode)
+  isolatedPngB64:   string   // base64 RGBA PNG — foot only, transparent / black bg
+  unprocessedPngB64:string   // base64 grayscale PNG — upscaled raw (no palette, no mask)
+  tiffB64:          string   // base64 TIFF (16-bit radiometric, Kelvin×100, native res)
+  csvContent:       string   // full-frame CSV (°C, 2 dp) — at upscaled resolution
   maskedCsvContent: string   // foot-only CSV — background cells = "0.00"
   frameCount:       number
-  width:            number
-  height:           number
+  width:            number   // upscaled width (320)
+  height:           number   // upscaled height (240)
   minTemp:          number
   maxTemp:          number
   meanTemp:         number
