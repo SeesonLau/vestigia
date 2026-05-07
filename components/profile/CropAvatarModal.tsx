@@ -4,11 +4,11 @@
 // crop on confirm. Replaces the system OS crop UI which had no themed
 // buttons / unclear proportions.
 //
-// Math note: the displayed image is letterboxed to fit a SCREEN_W square
-// preview (so the user sees the whole photo at scale 1). The dim overlay
-// punches out a centered SQUARE_SIZE square that defines the crop window.
-// The final crop rect (in source-image coords) is computed from the
-// translation + scale shared values at confirm time.
+// Layout note: the crop region (square SCREEN_W × SQUARE_SIZE box) and the
+// "pinch to zoom" hint are bundled in a single fixed-size column that the
+// outer flex centers vertically. That keeps the hint flush below the crop
+// circle even on tall devices. Footer padding-bottom comes from
+// useSafeAreaInsets so it always clears the system nav bar / gesture bar.
 
 import { Ionicons } from "@expo/vector-icons";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
@@ -30,16 +30,23 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Circle, Defs, Mask, Rect } from "react-native-svg";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 
-// The crop window is a square inset from the screen edges so the dimmed
-// overlay around it is clearly visible. Output is downscaled to AVATAR_OUT
-// pixels for upload (avatars don't need more than ~512px on a side).
+// The crop region is a square inset from the screen edges so the dimmed
+// surround is clearly visible. Output is downscaled to AVATAR_OUT pixels
+// for upload — avatars don't need more than ~512 px on a side.
 const SQUARE_SIZE = SCREEN_W - Spacing.lg * 4;
-const AVATAR_OUT = 512;
+const AVATAR_OUT  = 512;
+// The crop region's wrapper is exactly SQUARE_SIZE tall × SCREEN_W wide so
+// the circular crop hole sits inside it with horizontal dim margins on
+// each side and zero vertical margin (crop hole spans the full height).
+const FRAME_W = SCREEN_W;
+const FRAME_H = SQUARE_SIZE;
 
 interface Props {
   /** Source image URI (from the picker). Modal becomes visible when set. */
@@ -51,6 +58,7 @@ interface Props {
 
 export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [imgSize, setImgSize] = useState<{ w: number; h: number } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -59,7 +67,6 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const scale = useSharedValue(1);
-  // Pre-gesture snapshots for additive transforms.
   const txStart    = useSharedValue(0);
   const tyStart    = useSharedValue(0);
   const scaleStart = useSharedValue(1);
@@ -76,16 +83,17 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
     );
   }, [uri]);
 
-  // The image is rendered at "fit-to-square" then scaled by `scale`. The
-  // base size in pixels:
+  // The image is rendered at "fit-to-square" — the smaller dimension of the
+  // image fills the SQUARE_SIZE crop hole, the other dimension extends past
+  // it. Then `scale` multiplies for pinch zoom.
   const baseFit = imgSize
     ? Math.max(SQUARE_SIZE / imgSize.w, SQUARE_SIZE / imgSize.h)
     : 1;
   const renderedW = imgSize ? imgSize.w * baseFit : SQUARE_SIZE;
   const renderedH = imgSize ? imgSize.h * baseFit : SQUARE_SIZE;
 
-  // Pan gesture — translates the image. Clamped via bounds() at gesture end
-  // so the crop window can't be left empty.
+  // Pan gesture — translates the image. Clamped via bounds at gesture end
+  // so the crop hole can't be scrolled past empty space.
   const panGesture = Gesture.Pan()
     .onStart(() => {
       txStart.value = tx.value;
@@ -96,12 +104,10 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
       ty.value = tyStart.value + e.translationY;
     })
     .onEnd(() => {
-      const half = (renderedW * scale.value - SQUARE_SIZE) / 2;
-      const halfH = (renderedH * scale.value - SQUARE_SIZE) / 2;
-      const clampedX = Math.max(-half, Math.min(half, tx.value));
-      const clampedY = Math.max(-halfH, Math.min(halfH, ty.value));
-      tx.value = withSpring(clampedX, { damping: 18, stiffness: 220 });
-      ty.value = withSpring(clampedY, { damping: 18, stiffness: 220 });
+      const halfX = (renderedW * scale.value - SQUARE_SIZE) / 2;
+      const halfY = (renderedH * scale.value - SQUARE_SIZE) / 2;
+      tx.value = withSpring(Math.max(-halfX, Math.min(halfX, tx.value)), { damping: 18, stiffness: 220 });
+      ty.value = withSpring(Math.max(-halfY, Math.min(halfY, ty.value)), { damping: 18, stiffness: 220 });
     });
 
   // Pinch gesture — multiplies scale. Clamp to [1, 6] so the user can't
@@ -109,17 +115,13 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
   const pinchGesture = Gesture.Pinch()
     .onStart(() => { scaleStart.value = scale.value; })
     .onUpdate((e) => {
-      const next = scaleStart.value * e.scale;
-      scale.value = Math.max(1, Math.min(6, next));
+      scale.value = Math.max(1, Math.min(6, scaleStart.value * e.scale));
     })
     .onEnd(() => {
-      // After pinch, re-clamp pan so the crop window stays inside the image.
-      const half = (renderedW * scale.value - SQUARE_SIZE) / 2;
-      const halfH = (renderedH * scale.value - SQUARE_SIZE) / 2;
-      const clampedX = Math.max(-half, Math.min(half, tx.value));
-      const clampedY = Math.max(-halfH, Math.min(halfH, ty.value));
-      tx.value = withSpring(clampedX, { damping: 18, stiffness: 220 });
-      ty.value = withSpring(clampedY, { damping: 18, stiffness: 220 });
+      const halfX = (renderedW * scale.value - SQUARE_SIZE) / 2;
+      const halfY = (renderedH * scale.value - SQUARE_SIZE) / 2;
+      tx.value = withSpring(Math.max(-halfX, Math.min(halfX, tx.value)), { damping: 18, stiffness: 220 });
+      ty.value = withSpring(Math.max(-halfY, Math.min(halfY, ty.value)), { damping: 18, stiffness: 220 });
     });
 
   const composedGesture = Gesture.Simultaneous(panGesture, pinchGesture);
@@ -134,7 +136,7 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
 
   // Map the on-screen crop window back to source-image pixel coordinates,
   // then run expo-image-manipulator. Runs on the JS thread (called from
-  // the button handler, so no runOnJS needed).
+  // the button handler, so no runOnJS needed for the manipulator call).
   const handleConfirm = async () => {
     if (!uri || !imgSize || busy) return;
     setBusy(true);
@@ -143,20 +145,13 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
       const dispW = renderedW * sx;
       const dispH = renderedH * sx;
 
-      // Convert screen-coord crop window into displayed-image coords:
-      // the crop window is centred at (SCREEN_W/2, ...). The image's
-      // top-left in screen coords is (SCREEN_W/2 - dispW/2 + tx, ...).
-      // So the crop window's top-left in image-display coords is:
       const cropLeftDisp = (dispW - SQUARE_SIZE) / 2 - tx.value;
       const cropTopDisp  = (dispH - SQUARE_SIZE) / 2 - ty.value;
 
-      // Convert displayed coords back to source pixel coords.
       const srcScale = imgSize.w / dispW;
       const cropX = Math.max(0, Math.round(cropLeftDisp * srcScale));
       const cropY = Math.max(0, Math.round(cropTopDisp  * srcScale));
       const cropS = Math.round(SQUARE_SIZE * srcScale);
-
-      // Final clamp so we never request a region outside the source.
       const safeS = Math.min(cropS, imgSize.w - cropX, imgSize.h - cropY);
 
       const result = await manipulateAsync(
@@ -180,54 +175,76 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <GestureHandlerRootView style={styles.root}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
           <TouchableOpacity onPress={onCancel} hitSlop={8} style={styles.headerBtn}>
-            <Ionicons name="close" size={22} color="#fff" />
+            <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Crop photo</Text>
           <View style={styles.headerBtn} />
         </View>
 
-        {/* Crop area — image with pan/pinch + dimmed overlay punch-out */}
+        {/* Crop area — vertically centred. The frame + hint move together
+            because they live in the same fixed-height column. */}
         <View style={styles.cropArea}>
-          <GestureDetector gesture={composedGesture}>
-            <View style={styles.cropFrame}>
-              {imgSize ? (
-                <Animated.Image
-                  source={{ uri: uri! }}
-                  style={[
-                    {
-                      width: renderedW,
-                      height: renderedH,
-                      position: "absolute",
-                      left: (SCREEN_W - renderedW) / 2,
-                      top: (SQUARE_SIZE - renderedH) / 2,
-                    },
-                    animatedStyle,
-                  ]}
-                  resizeMode="cover"
-                />
-              ) : (
-                <ActivityIndicator color="#fff" style={{ marginTop: SQUARE_SIZE / 2 - 12 }} />
-              )}
-            </View>
-          </GestureDetector>
+          <View style={styles.cropGroup}>
+            <GestureDetector gesture={composedGesture}>
+              <View style={styles.cropFrame}>
+                {imgSize ? (
+                  <Animated.Image
+                    source={{ uri: uri! }}
+                    style={[
+                      {
+                        width: renderedW,
+                        height: renderedH,
+                        position: "absolute",
+                        left: (FRAME_W - renderedW) / 2,
+                        top:  (FRAME_H - renderedH) / 2,
+                      },
+                      animatedStyle,
+                    ]}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <ActivityIndicator color="#fff" style={styles.loadingIndicator} />
+                )}
 
-          {/* 4-piece dim overlay — top, bottom, left, right of the crop window */}
-          <View pointerEvents="none" style={styles.overlayContainer}>
-            <View style={[styles.dim, { height: (SCREEN_W - SQUARE_SIZE) / 2 }]} />
-            <View style={styles.middleStrip}>
-              <View style={[styles.dim, { width: (SCREEN_W - SQUARE_SIZE) / 2 }]} />
-              <View style={[styles.cropWindow, { width: SQUARE_SIZE, height: SQUARE_SIZE }]} />
-              <View style={[styles.dim, { width: (SCREEN_W - SQUARE_SIZE) / 2 }]} />
-            </View>
-            <View style={[styles.dim, { flex: 1 }]} />
+                {/* Dim mask with a circular punch-out so the user sees a
+                    preview of what the rendered (round) avatar will look
+                    like. SVG mask is the cleanest cross-platform way. */}
+                <Svg pointerEvents="none" width={FRAME_W} height={FRAME_H} style={StyleSheet.absoluteFill}>
+                  <Defs>
+                    <Mask id="cropMask" x="0" y="0" width={FRAME_W} height={FRAME_H}>
+                      <Rect x="0" y="0" width={FRAME_W} height={FRAME_H} fill="white" />
+                      <Circle cx={FRAME_W / 2} cy={FRAME_H / 2} r={SQUARE_SIZE / 2} fill="black" />
+                    </Mask>
+                  </Defs>
+                  <Rect x="0" y="0" width={FRAME_W} height={FRAME_H} fill="rgba(0,0,0,0.62)" mask="url(#cropMask)" />
+                </Svg>
+
+                {/* Circular crop-window outline. */}
+                <View
+                  pointerEvents="none"
+                  style={[
+                    styles.cropOutline,
+                    {
+                      left: (FRAME_W - SQUARE_SIZE) / 2,
+                      top:  (FRAME_H - SQUARE_SIZE) / 2,
+                      width: SQUARE_SIZE,
+                      height: SQUARE_SIZE,
+                      borderRadius: SQUARE_SIZE / 2,
+                    },
+                  ]}
+                />
+              </View>
+            </GestureDetector>
+
+            <Text style={styles.hint}>Pinch to zoom · drag to reposition</Text>
           </View>
         </View>
 
-        <Text style={styles.hint}>Pinch to zoom · drag to reposition</Text>
-
-        <View style={styles.footer}>
+        {/* Footer with safe-area bottom padding so it clears the phone's
+            system nav bar / gesture indicator. */}
+        <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.md }]}>
           <TouchableOpacity
             onPress={onCancel}
             activeOpacity={0.85}
@@ -264,11 +281,15 @@ export default function CropAvatarModal({ uri, onCancel, onConfirm }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "#000" },
+
   header: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingHorizontal: Spacing.lg, paddingTop: Spacing.xl + Spacing.md, paddingBottom: Spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
-  headerBtn: { width: 40, alignItems: "flex-start" },
+  headerBtn: { width: 40, height: 40, alignItems: "flex-start", justifyContent: "center" },
   headerTitle: {
     color: "#fff",
     fontSize: Typography.sizes.lg,
@@ -276,36 +297,38 @@ const styles = StyleSheet.create({
   },
 
   cropArea: {
-    flex: 1, alignItems: "center", justifyContent: "center", overflow: "hidden",
-  },
-  cropFrame: {
-    width: SCREEN_W,
-    height: SQUARE_SIZE,
-    overflow: "hidden",
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
-  overlayContainer: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
-  middleStrip: { flexDirection: "row", height: SQUARE_SIZE },
-  dim: { backgroundColor: "rgba(0,0,0,0.55)" },
-  cropWindow: {
+  cropGroup: {
+    // crop frame + hint are bundled so the hint always sits flush below
+    // the circle regardless of available vertical space.
+    alignItems: "center",
+  },
+  cropFrame: {
+    width:  FRAME_W,
+    height: FRAME_H,
+    overflow: "hidden",
+  },
+  loadingIndicator: { alignSelf: "center", marginTop: FRAME_H / 2 - 12 },
+  cropOutline: {
+    position: "absolute",
     borderWidth: 2,
     borderColor: "rgba(255,255,255,0.92)",
-    borderRadius: SQUARE_SIZE / 2, // circular, since avatar is round
   },
 
   hint: {
-    color: "rgba(255,255,255,0.75)",
+    color: "rgba(255,255,255,0.78)",
     fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
     textAlign: "center",
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.md,
   },
 
   footer: {
     flexDirection: "row",
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.xl + Spacing.md,
     paddingTop: Spacing.sm,
     gap: Spacing.sm,
   },

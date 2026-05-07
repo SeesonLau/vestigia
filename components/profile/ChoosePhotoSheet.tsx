@@ -6,6 +6,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 
@@ -19,6 +20,7 @@ interface Props {
 
 export default function ChoosePhotoSheet({ visible, onPick, onCancel }: Props) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -32,7 +34,10 @@ export default function ChoosePhotoSheet({ visible, onPick, onCancel }: Props) {
         activeOpacity={1}
         onPress={onCancel}
       />
-      <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[
+        styles.sheet,
+        { backgroundColor: colors.card, borderColor: colors.border, paddingBottom: insets.bottom + Spacing.lg },
+      ]}>
         <View style={styles.handle} />
         <Text style={[styles.title, { color: colors.text }]}>Update Profile Photo</Text>
         <Text style={[styles.subtitle, { color: colors.textSec }]}>
@@ -99,7 +104,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xl + Spacing.md,
+    // paddingBottom is applied inline using safe-area insets so the sheet
+    // always clears the system nav bar / gesture indicator.
     borderTopWidth: StyleSheet.hairlineWidth,
     gap: Spacing.md,
   },
