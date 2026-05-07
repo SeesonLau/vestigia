@@ -51,8 +51,11 @@ export async function uploadAvatar({ uri, userId }: UploadAvatarParams): Promise
     throw new Error("The image read back as empty. Try a different photo.");
   }
 
-  // 2. Upload to storage. Supabase JS handles the multipart for us.
-  const filePath = `${userId}/avatar.jpg`;
+  // 2. Upload to storage. The avatars_write RLS policy on storage.objects
+  //    requires the path to start with `profiles/<auth.uid()>/...` — uploads
+  //    to a flat `<userId>/...` path are rejected with "new row violates
+  //    row-level security policy", which is what bit us before.
+  const filePath = `profiles/${userId}/avatar.jpg`;
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(filePath, bytes, {

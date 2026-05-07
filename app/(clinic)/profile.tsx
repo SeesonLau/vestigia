@@ -18,6 +18,8 @@ import Header from "../../components/layout/Header";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import Button from "../../components/ui/Button";
 import InitialsAvatar, { facilityInitials, personInitials } from "../../components/ui/InitialsAvatar";
+import ChoosePhotoSheet, { type PhotoSource } from "../../components/profile/ChoosePhotoSheet";
+import CropAvatarModal from "../../components/profile/CropAvatarModal";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
@@ -97,16 +99,19 @@ export default function ProfileScreen() {
     ? facilityInitials(clinicName)
     : personInitials(user?.first_name, user?.last_name);
 
-  //Avatar
-  const handlePickAvatar = () => {
-    Alert.alert("Update Photo", "Choose a source", [
-      { text: "Camera", onPress: () => pickImage("camera") },
-      { text: "Photo Library", onPress: () => pickImage("library") },
-      { text: "Cancel", style: "cancel" },
-    ]);
-  };
+  // Avatar pick flow:
+  //   1. Show ChoosePhotoSheet (themed) so the user picks Camera vs Library.
+  //   2. Launch expo-image-picker with allowsEditing=false so we get the
+  //      full image and route to our own crop modal next.
+  //   3. CropAvatarModal handles square crop + manipulator resize.
+  //   4. On confirm, run uploadAvatar() against the cropped URI.
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pendingCropUri, setPendingCropUri] = useState<string | null>(null);
 
-  const pickImage = async (source: "camera" | "library") => {
+  const handlePickAvatar = () => setPickerVisible(true);
+
+  const pickImage = async (source: PhotoSource) => {
+    setPickerVisible(false);
     const ImagePicker = await import("expo-image-picker");
 
     const permission =
@@ -128,19 +133,17 @@ export default function ProfileScreen() {
       source === "camera"
         ? await ImagePicker.launchCameraAsync({
             mediaTypes: "images",
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.7,
+            allowsEditing: false,
+            quality: 1,
           })
         : await ImagePicker.launchImageLibraryAsync({
             mediaTypes: "images",
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.7,
+            allowsEditing: false,
+            quality: 1,
           });
 
     if (result.canceled || !result.assets[0]) return;
-    await handleUploadAvatar(result.assets[0].uri);
+    setPendingCropUri(result.assets[0].uri);
   };
 
   const handleUploadAvatar = async (uri: string) => {
@@ -369,6 +372,21 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ChoosePhotoSheet
+        visible={pickerVisible}
+        onPick={pickImage}
+        onCancel={() => setPickerVisible(false)}
+      />
+
+      <CropAvatarModal
+        uri={pendingCropUri}
+        onCancel={() => setPendingCropUri(null)}
+        onConfirm={async (croppedUri) => {
+          setPendingCropUri(null);
+          await handleUploadAvatar(croppedUri);
+        }}
+      />
     </ScreenWrapper>
   );
 }

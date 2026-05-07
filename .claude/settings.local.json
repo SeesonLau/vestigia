@@ -54,7 +54,8 @@
       "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices; & $adb install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
       "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
       "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
-      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")"
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" kill-server; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" start-server; & \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)"
     ],
     "additionalDirectories": [
       "c:\\Users\\PotatoIV\\Desktop\\UVCCamera"
