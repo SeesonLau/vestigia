@@ -1,7 +1,7 @@
 // app/(clinic)/settings.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -15,7 +15,6 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
-import { getUnsyncedCaptures } from "../../lib/db/offlineCaptures";
 import { useAuthStore } from "../../store/authStore";
 
 interface SettingRowProps {
@@ -85,20 +84,11 @@ function SectionHeader({ label }: { label: string }) {
   return <Text style={[styles.sectionHeader, { color: colors.textSec }]}>{label}</Text>;
 }
 
-const soon = (feature: string) =>
-  Alert.alert(S.settings.comingSoon, S.settings.comingSoonBody(feature));
-
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
   const { logout } = useAuthStore();
   const [autoUpload, setAutoUpload] = useState(true);
-  const [autoReconnect, setAutoReconnect] = useState(true);
-  const [pendingCount, setPendingCount] = useState(0);
-
-  useEffect(() => {
-    getUnsyncedCaptures().then((captures) => setPendingCount(captures.length));
-  }, []);
 
   const handleSignOut = () => {
     Alert.alert(S.settings.signOutConfirmTitle, S.auth.signOutConfirm, [
@@ -108,13 +98,6 @@ export default function SettingsScreen() {
         style: "destructive",
         onPress: async () => { await logout(); router.replace("/(auth)/login"); },
       },
-    ]);
-  };
-
-  const handleClearCache = () => {
-    Alert.alert(S.settings.clearCacheConfirmTitle, S.settings.clearCacheConfirmBody, [
-      { text: S.actions.cancel, style: "cancel" },
-      { text: S.actions.clear, style: "destructive", onPress: () => soon("Clear local cache") },
     ]);
   };
 
@@ -157,27 +140,6 @@ export default function SettingsScreen() {
             subtitle="FLIR Lepton 3.5 via USB-C"
             onPress={() => router.push("/(clinic)/pairing")}
           />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow
-            icon="flame-outline"
-            label="Thermal Preview"
-            subtitle="Live processed feed · view-only"
-            onPress={() => router.push("/(clinic)/processed-live" as any)}
-          />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow
-            icon="laptop-outline"
-            label={S.settings.registerUsbDevice}
-            onPress={() => router.push("/(clinic)/pairing")}
-          />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow
-            icon="refresh-outline"
-            label={S.settings.autoReconnect}
-            toggle
-            toggleValue={autoReconnect}
-            onToggle={setAutoReconnect}
-          />
         </View>
 
         {/* Data & Sync */}
@@ -197,19 +159,6 @@ export default function SettingsScreen() {
             toggle
             toggleValue={autoUpload}
             onToggle={setAutoUpload}
-          />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow
-            icon="time-outline"
-            label={S.settings.pendingUploads}
-            value={String(pendingCount)}
-            onPress={() => soon("Pending uploads view")}
-          />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
-          <SettingRow
-            icon="trash-outline"
-            label={S.settings.clearCache}
-            onPress={handleClearCache}
           />
         </View>
 

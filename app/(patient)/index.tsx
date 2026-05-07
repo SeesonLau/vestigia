@@ -1,581 +1,386 @@
 // app/(patient)/index.tsx
 import { Ionicons } from "@expo/vector-icons";
-import * as DocumentPicker from "expo-document-picker";
-import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import Header from "../../components/layout/Header";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import ScreenWrapper from "../../components/layout/ScreenWrapper";
-import { SessionCard } from "../../components/session/index";
-import ThermalMap, {
-  generateMockThermalMatrix,
-} from "../../components/thermal/ThermalMap";
-import { Badge, Card, Disclaimer } from "../../components/ui/index";
+import { SessionCard } from "../../components/session";
+import { Disclaimer } from "../../components/ui";
 import { DISCLAIMER_TEXT } from "../../constants/clinical";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
-import { dbg } from "../../lib/debug";
-import { getMatrixStats, parseCsvMatrix } from "../../lib/thermal/preprocessing";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { ScreeningSession } from "../../types";
 
-const { width: SCREEN_W } = Dimensions.get("window");
-const THUMB_W = (SCREEN_W - Spacing.lg * 2 - Spacing.md) / 2;
-const THUMB_H = Math.round(THUMB_W * (120 / 160));
+type DateFilter = "today" | "month" | "all";
+type DbSession = ScreeningSession & {
+  classification: ScreeningSession["classification"][] | ScreeningSession["classification"] | null;
+};
 
-export default function PatientDashboardScreen() {
+function periodStart(filter: DateFilter): Date | null {
+  if (filter === "all") return null;
+  const d = new Date();
+  if (filter === "today") d.setHours(0, 0, 0, 0);
+  else { d.setDate(1); d.setHours(0, 0, 0, 0); }
+  return d;
+}
+
+export default function PatientHomeScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const [filter,   setFilter]   = useState<DateFilter>("today");
   const [sessions, setSessions] = useState<ScreeningSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [pendingRequests, setPendingRequests] = useState(0);
-  const leftMatrix = useRef(generateMockThermalMatrix()).current;
-  const rightMatrix = useRef(generateMockThermalMatrix()).current;
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState<string | null>(null);
+  const [pending,  setPending]  = useState(0);
 
-  //Import
-  const [importedLeftMatrix, setImportedLeftMatrix] = useState<number[][] | null>(null);
-  const [importedRightMatrix, setImportedRightMatrix] = useState<number[][] | null>(null);
-  const [importedImageUri, setImportedImageUri] = useState<string | null>(null);
-  const [importedImageName, setImportedImageName] = useState<string | null>(null);
-  const [importedCsvName, setImportedCsvName] = useState<string | null>(null);
-  const [importLoading, setImportLoading] = useState(false);
-  const [importStep, setImportStep] = useState<"left" | "right" | null>(null);
-
-  const handlePickImage = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["image/jpeg", "image/png"],
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    setImportedImageUri(asset.uri);
-    setImportedImageName(asset.name);
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login");
   };
 
-  const handlePickCsv = async (foot: "left" | "right") => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ["text/csv", "text/plain", "text/comma-separated-values", "*/*"],
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return;
-    const asset = result.assets[0];
-    setImportStep(foot);
-    setImportLoading(true);
-    try {
-      const content = await fetch(asset.uri).then((r) => r.text());
-      const parsed = parseCsvMatrix(content);
-      getMatrixStats(parsed); // validates it has numeric data
-      if (foot === "left") {
-        setImportedLeftMatrix(parsed);
-      } else {
-        setImportedRightMatrix(parsed);
+  const hour = new Date().getHours();
+  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      const profileId = user?.id;
+      if (!profileId) {
+        setLoading(false);
+        return;
       }
-      setImportedCsvName(asset.name);
-    } catch {
-      Alert.alert("CSV Error", "Could not read temperature data. Ensure the file contains comma-separated °C values.");
-    } finally {
-      setImportLoading(false);
-      setImportStep(null);
-    }
-  };
 
-  useEffect(() => {
-    if (!user?.id) return;
+      const run = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const after = periodStart(filter);
+          let q = supabase
+            .from("screening_sessions")
+            .select("*, classification:classification_results(*)")
+            .eq("subject_profile_id", profileId)
+            .order("started_at", { ascending: false });
+          if (after) q = q.gte("started_at", after.toISOString());
 
-    const fetchData = async () => {
-      setFetchError(null);
-      try {
-        //Sessions for this patient — joined via the new dual-identity model.
-        //subject_profile_id = profile.id covers self-captures and clinic-captured
-        //sessions where the patient was matched by their global patient_code.
-        const { data: sessionsData, error: sessionsErr } = await supabase
-          .from("screening_sessions")
-          .select("*, classification:classification_results(*)")
-          .eq("subject_profile_id", user.id)
-          .order("started_at", { ascending: false });
-        dbg("patient/index", `sessions fetch — error=${sessionsErr?.code ?? "none"}`);
-        if (sessionsErr) throw new Error("Failed to load sessions.");
+          const [sessionsRes, pendingRes] = await Promise.all([
+            q,
+            supabase
+              .from("data_requests")
+              .select("id", { count: "exact", head: true })
+              .eq("to_profile_id", profileId)
+              .eq("status", "pending"),
+          ]);
+          if (cancelled) return;
 
-        if (sessionsData) {
+          if (sessionsRes.error) throw sessionsRes.error;
+          const rows = (sessionsRes.data ?? []) as DbSession[];
           setSessions(
-            (sessionsData as unknown as Array<ScreeningSession & { classification: ScreeningSession["classification"][] }>).map((s) => ({
+            rows.map((s) => ({
               ...s,
               classification: Array.isArray(s.classification)
                 ? s.classification[0] ?? undefined
                 : s.classification ?? undefined,
             })) as ScreeningSession[]
           );
+          setPending(pendingRes.count ?? 0);
+        } catch (e) {
+          if (!cancelled) setError(e instanceof Error ? e.message : "Could not load your sessions.");
+        } finally {
+          if (!cancelled) setLoading(false);
         }
+      };
+      run();
+      return () => { cancelled = true; };
+    }, [user?.id, filter]),
+  );
 
-        const { count } = await supabase
-          .from("data_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("to_profile_id", user.id)
-          .eq("status", "pending");
-        setPendingRequests(count ?? 0);
-      } catch (err: unknown) {
-        setFetchError(err instanceof Error ? err.message : "Failed to load data.");
-      } finally {
-        setLoading(false);
-      }
-    };
+  const counts = sessions.reduce(
+    (acc, s) => {
+      acc.total++;
+      const cls = s.classification?.classification;
+      if (cls === "POSITIVE") acc.positive++;
+      else if (cls === "NEGATIVE") acc.negative++;
+      return acc;
+    },
+    { total: 0, positive: 0, negative: 0 },
+  );
 
-    fetchData();
-  }, [user?.id]);
-
-  const latestSession = sessions[0] ?? null;
-  const latestResult = latestSession?.classification;
-  const isPositive = latestResult?.classification === "POSITIVE";
-
-  const firstName = user?.full_name?.split(" ")[0] ?? "there";
-
-  const headerRight = pendingRequests > 0 ? (
-    <View style={{ position: "relative" }}>
-      <View style={[styles.notifBadge, { backgroundColor: colors.accent }]}>
-        <Text style={styles.notifBadgeText}>{pendingRequests}</Text>
-      </View>
-    </View>
-  ) : null;
-
-  if (loading) {
-    return (
-      <ScreenWrapper>
-        <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
-        <View style={styles.centered}>
-          <ActivityIndicator color={colors.accent} />
-        </View>
-      </ScreenWrapper>
-    );
-  }
-
-  if (fetchError) {
-    return (
-      <ScreenWrapper>
-        <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
-        <View style={styles.centered}>
-          <Text style={[styles.errorText, { color: colors.error }]}>{fetchError}</Text>
-        </View>
-      </ScreenWrapper>
-    );
-  }
+  const fullName = user?.first_name
+    ? `${user.first_name}${user.last_name ? " " + user.last_name : ""}`
+    : "Patient";
+  const initials = (user?.first_name?.[0] ?? "?") + (user?.last_name?.[0] ?? "");
 
   return (
     <ScreenWrapper scrollable>
-      <Header title="My Health" subtitle="Patient Dashboard" rightIcon={headerRight} />
+      {/* Profile + greeting hero. Read-only — editing lives in Settings. */}
+      <View style={styles.hero}>
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push("/(patient)/profile" as any)}
+          style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <View style={[styles.avatar, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+            {user?.avatar_url ? (
+              <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
+            ) : (
+              <Text style={[styles.avatarInitials, { color: colors.accent }]}>{initials.toUpperCase()}</Text>
+            )}
+          </View>
+          <View style={styles.heroText}>
+            <Text style={[styles.greeting, { color: colors.textSec }]}>{timeGreeting},</Text>
+            <Text style={[styles.heroName,  { color: colors.text }]} numberOfLines={1}>{fullName}</Text>
+            <Text style={[styles.heroSub,   { color: colors.textSec }]} numberOfLines={1}>
+              Patient ID: {user?.patient_code ?? "—"}
+            </Text>
+            {user?.email ? (
+              <View style={styles.contactRow}>
+                <Ionicons name="mail-outline" size={11} color={colors.textSec} />
+                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.email}</Text>
+              </View>
+            ) : null}
+            {user?.contact_number ? (
+              <View style={styles.contactRow}>
+                <Ionicons name="call-outline" size={11} color={colors.textSec} />
+                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.contact_number}</Text>
+              </View>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutBtn}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          >
+            <Ionicons name="log-out-outline" size={20} color={colors.textSec} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.container}>
-        {/* Greeting */}
-        <View style={styles.greeting}>
-          <Text style={[styles.greetingHi, { color: colors.text }]}>Hello, {firstName} 👋</Text>
-          <Text style={[styles.greetingCode, { color: colors.textSec }]}>
-            Patient ID: {user?.patient_code ?? "—"}
-          </Text>
+        <TouchableOpacity
+          onPress={() => router.push("/(patient)/live-feed" as any)}
+          activeOpacity={0.85}
+          style={[styles.primaryCta, { backgroundColor: colors.accent }]}
+        >
+          <Ionicons name="camera" size={22} color="#fff" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.primaryCtaTitle}>New Self-Screening</Text>
+            <Text style={styles.primaryCtaSub}>Capture both feet for analysis</Text>
+          </View>
+          <Ionicons name="arrow-forward" size={18} color="#fff" />
+        </TouchableOpacity>
+
+        <View style={styles.secondaryRow}>
+          <SecondaryAction
+            icon="time-outline"
+            label="History"
+            onPress={() => router.push("/(patient)/history" as any)}
+            colors={colors}
+          />
+          <SecondaryAction
+            icon="cloud-upload-outline"
+            label="Submit"
+            badge={pending > 0 ? pending : undefined}
+            onPress={() => router.push("/(patient)/submit-to-clinic" as any)}
+            colors={colors}
+          />
+          <SecondaryAction
+            icon="settings-outline"
+            label="Settings"
+            onPress={() => router.push("/(patient)/settings" as any)}
+            colors={colors}
+          />
         </View>
 
-        {/* Latest result card */}
-        {latestResult && latestSession ? (
-          <View
-            style={[
-              styles.latestCard,
-              isPositive
-                ? { backgroundColor: `${colors.error}14`, borderColor: `${colors.error}66` }
-                : { backgroundColor: `${colors.success}14`, borderColor: `${colors.success}66` },
-            ]}
-          >
-            <View style={styles.latestTop}>
-              <Text style={[styles.latestLabel, { color: colors.textSec }]}>Latest Screening Result</Text>
-              <Badge
-                label={latestResult.classification}
-                variant={isPositive ? "positive" : "negative"}
-              />
-            </View>
+        <View style={styles.sessionHeader}>
+          <Text style={[styles.sectionLabel, { color: colors.textSec }]}>My Sessions</Text>
+          <View style={[styles.filterSeg, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {([
+              ["today", "Today"],
+              ["month", "This Month"],
+              ["all",   "All"],
+            ] as const).map(([val, label]) => {
+              const active = filter === val;
+              return (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => setFilter(val)}
+                  style={[styles.filterBtn, active && { backgroundColor: colors.accent }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.filterText, { color: active ? "#fff" : colors.textSec }]}>{label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
 
-            <View style={styles.classificationRow}>
-              <Ionicons
-                name={isPositive ? "warning-outline" : "checkmark-circle-outline"}
-                size={20}
-                color={isPositive ? colors.error : colors.success}
-              />
-              <Text
-                style={[
-                  styles.latestClassification,
-                  { color: isPositive ? colors.error : colors.success },
-                ]}
-              >
-                {isPositive ? " DPN Indicators Detected" : " No DPN Indicators"}
-              </Text>
-            </View>
-            <Text style={[styles.latestDate, { color: colors.textSec }]}>
-              Screened on{" "}
-              {new Date(latestSession.started_at).toLocaleDateString("en-PH", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </Text>
+        <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Stat label="Total"    value={String(counts.total)}    color={colors.text}    colors={colors} />
+          <View style={[styles.statsDivider, { backgroundColor: colors.border }]} />
+          <Stat label="Positive" value={String(counts.positive)} color={colors.error}   colors={colors} />
+          <View style={[styles.statsDivider, { backgroundColor: colors.border }]} />
+          <Stat label="Negative" value={String(counts.negative)} color={colors.success} colors={colors} />
+        </View>
 
-            {isPositive && (
-              <View style={styles.flaggedRow}>
-                <Text style={[styles.flaggedLabel, { color: colors.textSec }]}>Flagged regions: </Text>
-                <Text style={[styles.flaggedValues, { color: colors.error }]}>
-                  {latestResult.angiosomes_flagged?.join(", ") ?? "—"}
-                </Text>
-              </View>
-            )}
-
-            <Text style={[styles.confidenceText, { color: colors.textSec }]}>
-              AI Confidence:{" "}
-              {latestResult.confidence_score != null
-                ? `${Number(latestResult.confidence_score).toFixed(1)}%`
-                : "—"}
+        {loading ? (
+          <ActivityIndicator color={colors.accent} style={{ paddingVertical: Spacing.lg }} />
+        ) : error ? (
+          <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+        ) : sessions.length === 0 ? (
+          <View style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="folder-open-outline" size={32} color={colors.textSec} />
+            <Text style={[styles.emptyText, { color: colors.textSec }]}>
+              {filter === "today" ? "No sessions today yet."
+                : filter === "month" ? "No sessions this month yet."
+                : "No screening sessions yet."}
             </Text>
           </View>
         ) : (
-          !loading && sessions.length === 0 && (
-            <Card style={styles.section}>
-              <Text style={[styles.emptyText, { color: colors.textSec }]}>No screening sessions yet.</Text>
-            </Card>
-          )
+          sessions.map((s) => (
+            <SessionCard
+              key={s.id}
+              session={s}
+              onPress={() => router.push(`/(patient)/bundle-detail?sessionId=${s.id}` as any)}
+            />
+          ))
         )}
 
-        {/* Thermal images from latest session */}
-        {latestResult && (
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Latest Thermal Scans</Text>
-
-            {/* Thermal thumbnails */}
-            <View style={styles.thumbRow}>
-              <View style={styles.thumbWrapper}>
-                <ThermalMap
-                  matrix={importedLeftMatrix ?? leftMatrix}
-                  minTemp={importedLeftMatrix ? getMatrixStats(importedLeftMatrix).min : 29}
-                  maxTemp={importedLeftMatrix ? getMatrixStats(importedLeftMatrix).max : 37}
-                  width={THUMB_W}
-                  height={THUMB_H}
-                />
-                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>LEFT FOOT</Text>
-              </View>
-              <View style={styles.thumbWrapper}>
-                <ThermalMap
-                  matrix={importedRightMatrix ?? rightMatrix}
-                  minTemp={importedRightMatrix ? getMatrixStats(importedRightMatrix).min : 29}
-                  maxTemp={importedRightMatrix ? getMatrixStats(importedRightMatrix).max : 37}
-                  width={THUMB_W}
-                  height={THUMB_H}
-                />
-                <Text style={[styles.thumbLabel, { color: colors.textSec }]}>RIGHT FOOT</Text>
-              </View>
-            </View>
-
-            {/* Reference image thumbnail */}
-            {importedImageUri && (
-              <View style={styles.refImageWrapper}>
-                <Image source={{ uri: importedImageUri }} style={styles.refImage} resizeMode="cover" />
-                <Text style={[styles.refImageLabel, { color: colors.textSec }]}>
-                  Reference: {importedImageName}
-                </Text>
-              </View>
-            )}
-
-            {/* Import controls */}
-            <View style={styles.importDivider}>
-              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.importDividerText, { color: colors.textSec }]}>import scan files</Text>
-              <View style={[styles.importLine, { backgroundColor: colors.border }]} />
-            </View>
-
-            <View style={styles.importRow}>
-              {/* Image */}
-              <TouchableOpacity
-                onPress={handlePickImage}
-                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedImageName ? colors.accent : colors.border }]}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="image-outline" size={18} color={importedImageName ? colors.accent : colors.textSec} />
-                <Text style={[styles.importCardTitle, { color: importedImageName ? colors.accent : colors.text }]}>
-                  Thermal Image
-                </Text>
-                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
-                  {importedImageName ?? "JPG / PNG"}
-                </Text>
-                {importedImageName && (
-                  <TouchableOpacity
-                    onPress={() => { setImportedImageUri(null); setImportedImageName(null); }}
-                    style={styles.importClear}
-                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-
-              {/* Left CSV */}
-              <TouchableOpacity
-                onPress={() => handlePickCsv("left")}
-                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedLeftMatrix ? colors.success : colors.border }]}
-                activeOpacity={0.7}
-                disabled={importLoading && importStep === "left"}
-              >
-                <Ionicons name="document-text-outline" size={18} color={importedLeftMatrix ? colors.success : colors.textSec} />
-                <Text style={[styles.importCardTitle, { color: importedLeftMatrix ? colors.success : colors.text }]}>
-                  Left CSV
-                </Text>
-                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
-                  {importLoading && importStep === "left" ? "Parsing…" : (importedLeftMatrix ? (importedCsvName ?? "Loaded") : "°C data")}
-                </Text>
-                {importedLeftMatrix && (
-                  <TouchableOpacity
-                    onPress={() => setImportedLeftMatrix(null)}
-                    style={styles.importClear}
-                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-
-              {/* Right CSV */}
-              <TouchableOpacity
-                onPress={() => handlePickCsv("right")}
-                style={[styles.importCard, { backgroundColor: colors.bg, borderColor: importedRightMatrix ? colors.success : colors.border }]}
-                activeOpacity={0.7}
-                disabled={importLoading && importStep === "right"}
-              >
-                <Ionicons name="document-text-outline" size={18} color={importedRightMatrix ? colors.success : colors.textSec} />
-                <Text style={[styles.importCardTitle, { color: importedRightMatrix ? colors.success : colors.text }]}>
-                  Right CSV
-                </Text>
-                <Text style={[styles.importCardFile, { color: colors.textSec }]} numberOfLines={1}>
-                  {importLoading && importStep === "right" ? "Parsing…" : (importedRightMatrix ? "Loaded" : "°C data")}
-                </Text>
-                {importedRightMatrix && (
-                  <TouchableOpacity
-                    onPress={() => setImportedRightMatrix(null)}
-                    style={styles.importClear}
-                    hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                  >
-                    <Ionicons name="close-circle" size={14} color={colors.textSec} />
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            </View>
-          </Card>
-        )}
-
-        {/* Trend */}
-        {sessions.length > 0 && (
-          <Card style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Screening History</Text>
-            <View style={styles.trendRow}>
-              {sessions.map((s) => {
-                const cls = s.classification?.classification;
-                const dotColor =
-                  cls === "POSITIVE" ? colors.error
-                  : cls === "NEGATIVE" ? colors.success
-                  : colors.textSec;
-                return (
-                  <View key={s.id} style={styles.trendItem}>
-                    <View style={[styles.trendDot, { backgroundColor: dotColor }]} />
-                    <Text style={[styles.trendDate, { color: colors.textSec }]}>
-                      {new Date(s.started_at).toLocaleDateString("en-PH", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </Text>
-                    <Text style={[styles.trendResult, { color: dotColor }]}>
-                      {cls ?? "—"}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
-          </Card>
-        )}
-
-        {/* Session list */}
-        {sessions.length > 0 && (
-          <>
-            <Text style={[styles.listHeader, { color: colors.textSec }]}>All Sessions</Text>
-            {sessions.map((s) => (
-              <SessionCard
-                key={s.id}
-                session={s}
-              />
-            ))}
-          </>
-        )}
-
-        {/* Disclaimer */}
-        <Disclaimer text={DISCLAIMER_TEXT} style={styles.disclaimer} />
+        <Disclaimer text={DISCLAIMER_TEXT} style={{ marginTop: Spacing.md }} />
       </View>
     </ScreenWrapper>
   );
 }
 
+function SecondaryAction({
+  icon, label, onPress, colors, badge,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  colors: import("../../constants/theme").ThemeColors;
+  badge?: number;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.75}
+      style={[styles.secondaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+    >
+      <View>
+        <Ionicons name={icon} size={20} color={colors.accent} />
+        {badge != null ? (
+          <View style={[styles.badge, { backgroundColor: colors.error }]}>
+            <Text style={styles.badgeText}>{badge}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={[styles.secondaryLabel, { color: colors.text }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function Stat({
+  label, value, color, colors,
+}: {
+  label: string; value: string; color: string;
+  colors: import("../../constants/theme").ThemeColors;
+}) {
+  return (
+    <View style={styles.stat}>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSec }]}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  errorText: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-    textAlign: "center",
-    paddingHorizontal: Spacing.lg,
+  hero: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
+  heroCard: {
+    flexDirection: "row", alignItems: "center",
+    borderWidth: 1, borderRadius: Radius.xl,
+    padding: Spacing.md, gap: Spacing.md,
   },
+  avatar: {
+    width: 56, height: 56, borderRadius: 28, borderWidth: 1,
+    alignItems: "center", justifyContent: "center", overflow: "hidden",
+  },
+  avatarImg: { width: "100%", height: "100%" },
+  avatarInitials: { fontSize: 18, fontFamily: Typography.fonts.heading, letterSpacing: 1 },
+  heroText: { flex: 1, gap: 2 },
+  greeting: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, letterSpacing: 0.3 },
+  heroName: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading },
+  heroSub:  { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono },
+  contactRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 },
+  contactText: { fontSize: 10, fontFamily: Typography.fonts.mono },
+  logoutBtn: { padding: 4, alignSelf: "flex-start" },
+
   container: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.xs,
     paddingBottom: Spacing["2xl"],
   },
 
-  //Greeting
-  greeting: { marginBottom: Spacing.lg },
-  greetingHi: {
-    fontSize: Typography.sizes["2xl"],
-    fontFamily: Typography.fonts.heading,
-  },
-  greetingCode: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.mono,
-    marginTop: Spacing.xs,
-  },
-
-  //Latest result
-  latestCard: {
-    borderWidth: 1.5,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.lg,
-  },
-  latestTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  primaryCta: {
+    flexDirection: "row", alignItems: "center",
+    borderRadius: Radius.xl, padding: Spacing.md, gap: Spacing.md,
     marginBottom: Spacing.md,
   },
-  latestLabel: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.label,
-    letterSpacing: 1,
-    textTransform: "uppercase",
+  primaryCtaTitle: { color: "#fff", fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading },
+  primaryCtaSub:   { color: "rgba(255,255,255,0.85)", fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, marginTop: 1 },
+
+  secondaryRow:  { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.lg },
+  secondaryCard: {
+    flex: 1, alignItems: "center", justifyContent: "center", gap: 6,
+    borderWidth: 1, borderRadius: Radius.lg, paddingVertical: Spacing.md,
   },
-  classificationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
+  secondaryLabel: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.subheading },
+
+  badge: {
+    position: "absolute", top: -6, right: -10,
+    minWidth: 16, height: 16, borderRadius: 8,
+    paddingHorizontal: 4, alignItems: "center", justifyContent: "center",
   },
-  latestClassification: {
-    fontSize: Typography.sizes.xl,
-    fontFamily: Typography.fonts.heading,
-  },
-  latestDate: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
+  badgeText: { color: "#fff", fontSize: 9, fontFamily: Typography.fonts.heading },
+
+  sessionHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     marginBottom: Spacing.sm,
   },
-  flaggedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: Spacing.xs,
-  },
-  flaggedLabel: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.body,
-  },
-  flaggedValues: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.mono,
-  },
-  confidenceText: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.mono,
-    marginTop: Spacing.xs,
+  sectionLabel: {
+    fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading,
+    letterSpacing: 1.5, textTransform: "uppercase",
   },
 
-  //Sections
-  section: { marginBottom: Spacing.lg },
-  sectionTitle: {
-    fontSize: Typography.sizes.md,
-    fontFamily: Typography.fonts.heading,
-    marginBottom: Spacing.md,
-  },
-  emptyText: {
-    fontSize: Typography.sizes.base,
-    fontFamily: Typography.fonts.body,
-    textAlign: "center",
-  },
+  filterSeg:  { flexDirection: "row", borderWidth: 1, borderRadius: Radius.md, padding: 2 },
+  filterBtn:  { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Radius.sm },
+  filterText: { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 0.5 },
 
-  //Thumbs
-  thumbRow: { flexDirection: "row", gap: Spacing.md },
-  thumbWrapper: { flex: 1 },
-  thumbLabel: {
-    fontSize: 9,
-    fontFamily: Typography.fonts.heading,
-    textAlign: "center",
-    letterSpacing: 1.5,
-    marginTop: Spacing.xs,
+  statsCard: {
+    flexDirection: "row", alignItems: "center",
+    borderWidth: 1, borderRadius: Radius.lg,
+    paddingVertical: Spacing.md, marginBottom: Spacing.md,
   },
+  stat: { flex: 1, alignItems: "center" },
+  statValue: { fontSize: Typography.sizes["2xl"], fontFamily: Typography.fonts.heading },
+  statLabel: { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 1, textTransform: "uppercase", marginTop: 2 },
+  statsDivider: { width: 1, height: 28 },
 
-  //Trend
-  trendRow: {
-    flexDirection: "row",
-    gap: Spacing.sm,
-    flexWrap: "wrap",
+  emptyCard: {
+    alignItems: "center", justifyContent: "center", gap: Spacing.sm,
+    borderWidth: 1, borderRadius: Radius.lg, paddingVertical: Spacing.xl,
   },
-  trendItem: { alignItems: "center", gap: 4 },
-  trendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  trendDate: {
-    fontSize: 10,
-    fontFamily: Typography.fonts.body,
-  },
-  trendResult: {
-    fontSize: 9,
-    fontFamily: Typography.fonts.label,
-    letterSpacing: 0.5,
-  },
-
-  //Session list
-  listHeader: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.label,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: Spacing.md,
-  },
-  disclaimer: { marginTop: Spacing.md },
-  notifBadge: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    borderRadius: Radius.full,
-    minWidth: 16,
-    height: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  notifBadgeText: { fontSize: 9, fontFamily: Typography.fonts.heading, color: "#fff" },
-  //Import section
-  refImageWrapper: { marginTop: Spacing.sm, marginBottom: Spacing.md },
-  refImage: { width: "100%", height: 80, borderRadius: Radius.sm },
-  refImageLabel: { fontSize: 10, fontFamily: Typography.fonts.mono, marginTop: 4 },
-  importDivider: { flexDirection: "row", alignItems: "center", gap: Spacing.sm, marginBottom: Spacing.sm },
-  importLine: { flex: 1, height: 1 },
-  importDividerText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
-  importRow: { flexDirection: "row", gap: Spacing.xs },
-  importCard: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: Radius.md,
-    padding: Spacing.sm,
-    alignItems: "center",
-    gap: 4,
-    position: "relative",
-  },
-  importCardTitle: { fontSize: 10, fontFamily: Typography.fonts.heading, textAlign: "center" },
-  importCardFile: { fontSize: 9, fontFamily: Typography.fonts.mono, textAlign: "center" },
-  importClear: { position: "absolute", top: 4, right: 4 },
+  emptyText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
+  errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", paddingVertical: Spacing.lg },
 });
