@@ -259,7 +259,16 @@ export default function RegisterScreen() {
               onSubmit={handleRegister}
             />
           ) : (
-            <ClinicForm accent={accent} onSuccess={() => router.replace("/(clinic)")} />
+            <ClinicForm
+              accent={accent}
+              onSuccess={(clinicCode) =>
+                router.replace(
+                  clinicCode
+                    ? (`/(auth)/clinic-pending-approval?clinic_code=${encodeURIComponent(clinicCode)}` as any)
+                    : "/(auth)/clinic-pending-approval" as any,
+                )
+              }
+            />
           )}
 
           <View style={styles.footer}>
@@ -451,7 +460,7 @@ function PatientForm(p: PatientFormProps) {
 //──────────────────────────────────────────────────────────────────────
 interface CityRow { value: string; label: string; zip: string | null }
 
-function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => void }) {
+function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: (clinicCode?: string) => void }) {
   const { colors } = useTheme();
   const { registerClinic } = useAuthStore();
 
@@ -608,7 +617,7 @@ function ClinicForm({ accent, onSuccess }: { accent: string; onSuccess: () => vo
     });
     setLoading(false);
     if (result.success) {
-      onSuccess();
+      onSuccess(result.clinic_code);
     } else {
       setStoreError(result.error ?? "Could not register clinic.");
     }

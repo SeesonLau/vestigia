@@ -123,6 +123,13 @@ export default function SettingsScreen() {
           />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingRow
+            icon="key-outline"
+            label="Request Password Reset"
+            subtitle="Admin-mediated reset (clinics use fabricated emails)"
+            onPress={() => router.push("/(clinic)/request-password-reset" as any)}
+          />
+          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
+          <SettingRow
             icon="color-palette-outline"
             label="Dark Mode"
             toggle
@@ -159,6 +166,17 @@ export default function SettingsScreen() {
             toggle
             toggleValue={autoUpload}
             onToggle={setAutoUpload}
+          />
+        </View>
+
+        {/* Support */}
+        <SectionHeader label="Support" />
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <SettingRow
+            icon="chatbox-ellipses-outline"
+            label="Feedback / Tickets"
+            subtitle="Report a bug, request a feature, or contact the admin"
+            onPress={() => router.push("/(clinic)/feedback" as any)}
           />
         </View>
 

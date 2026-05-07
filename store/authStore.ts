@@ -1,6 +1,7 @@
 // store/authStore.ts
 import { create } from "zustand";
 import { dbg } from "../lib/debug";
+import { fetchClinicApproval } from "../lib/admin/clinicApproval";
 import { supabase } from "../lib/supabase";
 import { AuthUser, Sex, UserRole } from "../types";
 
@@ -205,6 +206,32 @@ export const useAuthStore = create<AuthState>((set, get) => {
           return { success: false, error: err };
         }
 
+        // Clinic accounts must be approved by an admin before they can
+        // log in. Clinics use fabricated emails so Supabase email
+        // verification doesn't establish trust — the admin manually
+        // verifies the DOH LTO and flips approval_status to 'approved'
+        // on the web console. See migration 20260508 + the
+        // `admin_approve_clinic` / `admin_reject_clinic` RPCs.
+        if (profile.role === "clinic") {
+          let clinic;
+          try {
+            clinic = await fetchClinicApproval(profile.id);
+          } catch (e: any) {
+            await supabase.auth.signOut();
+            const err = e?.message ?? "Could not verify clinic approval status.";
+            set({ user: null, isLoading: false, error: err });
+            return { success: false, error: err };
+          }
+          if (clinic && clinic.approval_status !== "approved") {
+            await supabase.auth.signOut();
+            const err = clinic.approval_status === "rejected"
+              ? `Your clinic registration was rejected${clinic.rejection_reason ? ": " + clinic.rejection_reason : "."}`
+              : "Your clinic account is awaiting admin approval. We'll let you in once your DOH LTO is verified.";
+            set({ user: null, isLoading: false, error: err });
+            return { success: false, error: err };
+          }
+        }
+
         // AUTH-06: Reset counter on success
         _loginAttempts = 0;
         _loginLockedUntil = 0;
@@ -280,22 +307,12 @@ export const useAuthStore = create<AuthState>((set, get) => {
         if (data?.error) throw new Error(data.error);
         if (!data?.success) throw new Error("Clinic signup failed");
 
-        //2. Auto-sign-in with the same credentials.
-        const { data: signIn, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: params.email.toLowerCase().trim(),
-          password: params.password,
-        });
-        if (signInErr) throw signInErr;
-
-        //3. Hydrate profile.
-        const { data: profile, error: profileErr } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", signIn.user.id)
-          .single();
-        if (profileErr) throw profileErr;
-
-        set({ user: profile as AuthUser, isLoading: false, error: null });
+        //2. We deliberately do NOT auto-sign-in. New clinic accounts ship
+        //   with `clinics.approval_status = 'pending'` and the login gate
+        //   will reject them until an admin approves on the web console.
+        //   The register screen routes to the pending-approval confirmation
+        //   instead of the clinic dashboard.
+        set({ isLoading: false, error: null });
         return { success: true, clinic_code: data.clinic_code as string | undefined };
       } catch (e: any) {
         const err = mapAuthError(e);
