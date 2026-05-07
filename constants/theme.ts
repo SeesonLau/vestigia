@@ -70,11 +70,13 @@ export const lightColors: ThemeColors = {
   textSec:    "#4D7080",
   textInverse: "#FFFFFF",
 
-  accent:     "#009DAE",
+  // Bumped 2026-05-07 from #009DAE to #0E7A89 so white text on accent
+  // buttons clears WCAG 2.1 AA (4.5:1 body) — was 3.27:1, now 5.06:1.
+  accent:     "#0E7A89",
   accentSoft: "#B3E5EC",
 
   navBg:      "#FFFFFF",
-  navActive:  "#009DAE",
+  navActive:  "#0E7A89",
   navInactive:"#93BBC6",
 
   badge:     "#7C4DFF",
@@ -84,16 +86,19 @@ export const lightColors: ThemeColors = {
   tagText:"#5E35B1",
 
   border:      "#C4DDE4",
-  borderFocus: "#009DAE",
+  borderFocus: "#0E7A89",
 
   highlight: "#E8DEFF",
 
-  error:   "#EF4444",
-  warning: "#F59E0B",
-  success: "#009DAE",
+  // Bumped 2026-05-07 to clear WCAG 2.1 AA when used as text on white card.
+  // error: #EF4444 (3.76:1) → #B91C1C (6.46:1).
+  // warning: #F59E0B (2.14:1) → #B45309 (5.03:1).
+  error:   "#B91C1C",
+  warning: "#B45309",
+  success: "#0E7A89",
   info:    "#3B82F6",
 
-  shadowColor: "rgba(0, 157, 174, 0.08)",
+  shadowColor: "rgba(14, 122, 137, 0.08)",
 
   thermal: {
     cold: "#1a1aff",
@@ -117,11 +122,14 @@ export const darkColors: ThemeColors = {
   textSec:    "#7AAAB8",
   textInverse: "#FFFFFF",
 
-  accent:     "#26C6DA",
+  // Bumped 2026-05-07 from #26C6DA to #0E7A89 so white text on accent
+  // buttons clears WCAG 2.1 AA on dark mode (was 2.04:1, now 5.06:1).
+  // accentSoft + navBg + dark error/warning already pass and stay as-is.
+  accent:     "#0E7A89",
   accentSoft: "#0E2F38",
 
   navBg:      "#0C1820",
-  navActive:  "#26C6DA",
+  navActive:  "#0E7A89",
   navInactive:"#2A5060",
 
   badge:     "#2E1A5E",
@@ -131,13 +139,13 @@ export const darkColors: ThemeColors = {
   tagText:"#CE93D8",
 
   border:      "#1A3642",
-  borderFocus: "#26C6DA",
+  borderFocus: "#0E7A89",
 
   highlight: "#1A1030",
 
   error:   "#F87171",
   warning: "#FCD34D",
-  success: "#26C6DA",
+  success: "#0E7A89",
   info:    "#93C5FD",
 
   shadowColor: "rgba(0, 0, 0, 0.4)",

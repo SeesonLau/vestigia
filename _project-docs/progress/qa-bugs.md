@@ -1,22 +1,7 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-05-02 (v0.9.9)
+**Last verified:** 2026-05-07 (full-codebase QA audit @ `main 0414e79`)
 
----
-
-## QA Coverage — What Each Area Checks
-
-| Area | What It Covers | Files Scanned |
-|---|---|---|
-| **Code Quality** | TypeScript errors, `any` types, unused imports/variables, `console.log` with sensitive data, hardcoded secrets, missing file path comments | `app/`, `components/`, `store/`, `hooks/`, `lib/`, `types/` |
-| **UI / UX** | Empty/stub screens, missing loading states, missing error states, missing empty states, hardcoded placeholder strings, dead `onPress` handlers | `app/` |
-| **Supabase / Data Integration** | Correct table names, PostgREST join normalization, error handling on every insert/update, screens still reading from mock data, missing writes | All files calling `supabase.*` |
-| **Performance** | Module-scope expensive calls, missing `setInterval` cleanup, inline arrow functions in `FlatList renderItem`, missing `keyExtractor`, Animated values outside `useRef` | `app/`, `components/` |
-| **Accessibility** | Missing `accessibilityLabel` on icon-only buttons, WCAG AA color contrast ratios (min 4.5:1 body text, 3:1 large text) calculated from theme | `app/`, `components/`, `constants/theme.ts` |
-| **Security** | Hardcoded API keys/secrets, `console.log` leaking tokens or patient data, anon-only client enforcement, RLS enabled on all tables, input sanitization before Supabase | All source files, Supabase config |
-| **Navigation** | Every `router.push()` target maps to a real file, no dead-end screens, dynamic routes receive required params, all tabs/links point to real routes | `app/` routing structure |
-| **Auth** | Sign Out across all roles, inactivity timeout mounted, password reset deep link, login lockout, session persistence | `app/(auth)/`, `store/authStore.ts`, `app/_layout.tsx` |
-| **Schema / Database** | Table existence, column match against thesis schema, foreign keys, RLS policies, TypeScript types vs actual DB columns | `types/`, Supabase live query |
-| **Regression** | Every ~~fixed~~ item in this file cross-referenced against current code to confirm the fix still exists and was not reverted | All previously fixed files |
+Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline overhaul (3×3 median + adaptive EMA + CLAHE + 320×240 upscale + unsharp), Raw vs Enhanced single-mode toggle, on-screen crosshair overlays (Hot/Cold/All-3) bounded to the framing rectangle, emissivity + reflected-temperature radiometric correction with persisted per-device parameters, light mode default + palette catalog trimmed to 4 (Medical default), DPN result screen redesign, clinic + patient home redesigns with profile hero + Today/Month/All session list, settings cleanup (Thermal Preview / Register USB / Coming-Soon rows removed), avatar upload pipeline (RLS path fix + bucket public + native File.arrayBuffer reader), themed photo picker + custom in-app cropper with safe-area padding + circular SVG mask, foot isolation refined (hole fill + moat-based bg sampler + one-sided threshold + largest-component selection), bundle-detail UUID guard + param naming fix, offline guest flow completed (`(offline)/patient-details` rebuilt as a real form), date-input validation fix.
 
 ---
 
@@ -25,23 +10,26 @@
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
 | ~~CODE-01~~ | `store/authStore.ts` | — | Mock accounts hardcoded in auth store | High | ✅ Fixed 2026-03-20 |
-| ~~CODE-02~~ | Various | — | `console.log` statements audited — only `console.error` in `lib/database/index.ts` (WatermelonDB setup, no sensitive data) | Low | ✅ Fixed 2026-03-21 |
+| ~~CODE-02~~ | Various | — | `console.log` audit — only `console.warn`/`console.error` in non-sensitive paths | Low | ✅ Fixed 2026-03-21 |
 | ~~CODE-03~~ | `types/index.ts` | — | `AuthUser` missing `phone`, `created_at`, `updated_at` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-04~~ | `types/index.ts` | — | `ScreeningSession` missing `app_version` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-05~~ | `types/index.ts` | — | `PatientVitals` missing `recorded_at`, `id`, `session_id` | Low | ✅ Fixed 2026-03-20 |
 | ~~CODE-06~~ | `types/index.ts` | — | `ThermalCapture` missing `resolution_x`, `resolution_y` | Low | ✅ Fixed 2026-03-20 |
-| ~~CODE-07~~ | Multiple files | 1 | File path comments missing on some utility/edge function files | Low | ✅ Fixed 2026-03-21 |
+| ~~CODE-07~~ | Multiple files | 1 | File-path comment missing on some utility files | Low | ✅ Fixed 2026-03-21 |
 | ~~CODE-08~~ | `app/(clinic)/clinical-data.tsx` | — | Submit handler was dummy setTimeout — no real upload | High | ✅ Fixed 2026-03-21 |
-| CODE-09 | `app/(clinic)/clinical-data.tsx` | 26 | `MOCK_ANGIOSOMES` still used in thermal preview — real values not computed from matrix | Medium | Deferred (blocked on GAP-04) |
+| ~~CODE-09~~ | `app/(clinic)/clinical-data.tsx` | 26 | `MOCK_ANGIOSOMES` removed when DPN API began returning real per-angiosome regions | Medium | ✅ Fixed 2026-05-07 (superseded by FR-504) |
 | ~~CODE-10~~ | `app/(clinic)/assessment.tsx` | — | `clearSession()` + `discardCapture()` not called on exit | Medium | ✅ Fixed 2026-03-21 |
 | ~~CODE-11~~ | `app/(clinic)/index.tsx` | 56 | Clinic name hardcoded as "Cebu City Health Center" | Medium | ✅ Fixed 2026-03-21 |
-| ~~CODE-12~~ | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` and `(clinicsData as any[])` — typed interfaces already defined but cast bypassed | Medium | ✅ Fixed 2026-03-21 |
-| ~~CODE-13~~ | `app/(clinic)/assessment.tsx` | 163 | `.map((step, i) => ...)` — param `i` declared but never read | Low | ✅ Fixed 2026-03-21 |
-| ~~CODE-14~~ | `app/(auth)/login.tsx` | 153 | Version string hardcoded as `"Vestigia v1.0.0"` | Low | ✅ Fixed 2026-03-30 |
-| CODE-15 | `app/(auth)/update-password.tsx` | 4 | `useEffect` in a second separate `import from "react"` statement — should be consolidated | Low | Open |
-| ~~CODE-16~~ | `lib/debug.ts` | 8 | `dbg()` calls `console.log` unconditionally with no `__DEV__` guard | Medium | ✅ Fixed 2026-03-30 |
-| CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; inline comments label them as separate files — misleading | Low | Open (by design) |
-| ~~CODE-18~~ | `app/(clinic)/_layout.tsx` | 14 | `label: string` prop declared in `TabIcon` TypeScript type but never used in function | Low | ✅ Fixed 2026-04-07 |
+| ~~CODE-12~~ | `app/(admin)/index.tsx` | 70, 85 | `(usersData as any[])` casts | Medium | ✅ Fixed 2026-03-21 (admin moved to web app) |
+| ~~CODE-13~~ | `app/(clinic)/assessment.tsx` | 163 | Unused param `i` in `.map()` | Low | ✅ Fixed 2026-03-21 |
+| ~~CODE-14~~ | `app/(auth)/login.tsx` | 153 | Version string hardcoded | Low | ✅ Fixed 2026-03-30 |
+| ~~CODE-15~~ | `app/(auth)/update-password.tsx` | 4 | Two separate React imports — verified consolidated to a single `import React, { useEffect, useState } from "react"` | Low | ✅ Fixed 2026-05-07 |
+| ~~CODE-16~~ | `lib/debug.ts` | 8 | `dbg()` `console.log` without `__DEV__` guard | Medium | ✅ Fixed 2026-03-30 |
+| CODE-17 | `store/sessionStore.ts` | 28, 56 | Three Zustand stores in one file; `// store/...Store.ts` comments label them as separate files | Low | Open (by design — convenience grouping) |
+| ~~CODE-18~~ | `app/(clinic)/_layout.tsx` | 14 | Unused `label: string` prop on `TabIcon` | Low | ✅ Fixed 2026-04-07 |
+| ~~CODE-19~~ | `app/(auth)/login.tsx` | 52 | Dead `/(admin)` switch branch removed; only clinic and patient cases remain | Medium | ✅ Fixed 2026-05-07 |
+| ~~CODE-20~~ | `lib/database/` | — | Orphan WatermelonDB directory deleted; `@nozbe/watermelondb` was never tracked in `package.json` so stale `node_modules` entries will sweep on the next `npm install` | Low | ✅ Fixed 2026-05-07 |
+| ~~CODE-21~~ | `components/thermal/ThermalMap.tsx` | 101 | Removed unused `generateMockThermalMatrix` export | Low | ✅ Fixed 2026-05-07 |
 
 ---
 
@@ -52,25 +40,27 @@
 | ~~BUG-01~~ | `app/(clinic)/pairing.tsx` | — | "Connect & Start Scanning" button had no `onPress` | Critical | ✅ Fixed 2026-03-20 |
 | ~~BUG-02~~ | `app/(clinic)/live-feed.tsx` | — | "Use This Frame" button had no `onPress` | Critical | ✅ Fixed 2026-03-20 |
 | ~~BUG-03~~ | `app/(clinic)/clinical-data.tsx` | — | Submit and Cancel buttons had no `onPress` handlers | Critical | ✅ Fixed 2026-03-20 |
-| ~~BUG-05~~ | `app/(clinic)/live-feed.tsx` | 148–165 | Foot selector buttons had no `onPress`; active style hardcoded to "Bilateral" | Critical | ✅ Fixed 2026-03-21 |
-| ~~UX-01~~ | `app/(clinic)/index.tsx` | — | All 4 Quick Action buttons had no `onPress` handlers | Medium | ✅ Fixed 2026-03-21 |
+| ~~BUG-05~~ | `app/(clinic)/live-feed.tsx` | 148–165 | Foot selector buttons had no `onPress`; active style hardcoded | Critical | ✅ Fixed 2026-03-21 |
+| ~~UX-01~~ | `app/(clinic)/index.tsx` | — | Quick Action buttons had no `onPress` | Medium | ✅ Fixed 2026-03-21 |
 | ~~UX-02~~ | `app/(patient)/index.tsx` | — | Session card `onPress` missing | Medium | ✅ Fixed 2026-03-20 |
-| ~~UX-03~~ | `app/(admin)/index.tsx` | — | All action buttons had no handlers | Medium | ✅ Fixed 2026-03-21 |
-| ~~UX-04~~ | `app/(clinic)/settings.tsx` | — | All settings handlers were stubs | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-03~~ | `app/(admin)/index.tsx` | — | Action buttons had no handlers | Medium | ✅ Fixed 2026-03-21 (admin moved to web) |
+| ~~UX-04~~ | `app/(clinic)/settings.tsx` | — | Settings handlers were stubs | Medium | ✅ Fixed 2026-03-21 |
 | ~~UX-05~~ | `app/(patient)/settings.tsx` | — | Settings screen was a stub | Medium | ✅ Fixed 2026-03-20 |
-| ~~UX-06~~ | `app/(admin)/settings.tsx` | — | All settings handlers were stubs | Medium | ✅ Fixed 2026-03-21 |
-| ~~UX-07~~ | `app/(patient)/session/[id].tsx` + `app/(clinic)/session/[id].tsx` | — | Both session detail screens read from `MOCK_CLINIC_SESSIONS` | High | ✅ Fixed 2026-03-21 |
-| ~~UX-08~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | — | Activate/Deactivate buttons only called `setSelected(null)` | High | ✅ Fixed 2026-03-21 |
-| ~~UX-09~~ | `app/(admin)/index.tsx` | 47–95 | No `ActivityIndicator` or error message for `fetchStats()` | Medium | ✅ Fixed 2026-03-21 |
-| ~~UX-10~~ | `app/(patient)/index.tsx` | 36–68 | No error state if `patients` or `screening_sessions` fetch fails | Medium | ✅ Fixed 2026-03-21 |
-| UX-11 | `app/(clinic)/index.tsx` | 159–178 | Device status card fully hardcoded: "DPN-Scanner-01", "MI0802M5S", "v2.1.4", "Feb 10" | Low | Deferred (hardware) |
-| ~~UX-12~~ | `app/(admin)/settings.tsx` | 88–101 | `system_config` load failure silently ignored | Low | ✅ Fixed 2026-03-21 |
-| ~~UX-13~~ | `app/(clinic)/index.tsx` | 93 | "Good morning" hardcoded — displays wrong time of day | Low | ✅ Fixed 2026-03-21 |
-| ~~UX-14~~ | Multiple files (20) | — | All emoji / unclear Unicode symbols replaced with Ionicons | Medium | ✅ Fixed 2026-03-21 |
-| ~~UX-15~~ | `app/(clinic)/index.tsx` | 67–95 | No `ActivityIndicator` while `fetchData()` runs — stats display as 0 while loading | Low | ✅ Fixed 2026-03-30 |
-| ~~UX-16~~ | `app/(clinic)/index.tsx` | 82–90 | `clinicResult.error` and `sessionsResult.error` checked but silently ignored | Medium | ✅ Fixed 2026-03-30 |
-| ~~UX-17~~ | Multiple screens | various | Debug UI ID strings visible in production: `"UI-02"` through `"UI-08"` | Medium | ✅ Fixed 2026-03-30 |
-| ~~BUG-06~~ | `app/(patient)/index.tsx`, `app/(clinic)/assessment.tsx`, `app/(patient)/session/[id].tsx`, `app/(clinic)/session/[id].tsx` | 22 | `THUMB_H` ratio used `(62 / 80)` — wrong for Lepton 3.5 (160×120); fixed to `(120 / 160)` in all 4 affected files | Low | ✅ Fixed 2026-04-06 |
+| ~~UX-06~~ | `app/(admin)/settings.tsx` | — | Settings handlers were stubs | Medium | ✅ Fixed 2026-03-21 (admin moved to web) |
+| ~~UX-07~~ | session detail screens | — | Read from `MOCK_CLINIC_SESSIONS` | High | ✅ Fixed 2026-03-21 |
+| ~~UX-08~~ | admin Activate/Deactivate | — | Only called `setSelected(null)` | High | ✅ Fixed 2026-03-21 |
+| ~~UX-09~~ | `app/(admin)/index.tsx` | 47–95 | No `ActivityIndicator`/error state | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-10~~ | `app/(patient)/index.tsx` | 36–68 | No error state | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-11~~ | `app/(clinic)/index.tsx` | 159–178 | Hardcoded device card | Low | ✅ Fixed 2026-05-07 (removed in commit-4 home redesign) |
+| ~~UX-12~~ | `app/(admin)/settings.tsx` | 88–101 | `system_config` failure silently ignored | Low | ✅ Fixed 2026-03-21 |
+| ~~UX-13~~ | `app/(clinic)/index.tsx` | 93 | "Good morning" hardcoded | Low | ✅ Fixed 2026-03-21 |
+| ~~UX-14~~ | Multiple files | — | Emoji / unclear Unicode replaced with Ionicons | Medium | ✅ Fixed 2026-03-21 |
+| ~~UX-15~~ | `app/(clinic)/index.tsx` | 67–95 | No `ActivityIndicator` while fetching | Low | ✅ Fixed 2026-03-30 |
+| ~~UX-16~~ | `app/(clinic)/index.tsx` | 82–90 | `clinicResult.error` silently ignored | Medium | ✅ Fixed 2026-03-30 |
+| ~~UX-17~~ | Multiple screens | — | Debug ID strings visible in production | Medium | ✅ Fixed 2026-03-30 |
+| ~~BUG-06~~ | session detail / assessment / patient index | 22 | `THUMB_H` aspect ratio wrong | Low | ✅ Fixed 2026-04-06 |
+| ~~UX-18~~ | `app/(patient)/save.tsx` | — | Orphan route deleted; `(patient)/_layout.tsx` `Tabs.Screen name="save"` entry removed | Low | ✅ Fixed 2026-05-07 |
+| ~~UX-19~~ | `components/thermal/FootAngiosomeDiagram.tsx` | — | Dropped unused `asymmetry?` prop and the `AsymmetryResult` import; updated the call site in `DpnResultView.tsx` | Low | ✅ Fixed 2026-05-07 |
 
 ---
 
@@ -78,20 +68,23 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| ~~GAP-05~~ | `app/(clinic)/clinical-data.tsx` | — | Submit handler did not write to Supabase | Critical | ✅ Fixed 2026-03-21 |
-| ~~GAP-07~~ | `app/(clinic)/assessment.tsx` | — | "Save to Cloud" never inserted to `classification_results` | High | ✅ Fixed 2026-03-21 |
-| ~~GAP-09~~ | `app/(clinic)/history.tsx` | — | Reads `MOCK_CLINIC_SESSIONS` | High | ✅ Fixed 2026-03-21 |
-| ~~GAP-10~~ | `app/(admin)/users.tsx` | — | Reads `MOCK_ALL_USERS` | High | ✅ Fixed 2026-03-21 |
-| ~~GAP-11~~ | `app/(admin)/clinics.tsx` | — | Reads `MOCK_CLINICS` + `MOCK_DEVICES` | High | ✅ Fixed 2026-03-21 |
-| GAP-04 | `app/(clinic)/assessment.tsx` | 32 | AI classification result is hardcoded mock — no real cloud inference | High | Deferred (hardware) |
-| GAP-08 | `app/(clinic)/assessment.tsx` | — | No abnormal region overlay on thermal map | Medium | Deferred (API returns no per-angiosome spatial data) |
-| ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | Both Supabase calls use `.then()` with no error branch | Medium | ✅ Fixed 2026-03-21 |
-| ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` has zero error handling | Medium | ✅ Fixed 2026-03-21 |
-| ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Neither fetch destructures `error` | Medium | ✅ Fixed 2026-03-21 |
-| ~~GAP-15~~ | `app/(clinic)/history.tsx` | 115–120 | PostgREST join alias mismatch — `classification` may be undefined; `positiveCount`/`negativeCount` always 0 | High | ✅ Fixed 2026-03-30 |
-| ~~GAP-16~~ | `app/(admin)/users.tsx` | 34 | `fetchUsers`: `error` not destructured; silent failure | Medium | ✅ Fixed 2026-03-30 |
-| ~~GAP-17~~ | `app/(admin)/clinics.tsx` | 52 | `fetchClinics`: same as GAP-16 | Medium | ✅ Fixed 2026-03-30 |
-| ~~GAP-18~~ | `app/(admin)/users.tsx` + `app/(admin)/clinics.tsx` | 102 / — | `handleToggleActive`: on Supabase error, no user notification | Medium | ✅ Fixed 2026-04-05 |
+| ~~GAP-04~~ | `app/(clinic)/assessment.tsx` | 32 | Mock AI classification — replaced by real `dpnApi.scanPatient()` call (HuggingFace Spaces YOLO+sklearn fusion) | High | ✅ Fixed 2026-04-07 (FR-504) |
+| ~~GAP-05~~ | `app/(clinic)/clinical-data.tsx` | — | Submit didn't write to Supabase | Critical | ✅ Fixed 2026-03-21 |
+| ~~GAP-07~~ | `app/(clinic)/assessment.tsx` | — | Save to cloud never inserted | High | ✅ Fixed 2026-03-21 |
+| GAP-08 | — | — | No abnormal-region overlay on thermal map | Medium | Deferred — API returns `diagnosis_factors` text only, no spatial coords |
+| ~~GAP-09~~ | `app/(clinic)/history.tsx` | — | Read `MOCK_CLINIC_SESSIONS` | High | ✅ Fixed 2026-03-21 |
+| ~~GAP-10~~ | `app/(admin)/users.tsx` | — | Read `MOCK_ALL_USERS` | High | ✅ Fixed 2026-03-21 |
+| ~~GAP-11~~ | `app/(admin)/clinics.tsx` | — | Read `MOCK_CLINICS` + `MOCK_DEVICES` | High | ✅ Fixed 2026-03-21 |
+| ~~GAP-12~~ | `app/(clinic)/index.tsx` | 58–85 | `.then()` with no error branch | Medium | ✅ Fixed 2026-03-21 |
+| ~~GAP-13~~ | `app/(admin)/index.tsx` | 49–93 | `Promise.all()` no error handling | Medium | ✅ Fixed 2026-03-21 |
+| ~~GAP-14~~ | `app/(patient)/index.tsx` | 37–66 | Fetches didn't destructure `error` | Medium | ✅ Fixed 2026-03-21 |
+| ~~GAP-15~~ | `app/(clinic)/history.tsx` | 115–120 | PostgREST join alias mismatch | High | ✅ Fixed 2026-03-30 |
+| ~~GAP-16~~ | `app/(admin)/users.tsx` | 34 | `error` not destructured | Medium | ✅ Fixed 2026-03-30 |
+| ~~GAP-17~~ | `app/(admin)/clinics.tsx` | 52 | Same | Medium | ✅ Fixed 2026-03-30 |
+| ~~GAP-18~~ | admin Activate/Deactivate | — | No user notification on Supabase error | Medium | ✅ Fixed 2026-04-05 |
+| ~~GAP-19~~ | `app/(patient)/profile.tsx` | 200–212 | Now destructures `{ error }` and surfaces `Alert.alert("Could not deactivate", error.message)` instead of silently signing the user out. Same fix applied to clinic profile | Medium | ✅ Fixed 2026-05-07 |
+| ~~GAP-20~~ | `app/(clinic)/sync.tsx` | 133 | `data_requests` insert now destructures `error` and `console.warn`s the message so failures don't disappear | Low | ✅ Fixed 2026-05-07 |
+| GAP-21 | `app/(clinic)/clinical-data.tsx` | — | When `feed_mode='processed'` with no ROI, slot 2 is null and `processedPath` insert is null — verified that the bundle-viewer + PatientDetailsScreen handle this correctly | — | ✅ Verified 2026-05-07 |
 
 ---
 
@@ -99,17 +92,14 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| ~~PERF-01~~ | `app/(clinic)/session/[id].tsx` | 25–26 | `generateMockThermalMatrix()` at module scope | Low | ✅ Fixed 2026-03-21 |
-| ~~PERF-02~~ | `app/(patient)/session/[id].tsx` | 24–25 | Same — `generateMockThermalMatrix()` at module scope | Low | ✅ Fixed 2026-03-21 |
-| ~~PERF-03~~ | `app/(clinic)/assessment.tsx` | 130–131 | `leftMatrix`/`rightMatrix` generated at component scope on every render | Low | ✅ Fixed 2026-03-21 |
-| ~~PERF-04~~ | `app/(patient)/index.tsx` | 22–23 | `generateMockThermalMatrix()` at module scope | Low | ✅ Fixed 2026-03-21 |
-| ~~PERF-05~~ | `app.json` | 26 | `"output": "static"` caused SSR crash on Metro start | Critical | ✅ Fixed 2026-03-21 |
-| ~~PERF-06~~ | `lib/supabase.ts` | 8 | Supabase `createClient()` at module scope blocking startup 5+ sec | High | ✅ Fixed 2026-03-21 |
-| ~~PERF-07~~ | `lib/supabase.ts` | 24 | Proxy `get` trap unbound methods causing silent failures | High | ✅ Fixed 2026-03-21 |
-| ~~PERF-08~~ | `store/authStore.ts` | 75 | Full profile DB fetch on every cold start | Medium | ✅ Fixed 2026-03-21 |
-| ~~PERF-09~~ | `app/(clinic)/history.tsx` | 132 | Inline arrow function in `FlatList renderItem` | Low | ✅ Fixed 2026-03-30 |
-| ~~PERF-10~~ | `app/(admin)/users.tsx` | 107 | Inline arrow function in `FlatList renderItem` | Low | ✅ Fixed 2026-03-30 |
-| ~~PERF-11~~ | `app/(admin)/clinics.tsx` | 100 | Inline arrow function in `FlatList renderItem` | Low | ✅ Fixed 2026-03-30 |
+| ~~PERF-01..04~~ | session/[id], assessment, patient/index | — | `generateMockThermalMatrix` at module/component scope | Low | ✅ Fixed 2026-03-21 |
+| ~~PERF-05~~ | `app.json` | 26 | `"output": "static"` SSR crash | Critical | ✅ Fixed 2026-03-21 |
+| ~~PERF-06~~ | `lib/supabase.ts` | 8 | `createClient()` blocking startup | High | ✅ Fixed 2026-03-21 |
+| ~~PERF-07~~ | `lib/supabase.ts` | 24 | Proxy `get` trap unbound methods | High | ✅ Fixed 2026-03-21 |
+| ~~PERF-08~~ | `store/authStore.ts` | 75 | Full profile fetch on every cold start | Medium | ✅ Fixed 2026-03-21 |
+| ~~PERF-09..11~~ | history / users / clinics | — | Inline arrow function in `FlatList renderItem` | Low | ✅ Fixed 2026-03-30 |
+| ~~PERF-12~~ | `app/(clinic)/profile.tsx` | 198 | `successTimerRef = useRef<...>()`; cleared on unmount via a `useEffect` cleanup return | Low | ✅ Fixed 2026-05-07 |
+| ~~PERF-13~~ | `app/(patient)/profile.tsx` | 178 | Same pattern | Low | ✅ Fixed 2026-05-07 |
 
 ---
 
@@ -117,11 +107,15 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| ~~A11Y-01~~ | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle has no `accessibilityLabel` | Low | ✅ Fixed 2026-03-21 |
-| ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron in action card has no accessibility role | Low | ✅ Fixed 2026-03-21 |
-| ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` `#4d6a96` on `#050d1a` = 3.64:1 — fails WCAG AA | Medium | ✅ Fixed 2026-03-21 |
-| ~~A11Y-04~~ | `components/ui/index.tsx` | 193–201 | Muted badge text on badge bg ≈ 4.4:1 — borderline below WCAG AA 4.5:1 for xs text | Low | ✅ Fixed 2026-04-07 |
-| ~~A11Y-05~~ | `app/(clinic)/_layout.tsx` | 32–71 | No `tabBarAccessibilityLabel` on any `Tabs.Screen` after text labels removed | Medium | ✅ Fixed 2026-03-30 |
+| ~~A11Y-01~~ | `app/(clinic)/live-feed.tsx` | 98–106 | "Guides" toggle no `accessibilityLabel` | Low | ✅ Fixed 2026-03-21 |
+| ~~A11Y-02~~ | `app/(clinic)/index.tsx` | 45 | Chevron no accessibility role | Low | ✅ Fixed 2026-03-21 |
+| ~~A11Y-03~~ | `constants/theme.ts` | 54 | `Colors.text.muted` 3.64 : 1 | Medium | ✅ Fixed 2026-03-21 |
+| ~~A11Y-04~~ | `components/ui/index.tsx` | 193–201 | Muted badge text ≈ 4.4 : 1 | Low | ✅ Fixed 2026-04-07 |
+| ~~A11Y-05~~ | `app/(clinic)/_layout.tsx` | 32–71 | No `tabBarAccessibilityLabel` after icons-only tabs | Medium | ✅ Fixed 2026-03-30 |
+| ~~A11Y-06~~ | `constants/theme.ts` | 73 | Light `accent` `#009DAE` → `#0E7A89`. White text on accent now 5.06 : 1 (was 3.27 : 1) | Medium | ✅ Fixed 2026-05-07 |
+| ~~A11Y-07~~ | `constants/theme.ts` | 120 | Dark `accent` `#26C6DA` → `#0E7A89`. White text now 5.06 : 1 (was 2.04 : 1) | High | ✅ Fixed 2026-05-07 |
+| ~~A11Y-08~~ | `constants/theme.ts` | 92 | `warning` `#F59E0B` → `#B45309`. On white now 5.03 : 1 (was 2.14 : 1) | High | ✅ Fixed 2026-05-07 |
+| ~~A11Y-09~~ | `constants/theme.ts` | 91 | `error` `#EF4444` → `#B91C1C`. On white now 6.46 : 1 (was 3.76 : 1) | Medium | ✅ Fixed 2026-05-07 |
 
 ---
 
@@ -129,9 +123,11 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| ~~SEC-01~~ | `store/authStore.ts` | — | Mock accounts exposed service_role-equivalent bypass | Critical | ✅ Fixed 2026-03-20 |
-| ~~SEC-02~~ | All tables | — | RLS INSERT policies missing WITH CHECK clauses | High | ✅ Fixed 2026-03-20 |
-| ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | Heart rate and HbA1c had no range validation before Supabase insert | Medium | ✅ Fixed 2026-03-21 |
+| ~~SEC-01~~ | `store/authStore.ts` | — | Mock service-role bypass | Critical | ✅ Fixed 2026-03-20 |
+| ~~SEC-02~~ | All tables | — | RLS INSERT WITH CHECK clauses missing | High | ✅ Fixed 2026-03-20 |
+| ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | HR + HbA1c no range validation | Medium | ✅ Fixed 2026-03-21 |
+| ~~SEC-04~~ | `lib/profile/avatarUpload.ts` | 60 | Avatar upload writes to `<userId>/avatar.jpg` but `avatars_write` RLS policy required `profiles/<auth.uid()>/...` — every upload was rejected | Medium | ✅ Fixed 2026-05-07 (path now `profiles/${userId}/avatar.jpg`) |
+| ~~SEC-05~~ | `supabase/migrations/20260507130000_avatars_bucket_public.sql` | — | `avatars` bucket was private → `getPublicUrl()` returned a URL that could not load. Bucket flipped to public; RLS still gates writes | Low | ✅ Fixed 2026-05-07 |
 
 ---
 
@@ -139,31 +135,34 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation — intentional but worth flagging for UX review | Low | Open (by design) |
-| ~~NAV-02~~ | `app/index.tsx` | 20 | `router.replace()` in `useEffect` fired before Root Layout mounted | High | ✅ Fixed 2026-03-21 |
-| ~~NAV-03~~ | `app/(patient)/settings.tsx` | — | Patient settings screen unreachable — no nav push anywhere | Medium | ✅ Fixed 2026-03-30 |
-| ~~NAV-04~~ | `update-password.tsx`, `patient-select.tsx`, `clinical-data.tsx`, `pairing.tsx`, `dpn-result.tsx` | — | No back button on 5 screens — users had no way to exit without completing the flow | Medium | ✅ Fixed 2026-04-07 |
+| NAV-01 | `app/(clinic)/assessment.tsx` | — | No back navigation | Low | Open (by design) |
+| ~~NAV-02~~ | `app/index.tsx` | 20 | `router.replace()` fired before Root Layout mounted | High | ✅ Fixed 2026-03-21 |
+| ~~NAV-03~~ | `app/(patient)/settings.tsx` | — | Patient settings unreachable | Medium | ✅ Fixed 2026-03-30 |
+| ~~NAV-04~~ | 5 screens | — | Missing back buttons | Medium | ✅ Fixed 2026-04-07 |
+| ~~NAV-05~~ | `app/(auth)/login.tsx` | 52 | = CODE-19 | Medium | ✅ Fixed 2026-05-07 |
+| ~~NAV-06~~ | `app/(patient)/save.tsx` | — | = UX-18 | Low | ✅ Fixed 2026-05-07 |
+| ~~NAV-07~~ | `app/(clinic)/index.tsx`, `app/(patient)/index.tsx` | — | New home screens pushed `?sessionId=…` (camelCase) but bundle-detail read `session_id` (snake_case); empty fallback reached Postgres as `eq("id", "")` and surfaced as "invalid input syntax for type uuid: ''" | High | ✅ Fixed 2026-05-07 |
 
 ---
 
-## Auth (History — All Fixed)
+## Auth (History)
 
 | ID | File | Issue | Status |
 |---|---|---|---|
 | ~~AUTH-01~~ | `authStore.ts` | `resetPasswordForEmail` missing `redirectTo` | ✅ Fixed 2026-03-20 |
-| ~~AUTH-02~~ | `(auth)/` | `update-password.tsx` screen missing | ✅ Fixed 2026-03-20 |
+| ~~AUTH-02~~ | `(auth)/` | `update-password.tsx` missing | ✅ Fixed 2026-03-20 |
 | ~~AUTH-03~~ | `_layout.tsx` | Deep link handler missing | ✅ Fixed 2026-03-20 |
 | ~~AUTH-04~~ | `register.tsx` | Password validation showed errors one at a time | ✅ Fixed 2026-03-20 |
-| ~~AUTH-05~~ | `authStore.ts` | Mock accounts still present | ✅ Fixed 2026-03-20 |
-| ~~AUTH-06~~ | `authStore.ts` | No login attempt lockout | ✅ Fixed 2026-03-20 |
-| ~~AUTH-07~~ | — | Admin registration flow unclear | ✅ By design — admin via Supabase dashboard only |
-| ~~AUTH-08~~ | `login.tsx` | Login rejected valid passwords under 8 chars | ✅ Fixed 2026-03-20 |
+| ~~AUTH-05~~ | `authStore.ts` | Mock accounts | ✅ Fixed 2026-03-20 |
+| ~~AUTH-06~~ | `authStore.ts` | No login lockout | ✅ Fixed 2026-03-20 |
+| ~~AUTH-07~~ | — | Admin registration unclear | ✅ By design — admin via dashboard / web app only |
+| ~~AUTH-08~~ | `login.tsx` | Login rejected valid passwords < 8 chars | ✅ Fixed 2026-03-20 |
 | ~~AUTH-09~~ | `login.tsx`, `register.tsx` | Unknown role caused silent freeze | ✅ Fixed 2026-03-20 |
-| ~~AUTH-10~~ | `register.tsx` | `selectedClinicId` not reset when role switched | ✅ Fixed 2026-03-20 |
+| ~~AUTH-10~~ | `register.tsx` | `selectedClinicId` not reset on role switch | ✅ Fixed 2026-03-20 |
 | ~~AUTH-11~~ | `update-password.tsx` | No session guard | ✅ Fixed 2026-03-20 |
 | ~~AUTH-12~~ | `_layout.tsx` | Deep link handler too broad | ✅ Fixed 2026-03-20 |
 | ~~AUTH-13~~ | `authStore.ts` | `onAuthStateChange` subscription leaked | ✅ Fixed 2026-03-20 |
-| ~~AUTH-14~~ | `authStore.ts` | `pendingClinicId` stored for all roles; `logout()` missing try-finally | ✅ Fixed 2026-03-20 |
+| ~~AUTH-14~~ | `authStore.ts` | `pendingClinicId` for all roles; `logout()` missing try-finally | ✅ Fixed 2026-03-20 |
 | ~~AUTH-15~~ | `authStore.ts` | `PGRST116` not mapped to friendly error | ✅ Fixed 2026-03-20 |
 | ~~BUG-04~~ | `app/_layout.tsx` | No inactivity timeout | ✅ Fixed 2026-03-21 |
 
@@ -173,25 +172,29 @@
 
 | ID | File | Line | Issue | Severity | Status |
 |---|---|---|---|---|---|
-| ~~DB-01~~ | Supabase | — | Tables not verified against thesis schema | High | ✅ Fixed 2026-03-20 |
-| ~~DB-02~~ | Supabase | — | RLS not verified; INSERT WITH CHECK clauses unconfirmed | High | ✅ Fixed 2026-03-20 |
-| GAP-06 / DB-03 | — | — | WatermelonDB sync logic not started — no offline support | High | Deferred |
-| DB-04 | — | — | No conflict resolution strategy for local/remote sync | Medium | Deferred |
-| ~~GAP-01~~ | `lib/thermal/bleCamera.ts` | — | BLE scan is mock — no `react-native-ble-plx` | High | ✅ Fixed 2026-04-06 |
-| ~~GAP-02~~ | `lib/thermal/wifiCamera.ts` | — | Wi-Fi WebSocket to ESP32 not implemented | High | ✅ Fixed 2026-04-06 |
-| ~~GAP-03~~ | `app/(clinic)/live-feed.tsx` | — | Thermal frames from mock `setInterval`, not real hardware | High | ✅ Fixed 2026-04-06 (WiFi WebSocket + UVC paths) |
-| ~~HW-01~~ | `android/app/.../UVCModule.kt` | — | UVCModule.kt is a stub — rejects all calls; real libuvccamera-release.aar not linked | High | ✅ Fixed 2026-04-08 |
+| ~~DB-01~~ | Supabase | — | Tables not verified vs thesis schema | High | ✅ Fixed 2026-03-20 |
+| ~~DB-02~~ | Supabase | — | RLS not verified | High | ✅ Fixed 2026-03-20 |
+| GAP-06 / DB-03 | — | — | WatermelonDB sync deferred (replaced by `expo-sqlite`); see CODE-20 to clean up the orphan files | High | ✅ Resolved by replacement; cleanup pending |
+| DB-04 | — | — | Conflict resolution for offline ↔ remote sync | Medium | Deferred |
+| ~~GAP-01~~ | `lib/thermal/bleCamera.ts` | — | BLE scan was mock | High | ✅ Fixed 2026-04-06 |
+| ~~GAP-02~~ | `lib/thermal/wifiCamera.ts` | — | Wi-Fi WebSocket not implemented | High | ✅ Fixed 2026-04-06 |
+| ~~GAP-03~~ | `app/(clinic)/live-feed.tsx` | — | Frames from mock setInterval | High | ✅ Fixed 2026-04-06 |
+| ~~HW-01~~ | `android/.../UVCModule.kt` | — | Stubbed UVC module | High | ✅ Fixed 2026-04-08 |
+| ~~DB-05~~ | `supabase/migrations/20260507120000_add_feed_mode_to_thermal_captures.sql` | — | Added `feed_mode TEXT NOT NULL DEFAULT 'unprocessed'` + relaxed `processed_image_path` NOT NULL so the new 3-slot pipeline can store rows where slot 2 is null | — | ✅ Applied 2026-05-07 |
+| ~~DB-06~~ | `supabase/migrations/20260507130000_avatars_bucket_public.sql` | — | Flip `avatars` bucket public | — | ✅ Applied 2026-05-07 |
 
 ---
 
-## Thermal Isolation
+## Thermal Pipeline / Isolation
 
 | ID | File | Issue | Severity | Status |
 |---|---|---|---|---|
-| ~~ISO-01~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Cold subject isolation inverted — `>= threshold` polarity assumption kept warm background and discarded the cold object | High | ✅ Fixed v0.9.9 — border polarity check selects subject by fewest border pixels |
-| ~~ISO-02~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Thin structure (e.g., dumbbell handle) not isolated — BFS ran before morphological closing, severing thin connections | High | ✅ Fixed v0.9.9 — closing now runs before BFS |
-| ~~ISO-03~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Coloured fringe residue around finger edges — near-threshold boundary pixels included in mask | Medium | ✅ Fixed v0.9.9 — opening trim (erode 2 → dilate 2) applied after BFS |
-| ISO-04 | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Variance guardrail threshold `10.0` is empirical — may trigger on low-contrast real scans or miss blank frames | Low | Open — monitor during device testing; tune if needed |
+| ~~ISO-01~~ | `UVCModule.kt`, `lib/thermal/footIsolation.ts` | Cold subject inverted polarity | High | ✅ Fixed v0.9.9 — border-polarity component selection |
+| ~~ISO-02~~ | same | Thin structure severed before closing | High | ✅ Fixed v0.9.9 — closing before BFS |
+| ~~ISO-03~~ | same | Coloured fringe residue | Medium | ✅ Fixed v0.9.9 — opening after BFS |
+| ~~ISO-04~~ | `UVCModule.kt` | Variance guardrail empirical | Low | ✅ Resolved 2026-05-07 — superseded by ROI moat sampler + one-sided threshold |
+| ~~ISO-05~~ | `UVCModule.kt` | Internal "donut" hole inside warm foot remained even after closing morph | High | ✅ Fixed 2026-05-07 — new `fillHoles()` helper does 4-connect BFS from frame border on the inverse mask |
+| ~~ISO-06~~ | `UVCModule.kt` | When the foot extended past the framing rectangle, `bgMedian` over the entire outside region was pulled toward the foot's own temperature; threshold ballooned and most of the foot fell below it | High | ✅ Fixed 2026-05-07 — moat sampler reads only the thin ring outside the ROI |
 
 ---
 
@@ -199,16 +202,24 @@
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 18 | 2 | 15 | 1 |
-| UI / UX | 22 | 1 | 20 | 1 (UX-11) |
-| Supabase / Data | 14 | 0 | 12 | 2 (GAP-04, GAP-08) |
-| Performance | 11 | 0 | 11 | 0 |
-| Accessibility | 5 | 0 | 5 | 0 |
-| Security | 3 | 0 | 3 | 0 |
-| Navigation | 4 | 1 | 3 | 0 |
+| Code Quality | 21 | 1 | 19 | 1 (CODE-17 by design) |
+| UI / UX | 24 | 0 | 24 | 0 |
+| Supabase / Data | 17 | 0 | 15 | 2 (GAP-08) |
+| Performance | 13 | 0 | 13 | 0 |
+| Accessibility | 9 | 0 | 9 | 0 |
+| Security | 5 | 0 | 5 | 0 |
+| Navigation | 7 | 1 | 6 | 0 (NAV-01 by design) |
 | Auth | 16 | 0 | 16 | 0 |
-| Schema / DB | 8 | 0 | 6 | 2 |
-| Thermal Isolation | 4 | 1 | 3 | 0 |
-| **Total** | **105** | **4** | **94** | **6** |
+| Schema / DB | 11 | 0 | 10 | 1 (DB-04) |
+| Thermal Isolation | 6 | 0 | 6 | 0 |
+| **Total** | **129** | **2** | **123** | **4** |
 
-**Overall QA Status: 96% Complete** — 4 open items (2 cosmetic code quality, 1 nav by-design, 1 isolation tuning). 6 deferred (all hardware/API dependent).
+**Overall QA status:** All actionable items closed in this sweep — 123 fixed of 129.
+The 2 remaining "Open" rows are by design:
+- **CODE-17** — three Zustand stores grouped in `store/sessionStore.ts` for convenience (the `// store/...Store.ts` comments label them as separate files).
+- **NAV-01** — `(clinic)/assessment.tsx` has no back button on purpose; the screen is a one-way "wait for inference" surface.
+
+The 4 deferred rows depend on external work:
+- **GAP-08** — per-angiosome spatial overlay; deferred until the DPN API exposes per-region coordinates.
+- **DB-04** — formal offline ↔ remote conflict-resolution policy.
+- **CODE-09 / GAP-04** — already resolved by FR-504 (real DPN API).

@@ -1,7 +1,7 @@
 // app/(clinic)/profile.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -80,6 +80,12 @@ export default function ProfileScreen() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url ?? null);
+
+  // Track the success-banner timer so we can clear it on unmount.
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (!user?.clinic_id) return;
@@ -195,7 +201,8 @@ export default function ProfileScreen() {
       }));
       setEditingName(false);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(false), 3000);
     }
   };
 
@@ -217,11 +224,14 @@ export default function ProfileScreen() {
           text: "Deactivate",
           style: "destructive",
           onPress: async () => {
-            if (user?.id) {
-              await supabase
-                .from("profiles")
-                .update({ is_active: false })
-                .eq("id", user.id);
+            if (!user?.id) return;
+            const { error } = await supabase
+              .from("profiles")
+              .update({ is_active: false })
+              .eq("id", user.id);
+            if (error) {
+              Alert.alert("Could not deactivate", error.message);
+              return;
             }
             await logout();
             router.replace("/(auth)/login");

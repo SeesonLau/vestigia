@@ -46,10 +46,13 @@ export default function LoginScreen() {
     dbg("login", `login() returned — success=${result.success} role=${result.role ?? "null"} error=${result.error ?? "none"}`);
     setLoading(false);
     if (result.success) {
+      // Admin role is rejected server-side in authStore.login() before
+      // reaching here, so only clinic and patient land in this branch.
+      // The previous "admin" case routed to a non-existent /(admin)/
+      // directory (admin surface lives in the web app).
       switch (result.role) {
         case "clinic":   router.replace("/(clinic)"); break;
         case "patient":  router.replace("/(patient)"); break;
-        case "admin":    router.replace("/(admin)"); break;
         default:         router.replace("/(auth)/login");
       }
     }

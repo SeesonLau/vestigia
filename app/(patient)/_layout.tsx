@@ -97,7 +97,6 @@ export default function PatientLayout() {
         }}
       />
       {/* Hidden screens (navigated to programmatically) */}
-      <Tabs.Screen name="save"            options={{ href: null as any }} />
       <Tabs.Screen name="profile"         options={{ href: null as any }} />
       <Tabs.Screen name="privacy-policy"  options={{ href: null as any }} />
       <Tabs.Screen name="terms-of-service" options={{ href: null as any }} />

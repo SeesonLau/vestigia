@@ -84,7 +84,6 @@ export default function DpnResultView({ result }: Props) {
         <FootAngiosomeDiagram
           left={result.left_foot?.regions ?? null}
           right={result.right_foot?.regions ?? null}
-          asymmetry={result.asymmetry}
         />
       ) : null}
 

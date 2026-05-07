@@ -1,7 +1,7 @@
 // app/(patient)/profile.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -79,6 +79,13 @@ export default function PatientProfileScreen() {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.avatar_url ?? null);
+
+  // Track the success-banner timer so we can clear it on unmount and
+  // avoid setting state on a torn-down component.
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (successTimerRef.current) clearTimeout(successTimerRef.current);
+  }, []);
 
   const initials = personInitials(user?.first_name, user?.last_name);
 
@@ -175,7 +182,8 @@ export default function PatientProfileScreen() {
       }));
       setEditingName(false);
       setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => setSaveSuccess(false), 3000);
     }
   };
 
@@ -197,8 +205,16 @@ export default function PatientProfileScreen() {
           text: "Deactivate",
           style: "destructive",
           onPress: async () => {
-            if (user?.id) {
-              await supabase.from("profiles").update({ is_active: false }).eq("id", user.id);
+            if (!user?.id) return;
+            const { error } = await supabase
+              .from("profiles")
+              .update({ is_active: false })
+              .eq("id", user.id);
+            if (error) {
+              // Surface the real failure instead of silently signing out
+              // as if the deactivation succeeded.
+              Alert.alert("Could not deactivate", error.message);
+              return;
             }
             await logout();
             router.replace("/(auth)/login");

@@ -97,25 +97,6 @@ export default function ThermalMap({
   );
 }
 
-// Mock data generator for UI preview
-export function generateMockThermalMatrix(rows = 62, cols = 80): number[][] {
-  const matrix: number[][] = [];
-  const centerR = rows / 2;
-  const centerC = cols / 2;
-
-  for (let r = 0; r < rows; r++) {
-    const row: number[] = [];
-    for (let c = 0; c < cols; c++) {
-      const dist = Math.sqrt((r - centerR) ** 2 + (c - centerC) ** 2);
-      const base = 32 - dist * 0.15;
-      const noise = (Math.random() - 0.5) * 1.2;
-      row.push(Math.max(28, Math.min(38, base + noise)));
-    }
-    matrix.push(row);
-  }
-  return matrix;
-}
-
 const styles = StyleSheet.create({
   container: {
     borderRadius: 4,

@@ -128,14 +128,18 @@ export default function SyncScreen() {
       if (capErr) throw new Error("Failed to save thermal capture.");
 
       // 5. Send data request to the patient's profile (always, since every patient
-      //    now has a profile post-redesign).
+      //    now has a profile post-redesign). Failure here is non-fatal for
+      //    the capture itself, but we log it so it doesn't fail silently.
       if (selectedPatient.profile_id) {
-        await supabase.from("data_requests").insert({
+        const { error: reqErr } = await supabase.from("data_requests").insert({
           from_profile_id: user.id,
           to_profile_id: selectedPatient.profile_id,
           session_id: session.id,
           status: "pending",
         });
+        if (reqErr) {
+          console.warn("[sync] data_requests insert failed:", reqErr.message);
+        }
       }
 
       // 7. Mark local record as synced

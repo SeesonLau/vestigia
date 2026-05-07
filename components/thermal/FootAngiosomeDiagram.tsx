@@ -26,13 +26,12 @@ import Svg, {
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import type { ThemeColors } from "../../constants/theme";
-import type { AsymmetryResult, RegionMeans } from "../../lib/dpnApi";
+import type { RegionMeans } from "../../lib/dpnApi";
 import { ANGIO_BOX_NORM, FOOT_PLANTAR_LEFT, FOOT_PLANTAR_RIGHT } from "./footAsset";
 
 interface Props {
   left:  RegionMeans | null | undefined;
   right: RegionMeans | null | undefined;
-  asymmetry?: AsymmetryResult | null;
 }
 
 //---- Geometry ---------------------------------------------------------
