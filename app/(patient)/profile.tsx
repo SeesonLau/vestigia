@@ -3,8 +3,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -21,6 +21,7 @@ import InitialsAvatar, { personInitials } from "../../components/ui/InitialsAvat
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { supabase } from "../../lib/supabase";
+import { uploadAvatar } from "../../lib/profile/avatarUpload";
 import { useAuthStore } from "../../store/authStore";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -122,39 +123,20 @@ export default function PatientProfileScreen() {
           });
 
     if (result.canceled || !result.assets[0]) return;
-    await uploadAvatar(result.assets[0].uri);
+    await handleUploadAvatar(result.assets[0].uri);
   };
 
-  const uploadAvatar = async (uri: string) => {
+  const handleUploadAvatar = async (uri: string) => {
     if (!user?.id) return;
     setAvatarUploading(true);
     try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const arrayBuffer = await new Response(blob).arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-
-      const filePath = `${user.id}/avatar.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, bytes, { contentType: "image/jpeg", upsert: true });
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
-      const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
-        .eq("id", user.id);
-      if (updateError) throw updateError;
-
+      const publicUrl = await uploadAvatar({ uri, userId: user.id });
       setAvatarUrl(publicUrl);
       useAuthStore.setState((s) => ({
         user: s.user ? { ...s.user, avatar_url: publicUrl } : s.user,
       }));
-    } catch {
-      Alert.alert("Upload Failed", "Could not update your profile photo. Please try again.");
+    } catch (e) {
+      Alert.alert("Upload Failed", e instanceof Error ? e.message : "Could not update your profile photo.");
     } finally {
       setAvatarUploading(false);
     }
@@ -243,33 +225,39 @@ export default function PatientProfileScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Avatar */}
+          {/* Avatar — tap the image directly to update. Camera badge in
+              the bottom-right corner makes the action discoverable; a
+              full-circle spinner overlays the avatar while uploading. */}
           <View style={styles.avatarSection}>
-            <InitialsAvatar
-              initials={initials}
-              seed={user?.patient_code ?? user?.id ?? initials}
-              imageUrl={avatarUrl}
-              size={96}
-              borderWidth={1.5}
-              borderColor={`${colors.accent}66`}
-            />
-
             <TouchableOpacity
               onPress={handlePickAvatar}
-              activeOpacity={0.7}
+              activeOpacity={0.85}
               disabled={avatarUploading}
-              style={[styles.changePhotoBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               accessibilityLabel="Change profile photo"
+              style={styles.avatarTouchable}
             >
-              <Ionicons
-                name={avatarUploading ? "sync-outline" : "camera-outline"}
-                size={14}
-                color={colors.accent}
+              <InitialsAvatar
+                initials={initials}
+                seed={user?.patient_code ?? user?.id ?? initials}
+                imageUrl={avatarUrl}
+                size={104}
+                borderWidth={2}
+                borderColor={`${colors.accent}66`}
               />
-              <Text style={[styles.changePhotoText, { color: colors.accent }]}>
-                {avatarUploading ? "Uploading..." : "Change Photo"}
-              </Text>
+              {avatarUploading ? (
+                <View style={[styles.avatarUploadOverlay, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
+                  <ActivityIndicator color="#fff" />
+                </View>
+              ) : (
+                <View style={[styles.cameraBadge, { backgroundColor: colors.accent, borderColor: colors.card }]}>
+                  <Ionicons name="camera" size={14} color="#fff" />
+                </View>
+              )}
             </TouchableOpacity>
+
+            <Text style={[styles.avatarHint, { color: colors.textSec }]}>
+              {avatarUploading ? "Uploading…" : "Tap photo to change"}
+            </Text>
 
             <Text style={[styles.avatarName, { color: colors.text }]}>{user?.full_name ?? "—"}</Text>
             <View style={[styles.roleBadge, { backgroundColor: `${colors.accent}1A`, borderColor: `${colors.accent}4D` }]}>
@@ -371,36 +359,28 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     gap: Spacing.sm,
   },
-  avatarImage: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 2,
-  },
-  avatarFallback: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+  avatarTouchable: { position: "relative" },
+  cameraBadge: {
+    position: "absolute",
+    right: 0,
+    bottom: 4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: Typography.sizes["2xl"],
-    fontFamily: Typography.fonts.heading,
-  },
-  changePhotoBtn: {
-    flexDirection: "row",
+  avatarUploadOverlay: {
+    position: "absolute",
+    top: 2, left: 2, right: 2, bottom: 2,
+    borderRadius: 56,
     alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    justifyContent: "center",
   },
-  changePhotoText: {
-    fontSize: Typography.sizes.sm,
-    fontFamily: Typography.fonts.label,
+  avatarHint: {
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.body,
   },
   avatarName: {
     fontSize: Typography.sizes.lg,
