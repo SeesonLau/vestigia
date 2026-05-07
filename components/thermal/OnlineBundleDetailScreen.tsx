@@ -100,6 +100,14 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
   const [dpnResult, setDpnResult] = useState<DPNScanResponse | null>(null);
 
   useEffect(() => {
+    // Guard: if the route opened without a sessionId param, fail fast with
+    // a friendly message instead of letting an empty string reach Postgres
+    // (which surfaced as "invalid input syntax for type uuid: ''").
+    if (!sessionId) {
+      setLoading(false);
+      setError("Missing session id. Open this bundle from the sessions list.");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {

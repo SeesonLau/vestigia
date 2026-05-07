@@ -95,6 +95,17 @@ class UVCModule(reactContext: ReactApplicationContext) :
     // (the spatial median already suppresses speckle).
     @Volatile private var prevDisplayFiltered: FloatArray? = null
 
+    // Optional rectangular bound (normalized [0..1]) for the hot/cold/mean
+    // crosshair scan in emitFrameStats. When non-null, the scan is limited
+    // to the pixels inside this rect; outside pixels are ignored. JS pushes
+    // this whenever the framing rectangle is shown so the on-screen
+    // crosshair markers stay inside the user's ROI. null = scan whole frame.
+    @Volatile private var statsRoiX: Float = 0f
+    @Volatile private var statsRoiY: Float = 0f
+    @Volatile private var statsRoiW: Float = 1f
+    @Volatile private var statsRoiH: Float = 1f
+    @Volatile private var statsRoiActive: Boolean = false
+
     // Radiometric correction parameters. Applied to every decoded pixel
     // (live preview AND capture pipeline) so the displayed and captured
     // temperatures reflect the real surface, not the apparent temperature
@@ -204,6 +215,30 @@ class UVCModule(reactContext: ReactApplicationContext) :
         // frame doesn't blend with stale Raw-mode data.
         if (!enhanced) prevDisplayFiltered = null
         promise.resolve(displayEnhanced)
+    }
+
+    // Constrain the hot/cold/mean crosshair scan to a rectangle (normalized
+    // [0..1] over the sensor matrix). Any field outside [0..1] is treated as
+    // "no ROI" and the scan reverts to the full frame.
+    @ReactMethod
+    fun setStatsRoi(x: Double, y: Double, w: Double, h: Double, promise: Promise) {
+        val xf = x.toFloat(); val yf = y.toFloat()
+        val wf = w.toFloat(); val hf = h.toFloat()
+        val valid = wf > 0f && hf > 0f && xf >= 0f && yf >= 0f && xf + wf <= 1.001f && yf + hf <= 1.001f
+        if (valid) {
+            statsRoiX = xf; statsRoiY = yf; statsRoiW = wf; statsRoiH = hf
+            statsRoiActive = true
+        } else {
+            statsRoiActive = false
+        }
+        promise.resolve(statsRoiActive)
+    }
+
+    // Clear the ROI bound — crosshair scan goes back to full-frame.
+    @ReactMethod
+    fun clearStatsRoi(promise: Promise) {
+        statsRoiActive = false
+        promise.resolve(true)
     }
 
     // Set radiometric correction parameters. Safe to call mid-stream.
@@ -351,9 +386,20 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val eps     = emissivity
         val correct = eps < 0.999f
         val refl4   = if (correct) computeRefl4() else 0f
+
+        // ROI bounds in pixel coordinates. When statsRoiActive is false the
+        // bounds cover the whole frame so the loops below stay branch-free.
+        val roiActive = statsRoiActive
+        val rcStart = if (roiActive) (statsRoiX * cols).toInt().coerceIn(0, cols - 1) else 0
+        val rcEnd   = if (roiActive) ((statsRoiX + statsRoiW) * cols).toInt().coerceIn(rcStart + 1, cols) else cols
+        val rrStart = if (roiActive) (statsRoiY * rows).toInt().coerceIn(0, rows - 1) else 0
+        val rrEnd   = if (roiActive) ((statsRoiY + statsRoiH) * rows).toInt().coerceIn(rrStart + 1, rows) else rows
+
+        // Whole-frame loop — variance/frameDiff stay whole-frame because the
+        // ReadinessIndicator's FFC + motion checks need the full sensor
+        // signal. ROI-bounded hot/cold/mean are accumulated in a second
+        // (cheap) inner loop afterwards.
         var sum = 0.0; var sumSq = 0.0
-        var hotT  = -Float.MAX_VALUE; var hotIdx  = 0
-        var coldT =  Float.MAX_VALUE; var coldIdx = 0
         val temps = FloatArray(n)
         for (i in 0 until n) {
             val lo = frame[i * 2].toInt() and 0xFF
@@ -361,11 +407,25 @@ class UVCModule(reactContext: ReactApplicationContext) :
             val apparent = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
             val t = if (correct) emissivityCorrect(apparent, eps, refl4) else apparent
             temps[i] = t; sum += t; sumSq += t * t
-            if (t > hotT)  { hotT  = t; hotIdx  = i }
-            if (t < coldT) { coldT = t; coldIdx = i }
         }
-        val mean     = (sum / n).toFloat()
-        val variance = ((sumSq / n) - mean * mean).toFloat().coerceAtLeast(0f)
+        val frameMean = (sum / n).toFloat()
+        val variance  = ((sumSq / n) - frameMean * frameMean).toFloat().coerceAtLeast(0f)
+
+        // ROI-bounded crosshair stats. Falls back to whole-frame indices.
+        var hotT  = -Float.MAX_VALUE; var hotIdx  = rrStart * cols + rcStart
+        var coldT =  Float.MAX_VALUE; var coldIdx = hotIdx
+        var roiSum = 0.0; var roiCount = 0
+        for (r in rrStart until rrEnd) {
+            val rowOff = r * cols
+            for (c in rcStart until rcEnd) {
+                val i = rowOff + c
+                val t = temps[i]
+                roiSum += t; roiCount++
+                if (t > hotT)  { hotT  = t; hotIdx  = i }
+                if (t < coldT) { coldT = t; coldIdx = i }
+            }
+        }
+        val roiMean = if (roiCount > 0) (roiSum / roiCount).toFloat() else frameMean
 
         val prev = prevFrameForDiff
         val frameDiff = if (prev != null && prev.size == frame.size) {
@@ -396,7 +456,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         map.putDouble("coldX",      coldC.toDouble() / (cols - 1))
         map.putDouble("coldY",      coldR.toDouble() / (rows - 1))
         map.putDouble("coldTemp",   coldT.toDouble())
-        map.putDouble("meanTemp",   mean.toDouble())
+        map.putDouble("meanTemp",   roiMean.toDouble())
         sendEvent("onFrameStats", map)
     }
 

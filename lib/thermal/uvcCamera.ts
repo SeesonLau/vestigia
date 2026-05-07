@@ -171,6 +171,18 @@ export async function setMeasurementParams(params: MeasurementParams): Promise<M
   try { return (await UVCCamera.setMeasurementParams(params.emissivity, params.reflectedTempC)) as MeasurementParams } catch { return null }
 }
 
+/** Constrain the on-screen crosshair scan (hot / cold / mean) to a
+ *  normalized [0..1] rectangle. Pass {x,y,w,h} when the framing rectangle
+ *  is shown; call clearStatsRoi() to revert to whole-frame scanning. */
+export async function setStatsRoi(x: number, y: number, w: number, h: number): Promise<void> {
+  if (!UVCCamera) return
+  try { await UVCCamera.setStatsRoi(x, y, w, h) } catch {}
+}
+export async function clearStatsRoi(): Promise<void> {
+  if (!UVCCamera) return
+  try { await UVCCamera.clearStatsRoi() } catch {}
+}
+
 // Pause display processing — stops emitting onDisplayFrame events (stream data still buffered).
 export async function pauseCamera(): Promise<void> {
   if (!UVCCamera) return

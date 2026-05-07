@@ -19,6 +19,7 @@ import { processFrames } from "../../lib/thermal/captureProcessor"
 import type { ProcessedCapture } from "../../lib/thermal/captureProcessor"
 import { cropCsvText } from "../../store/roiStore"
 import {
+  clearStatsRoi as clearStatsRoiNative,
   connectCamera, disconnectCamera,
   onCameraConnected, onCameraDisconnected, onCameraFormats, onDisplayFrame,
   onFrameStats,
@@ -26,6 +27,7 @@ import {
   setDisplayMode as setDisplayModeNative,
   setLiveProcessing as setLiveProcessingNative,
   setPalette as setPaletteNative,
+  setStatsRoi as setStatsRoiNative,
 } from "../../lib/thermal/uvcCamera"
 import type { DisplayMode, FrameStats, MeasurementParams, PaletteType } from "../../lib/thermal/uvcCamera"
 import { PALETTES } from "../../lib/thermal/palettes"
@@ -269,6 +271,18 @@ export default function ThermalLiveFeedScreen({
       saveMeasurementParams(measurement).catch(() => {})
     }
   }, [cameraStatus, captureEnhanced, measurement])
+
+  // Constrain the on-screen crosshair scan to the framing rectangle when
+  // it's visible, so hot/cold/mean markers stay inside the user's ROI.
+  // Falls back to whole-frame scanning when the rect is hidden.
+  useEffect(() => {
+    if (cameraStatus !== "connected") return
+    if (roiVisible) {
+      setStatsRoiNative(roiRect.x, roiRect.y, roiRect.w, roiRect.h).catch(() => {})
+    } else {
+      clearStatsRoiNative().catch(() => {})
+    }
+  }, [cameraStatus, roiVisible, roiRect.x, roiRect.y, roiRect.w, roiRect.h])
 
   const handleToggleCamera = async () => {
     const pausing = !cameraPaused

@@ -252,7 +252,7 @@ export default function PatientHomeScreen() {
             <SessionCard
               key={s.id}
               session={s}
-              onPress={() => router.push(`/(patient)/bundle-detail?sessionId=${s.id}` as any)}
+              onPress={() => router.push(`/(patient)/bundle-detail?session_id=${s.id}` as any)}
             />
           ))
         )}
