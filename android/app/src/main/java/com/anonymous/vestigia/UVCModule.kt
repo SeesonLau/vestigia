@@ -80,10 +80,13 @@ class UVCModule(reactContext: ReactApplicationContext) :
     @Volatile private var streamPaused  = false
     @Volatile private var displayMode   = "rgb"    // raw | agc | rgb
     @Volatile private var palette       = "medical" // medical | ironbow | rainbow | white_hot
-    // When true the live preview JPEG is bilinearly upscaled to OUT_COLS x OUT_ROWS
-    // (320x240); when false it is emitted at native sensor resolution (160x120).
-    // Toggled from JS via setLiveScale; takes effect on the next frame.
-    @Volatile private var displayUpscale = true
+    // displayEnhanced flips the live preview between two regimes:
+    //   true  -> 3x3 median + motion-adaptive EMA + CLAHE + palette + bilinear
+    //            upscale to OUT_COLS x OUT_ROWS (320x240) + unsharp mask.
+    //   false -> raw Y16 -> palette -> JPEG at native 160x120 with no
+    //            spatial / temporal filtering.
+    // Toggled from JS via setLiveProcessing. Takes effect on the next frame.
+    @Volatile private var displayEnhanced = false
 
     // Temporal EMA state for the live preview pipeline. Holds the last
     // smoothed FloatArray so each new frame blends with the running average,
@@ -179,12 +182,16 @@ class UVCModule(reactContext: ReactApplicationContext) :
         promise.resolve(palette)
     }
 
-    // Toggle live preview scale -- safe to call mid-stream. true = upscaled to
-    // OUT_COLS x OUT_ROWS (320x240); false = native sensor resolution.
+    // Toggle live preview processing mode -- safe to call mid-stream.
+    //   true  = Enhanced: median + EMA + CLAHE + bilinear upscale + unsharp.
+    //   false = Raw: Y16 -> palette -> JPEG at native 160x120 only.
     @ReactMethod
-    fun setLiveScale(upscale: Boolean, promise: Promise) {
-        displayUpscale = upscale
-        promise.resolve(displayUpscale)
+    fun setLiveProcessing(enhanced: Boolean, promise: Promise) {
+        displayEnhanced = enhanced
+        // Drop the EMA history when switching modes so the next Enhanced
+        // frame doesn't blend with stale Raw-mode data.
+        if (!enhanced) prevDisplayFiltered = null
+        promise.resolve(displayEnhanced)
     }
 
     // Pause display — no more onDisplayFrame events; Y16 frames still buffered for capture.
@@ -211,13 +218,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
         //Optional capture-time options:
         //  crop        ROI rect, normalized [0..1] over the sensor matrix
         //  isolatedBg  "transparent" (default) or "black" for the bg fill
-        //  upscale     true (default) -> bilinear upscale matrix to OUT res before
-        //              encoding artifacts. false -> stay at native sensor res.
-        //  feedMode    "unprocessed" (default) -> 3-artifact pipeline:
-        //                 [1] grayscale unprocessed, [2] palette processed, [3] isolated
-        //              "processed" -> [1] palette processed full-frame,
-        //                 [2] palette processed cropped to ROI (null if no ROI),
-        //                 [3] isolated
+        //  enhanced    false (default) -> native 160x120, no enhancement.
+        //              true -> bilinear upscale to 320x240 + full processing.
+        //  Capture artifacts always follow the 3-slot 'unprocessed' shape:
+        //    [1] grayscale unprocessed, [2] palette processed, [3] isolated.
         val cropMap = opts?.takeIf { it.hasKey("crop") && !it.isNull("crop") }?.getMap("crop")
         val crop: CropRoi? = cropMap?.let {
             CropRoi(
@@ -229,10 +233,9 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         val isolatedBgBlack = opts?.takeIf { it.hasKey("isolatedBg") }
             ?.getString("isolatedBg") == "black"
-        val upscale = if (opts?.hasKey("upscale") == true && !opts.isNull("upscale")) opts.getBoolean("upscale") else true
-        val feedMode = if (opts?.hasKey("feedMode") == true && !opts.isNull("feedMode")) {
-            when (opts.getString("feedMode")) { "processed" -> "processed"; else -> "unprocessed" }
-        } else "unprocessed"
+        val enhanced = if (opts?.hasKey("enhanced") == true && !opts.isNull("enhanced")) opts.getBoolean("enhanced") else false
+        val upscale  = enhanced
+        val feedMode = "unprocessed"
         Thread {
             try {
                 val result = processThermalFrames(frames, crop, isolatedBgBlack, upscale, feedMode)
@@ -316,14 +319,20 @@ class UVCModule(reactContext: ReactApplicationContext) :
     }
 
     private fun emitFrameStats(frame: ByteArray) {
-        val n = frame.size / 2
+        val rows = frame.size / ROW_BYTES
+        val cols = FRAME_COLS
+        val n = rows * cols
         var sum = 0.0; var sumSq = 0.0
+        var hotT  = -Float.MAX_VALUE; var hotIdx  = 0
+        var coldT =  Float.MAX_VALUE; var coldIdx = 0
         val temps = FloatArray(n)
         for (i in 0 until n) {
             val lo = frame[i * 2].toInt() and 0xFF
             val hi = frame[i * 2 + 1].toInt() and 0xFF
             val t = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
             temps[i] = t; sum += t; sumSq += t * t
+            if (t > hotT)  { hotT  = t; hotIdx  = i }
+            if (t < coldT) { coldT = t; coldIdx = i }
         }
         val mean     = (sum / n).toFloat()
         val variance = ((sumSq / n) - mean * mean).toFloat().coerceAtLeast(0f)
@@ -343,27 +352,32 @@ class UVCModule(reactContext: ReactApplicationContext) :
         prevFrameForDiff = frame.copyOf()
         val idx = ++frameIndex
 
+        // Normalised crosshair coordinates (0..1) over the sensor matrix so
+        // the JS overlay can place markers regardless of preview scale.
+        val hotR  = hotIdx  / cols; val hotC  = hotIdx  % cols
+        val coldR = coldIdx / cols; val coldC = coldIdx % cols
         val map = Arguments.createMap()
         map.putDouble("variance",   variance.toDouble())
         map.putDouble("frameDiff",  frameDiff.toDouble())
         map.putInt   ("frameIndex", idx)
+        map.putDouble("hotX",       hotC.toDouble() / (cols - 1))
+        map.putDouble("hotY",       hotR.toDouble() / (rows - 1))
+        map.putDouble("hotTemp",    hotT.toDouble())
+        map.putDouble("coldX",      coldC.toDouble() / (cols - 1))
+        map.putDouble("coldY",      coldR.toDouble() / (rows - 1))
+        map.putDouble("coldTemp",   coldT.toDouble())
+        map.putDouble("meanTemp",   mean.toDouble())
         sendEvent("onFrameStats", map)
     }
 
-    // Y16 -> JPEG via the current displayMode and palette. Pipeline:
-    //   1. Decode Y16 to a temperature matrix (native 160x120).
-    //   2. 3x3 median -- de-speckles single-pixel "twinkles".
-    //   3. Motion-adaptive temporal EMA -- per-pixel alpha, smooths
-    //      stationary regions while leaving motion crisp.
-    //   4. CLAHE (8x8 tiles, clipLimit 3.0) -- local contrast stretching;
-    //      replaces the previous global p1/p99 percentile clip.
-    //   5. Palette / mode mapping into ARGB pixels.
-    //   6. Bitmap built at native resolution.
-    //   7. Bilinear upscale to OUT_COLS x OUT_ROWS (320x240).
-    //   8. Unsharp mask (3x3 box, amount=0.6) -- restores edge crispness
-    //      lost to the bilinear upscale.
-    //   9. JPEG encode at quality 95.
-    // Per-frame cost: ~15-25 ms at 9 fps, comfortably within budget.
+    // Y16 -> JPEG via the current displayMode and palette. Two regimes
+    // controlled by the displayEnhanced flag:
+    //   Raw      : Y16 -> palette -> JPEG at native 160x120. No spatial /
+    //              temporal filtering. Cheapest path; matches what the
+    //              sensor actually sees.
+    //   Enhanced : Y16 -> 3x3 median -> motion-adaptive EMA -> CLAHE ->
+    //              palette -> bilinear upscale to OUT_COLS x OUT_ROWS ->
+    //              unsharp mask -> JPEG.
     private fun y16ToDisplayJpeg(frame: ByteArray): String {
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
@@ -375,10 +389,44 @@ class UVCModule(reactContext: ReactApplicationContext) :
             temps[i] = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
         }
 
-        // 3x3 median filter -- removes salt-and-pepper microbolometer noise
-        // before the percentile / palette step. Operates on the native-sized
-        // matrix so the working set stays small (~19,200 floats); the upscale
-        // happens after the bitmap is built.
+        val pixels = IntArray(rows * cols)
+        if (!displayEnhanced) {
+            // ── Raw path ─────────────────────────────────────────────────
+            // Single global percentile clip + palette, no spatial / temporal
+            // filtering, no upscale. Snappy switch with zero hysteresis.
+            val sorted = temps.copyOf().also { it.sort() }
+            val p1     = sorted[(sorted.size * 0.01f).toInt()]
+            val p99    = sorted[(sorted.size * 0.99f).toInt()]
+            val range  = (p99 - p1).takeIf { it > 0f } ?: 1f
+            when (displayMode) {
+                "raw" -> {
+                    val minT = sorted[0]
+                    val rawRange = (sorted[sorted.size - 1] - minT).takeIf { it > 0f } ?: 1f
+                    for (i in 0 until rows * cols) {
+                        val v = (((temps[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
+                        pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+                    }
+                }
+                "agc" -> for (i in 0 until rows * cols) {
+                    val v = (((temps[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
+                    pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+                }
+                else -> for (i in 0 until rows * cols) {
+                    val t = ((temps[i] - p1) / range).coerceIn(0f, 1f)
+                    val (r, g, b) = paletteRgb(t, palette)
+                    pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                }
+            }
+            val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+            bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            bmp.recycle()
+            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }
+
+        // ── Enhanced path ────────────────────────────────────────────────
+        // 3x3 median filter -- removes salt-and-pepper microbolometer noise.
         val median = FloatArray(rows * cols)
         val medBuf = FloatArray(9)
         for (r in 0 until rows) {
@@ -393,10 +441,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
 
         // Motion-adaptive temporal EMA -- per-pixel alpha based on inter-frame
-        // delta. Stationary pixels (delta < MOTION_LOW) get heavy smoothing,
-        // moving pixels (delta > MOTION_HIGH) bypass blending entirely. This
-        // kills flicker on the background without introducing motion afterimages.
-        // Thresholds in degC; tuned around Lepton 3.5 NETD (~50 mK).
+        // delta. Stationary pixels get heavy smoothing, moving pixels bypass
+        // blending entirely. Tuned around Lepton 3.5 NETD (~50 mK).
         val motionLow  = 0.15f
         val motionHigh = 0.80f
         val alphaStill  = 0.20f
@@ -415,15 +461,11 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 }
                 a * median[i] + (1f - a) * prev[i]
             }
-        } else {
-            median.copyOf()
-        }
+        } else median.copyOf()
         prevDisplayFiltered = filtered
 
-        val pixels = IntArray(rows * cols)
         when (displayMode) {
             "raw" -> {
-                // Linear full-range grayscale -- no contrast stretch, true sensor range.
                 var minT = filtered[0]
                 var maxT = filtered[0]
                 for (v in filtered) {
@@ -437,9 +479,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
                 }
             }
             else -> {
-                // CLAHE-normalised values feed AGC grayscale and RGB palette mapping.
-                // Local-contrast stretching gives much better foot/background
-                // separation than the global p1/p99 clip we used previously.
                 val normalised = claheNormalise(filtered, rows, cols)
                 if (displayMode == "agc") {
                     for (i in 0 until rows * cols) {
@@ -458,17 +497,11 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
         bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
 
-        // Upscale the live preview to match the capture pipeline's working
-        // resolution (OUT_COLS x OUT_ROWS = 320x240). filter=true triggers
-        // bilinear interpolation, equivalent to the upscaleBilinear routine
-        // used in processThermalFrames.
-        val target = if (displayUpscale && (cols != OUT_COLS || rows != OUT_ROWS)) {
+        // Bilinear upscale to OUT_COLS x OUT_ROWS, then unsharp mask to
+        // recover edges softened by the upscale.
+        val target = if (cols != OUT_COLS || rows != OUT_ROWS) {
             Bitmap.createScaledBitmap(bmp, OUT_COLS, OUT_ROWS, true).also { bmp.recycle() }
         } else bmp
-
-        // Unsharp mask -- restores edge crispness lost to bilinear upscaling
-        // and the spatial median. Operates in-place at whatever scale the
-        // bitmap currently is (320x240 when upscale on, 160x120 when off).
         val w = target.width
         val h = target.height
         val targetPixels = IntArray(w * h)

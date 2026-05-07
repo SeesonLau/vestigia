@@ -24,13 +24,12 @@ import {
   onFrameStats,
   pauseCamera, resumeCamera,
   setDisplayMode as setDisplayModeNative,
-  setLiveScale as setLiveScaleNative,
+  setLiveProcessing as setLiveProcessingNative,
   setPalette as setPaletteNative,
 } from "../../lib/thermal/uvcCamera"
-import type { DisplayMode, FeedMode, PaletteType } from "../../lib/thermal/uvcCamera"
+import type { DisplayMode, FrameStats, PaletteType } from "../../lib/thermal/uvcCamera"
 import { PALETTES } from "../../lib/thermal/palettes"
 import ReadinessIndicator from "./ReadinessIndicator"
-import type { ReadinessState } from "./ReadinessIndicator"
 
 const { width: SCREEN_W } = Dimensions.get("window")
 const MAP_W = SCREEN_W - Spacing.lg * 2
@@ -77,15 +76,16 @@ export default function ThermalLiveFeedScreen({
   const [palette,      setPalette]      = useState<PaletteType>("medical")
   const [cameraPaused, setCameraPaused] = useState(false)
 
-  //Capture options — control native pipeline at capture time AND govern the
-  //live preview scale (so what you see is what gets captured).
-  //captureScale: "upscaled" → 320×240 bilinear-upscaled artifacts + preview;
-  //              "native"   → 160×120 sensor-resolution artifacts + preview.
-  //captureFeedMode: "unprocessed" → [unprocessed, processed, isolated];
-  //                 "processed"   → [processed full, processed cropped, isolated]
-  //                                 (slot 2 skipped when no ROI is drawn).
-  const [captureScale,    setCaptureScale]    = useState<"native" | "upscaled">("upscaled")
-  const [captureFeedMode, setCaptureFeedMode] = useState<FeedMode>("unprocessed")
+  //Single capture-mode toggle. false (default) = Raw: native 160×120 with
+  //zero processing; true = Enhanced: 320×240 bilinear upscale + median + EMA
+  //+ CLAHE + unsharp on both the live preview and the captured artifacts.
+  const [captureEnhanced, setCaptureEnhanced] = useState<boolean>(false)
+
+  //Crosshair overlay mode (radio-style). "off" hides it; "hot" / "cold" show
+  //one crosshair at the hottest / coldest pixel; "all" shows hot + cold +
+  //mean simultaneously.
+  type CrosshairMode = "off" | "hot" | "cold" | "all"
+  const [crosshairMode, setCrosshairMode] = useState<CrosshairMode>("off")
 
   //Capture
   const [captureStep,   setCaptureStep]   = useState<"left" | "right">("left")
@@ -114,8 +114,14 @@ export default function ThermalLiveFeedScreen({
   const resetRoi      = useRoiStore((s) => s.reset)
   const roiTooSmall = roiRect.w < ROI_MIN_W + 0.005
 
-  //Readiness
-  const [readiness, setReadiness] = useState<ReadinessState>({ variance: 0, frameDiff: 0, frameIndex: 0 })
+  //Readiness + crosshair stats from native (per frame).
+  const ZERO_STATS: FrameStats = {
+    variance: 0, frameDiff: 0, frameIndex: 0,
+    hotX: 0,  hotY: 0,  hotTemp: 0,
+    coldX: 0, coldY: 0, coldTemp: 0,
+    meanTemp: 0,
+  }
+  const [readiness, setReadiness] = useState<FrameStats>(ZERO_STATS)
 
   //Reset local capture UI whenever this screen regains focus and the thermal
   //store no longer holds any capture (i.e. the parent cleared it after a save).
@@ -179,7 +185,7 @@ export default function ThermalLiveFeedScreen({
         setDisplayUri(null)
         setFps(0)
         frameTimestamps.current = []
-        setReadiness({ variance: 0, frameDiff: 0, frameIndex: 0 })
+        setReadiness(ZERO_STATS)
       })
       const unsubFormats = onCameraFormats(setSupportedFormats)
       unsubDisplay = onDisplayFrame((jpegB64) => {
@@ -221,19 +227,19 @@ export default function ThermalLiveFeedScreen({
     try { await setPaletteNative(p) } catch {}
   }
 
-  const handleSetCaptureScale = async (s: "native" | "upscaled") => {
-    setCaptureScale(s)
-    try { await setLiveScaleNative(s === "upscaled") } catch {}
+  const handleSetCaptureEnhanced = async (enhanced: boolean) => {
+    setCaptureEnhanced(enhanced)
+    try { await setLiveProcessingNative(enhanced) } catch {}
   }
 
-  //Re-sync the native live-scale flag whenever the camera reconnects (the
-  //volatile defaults to true on the native side, so non-default JS state
-  //needs to be re-applied after a reconnect).
+  //Re-sync the native live-processing flag whenever the camera reconnects
+  //(the volatile resets on the native side, so non-default JS state needs to
+  //be re-applied after a reconnect).
   useEffect(() => {
     if (cameraStatus === "connected") {
-      setLiveScaleNative(captureScale === "upscaled").catch(() => {})
+      setLiveProcessingNative(captureEnhanced).catch(() => {})
     }
-  }, [cameraStatus, captureScale])
+  }, [cameraStatus, captureEnhanced])
 
   const handleToggleCamera = async () => {
     const pausing = !cameraPaused
@@ -271,8 +277,7 @@ export default function ThermalLiveFeedScreen({
       const result = await processFrames({
         crop: cropArg,
         isolatedBg,
-        upscale: captureScale === "upscaled",
-        feedMode: captureFeedMode,
+        enhanced: captureEnhanced,
       })
       const finalResult: ProcessedCapture = cropArg
         ? {
@@ -314,9 +319,10 @@ export default function ThermalLiveFeedScreen({
     onDiscard()
   }
 
-  const liveResLabel = captureScale === "upscaled" ? "320×240" : "160×120"
+  const liveResLabel = captureEnhanced ? "320×240" : "160×120"
+  const enhancementChain = captureEnhanced ? "median · EMA · CLAHE · unsharp" : "raw"
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · ${liveResLabel} · median · adaptive EMA · CLAHE · unsharp · feed=${captureFeedMode}`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · ${liveResLabel} · ${enhancementChain}`
     : ""
 
   //Disable capture when the framing rectangle is collapsed below the
@@ -388,6 +394,12 @@ export default function ThermalLiveFeedScreen({
             ]}
           >
             <Image source={{ uri: displayUri }} style={{ width: MAP_W, height: MAP_H }} resizeMode="contain" fadeDuration={0} />
+            <CrosshairOverlay
+              mode={crosshairMode}
+              stats={readiness}
+              width={MAP_W}
+              height={MAP_H}
+            />
             {!allDone && (
               <FootFrameOverlay
                 frameWidth={MAP_W}
@@ -509,7 +521,7 @@ export default function ThermalLiveFeedScreen({
                   //re-runs from scratch.
                   setDisplayUri(null)
                   capturedRef.current = false
-                  setReadiness({ variance: 0, frameDiff: 0, frameIndex: 0 })
+                  setReadiness(ZERO_STATS)
                   disconnectCamera()
                   setRetryKey((k) => k + 1)
                 }}
@@ -581,22 +593,22 @@ export default function ThermalLiveFeedScreen({
           </View>
         )}
 
-        {/* Capture options — scale + feed mode. Hidden once both feet are
-            captured (allDone) since the controls no longer apply. */}
+        {/* Capture options — single Raw/Enhanced toggle + crosshair selector.
+            Hidden once both feet are captured (allDone). */}
         {!allDone && (
           <View style={[styles.captureOptsCard, { backgroundColor: colors.surface }]}>
             <View style={styles.captureOptsRow}>
-              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>SCALE</Text>
+              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>MODE</Text>
               <View style={styles.captureOptsSeg}>
                 {([
-                  ["native",   "Original 160×120"],
-                  ["upscaled", "Upscaled 320×240"],
+                  [false, "Raw"],
+                  [true,  "Enhanced"],
                 ] as const).map(([val, label]) => {
-                  const active = captureScale === val
+                  const active = captureEnhanced === val
                   return (
                     <TouchableOpacity
-                      key={val}
-                      onPress={() => handleSetCaptureScale(val)}
+                      key={String(val)}
+                      onPress={() => handleSetCaptureEnhanced(val)}
                       style={[
                         styles.captureOptsSegBtn,
                         { backgroundColor: active ? colors.accent : "transparent" },
@@ -613,17 +625,19 @@ export default function ThermalLiveFeedScreen({
             </View>
 
             <View style={styles.captureOptsRow}>
-              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>FEED</Text>
+              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>SPOTS</Text>
               <View style={styles.captureOptsSeg}>
                 {([
-                  ["unprocessed", "Unprocessed"],
-                  ["processed",   "Processed"],
+                  ["off",  "Off"],
+                  ["hot",  "Hot"],
+                  ["cold", "Cold"],
+                  ["all",  "All 3"],
                 ] as const).map(([val, label]) => {
-                  const active = captureFeedMode === val
+                  const active = crosshairMode === val
                   return (
                     <TouchableOpacity
                       key={val}
-                      onPress={() => setCaptureFeedMode(val)}
+                      onPress={() => setCrosshairMode(val)}
                       style={[
                         styles.captureOptsSegBtn,
                         { backgroundColor: active ? colors.accent : "transparent" },
@@ -640,11 +654,9 @@ export default function ThermalLiveFeedScreen({
             </View>
 
             <Text style={[styles.captureOptsHint, { color: colors.textSec }]}>
-              {captureFeedMode === "processed"
-                ? roiVisible
-                  ? "Processed feed · slots: full · cropped · isolated"
-                  : "Processed feed · no ROI → only full + isolated will be saved"
-                : "Unprocessed feed · slots: unprocessed · processed · isolated"}
+              {captureEnhanced
+                ? "Enhanced · 320×240 + median · EMA · CLAHE · unsharp"
+                : "Raw · native 160×120, no processing"}
             </Text>
           </View>
         )}
@@ -765,6 +777,64 @@ export default function ThermalLiveFeedScreen({
     </ScreenWrapper>
   )
 }
+
+// Crosshair overlay — absolute-positioned over the live preview Image,
+// renders 1-3 markers at the per-frame hottest / coldest / mean spots.
+// Coordinates from native are normalized [0..1] over the sensor matrix so
+// they map cleanly to whatever pixel size the preview is currently rendered
+// at (160x120 raw or 320x240 enhanced). The crosshair geometry: 16-px
+// horizontal + vertical lines centered on the spot, plus a small temperature
+// pill 14 px above the intersection.
+function CrosshairOverlay({
+  mode, stats, width, height,
+}: {
+  mode: "off" | "hot" | "cold" | "all"
+  stats: {
+    hotX: number; hotY: number; hotTemp: number
+    coldX: number; coldY: number; coldTemp: number
+    meanTemp: number
+  }
+  width: number
+  height: number
+}) {
+  if (mode === "off") return null
+  const showHot  = mode === "hot"  || mode === "all"
+  const showCold = mode === "cold" || mode === "all"
+  const showMean = mode === "all"
+  return (
+    <View pointerEvents="none" style={[crosshairStyles.layer, { width, height }]}>
+      {showHot  ? <CrosshairMarker color="#FF3B30" x={stats.hotX  * width} y={stats.hotY  * height} label={`H ${stats.hotTemp.toFixed(1)}°`} /> : null}
+      {showCold ? <CrosshairMarker color="#0A84FF" x={stats.coldX * width} y={stats.coldY * height} label={`C ${stats.coldTemp.toFixed(1)}°`} /> : null}
+      {showMean ? <CrosshairMarker color="#FFFFFF" x={width / 2}            y={height / 2}             label={`μ ${stats.meanTemp.toFixed(1)}°`} dashed /> : null}
+    </View>
+  )
+}
+
+function CrosshairMarker({
+  color, x, y, label, dashed,
+}: { color: string; x: number; y: number; label: string; dashed?: boolean }) {
+  const ARM = 14
+  const borderStyle = dashed ? "dashed" : "solid"
+  return (
+    <>
+      <View style={[crosshairStyles.hLine, { left: x - ARM, top: y - 0.5, width: ARM * 2, borderTopColor: color, borderStyle }]} />
+      <View style={[crosshairStyles.vLine, { left: x - 0.5, top: y - ARM, height: ARM * 2, borderLeftColor: color, borderStyle }]} />
+      <View style={[crosshairStyles.dot,   { left: x - 2,   top: y - 2,   backgroundColor: color }]} />
+      <View style={[crosshairStyles.label, { left: x + 6,   top: y - 18,  borderColor: color }]}>
+        <Text style={[crosshairStyles.labelText, { color }]}>{label}</Text>
+      </View>
+    </>
+  )
+}
+
+const crosshairStyles = StyleSheet.create({
+  layer:     { position: "absolute", top: 0, left: 0 },
+  hLine:     { position: "absolute", height: 1, borderTopWidth: 1 },
+  vLine:     { position: "absolute", width: 1,  borderLeftWidth: 1 },
+  dot:       { position: "absolute", width: 4, height: 4, borderRadius: 2 },
+  label:     { position: "absolute", paddingHorizontal: 4, paddingVertical: 1, borderWidth: 1, borderRadius: 3, backgroundColor: "rgba(0,0,0,0.65)" },
+  labelText: { fontSize: 9, fontFamily: Typography.fonts.mono, fontWeight: "bold" },
+})
 
 function RoiBtn({
   icon, active, onPress, colors, accessibilityLabel,

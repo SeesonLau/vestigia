@@ -153,11 +153,12 @@ export async function setPalette(palette: PaletteType): Promise<void> {
   try { await UVCCamera.setPalette(palette) } catch {}
 }
 
-// Toggle live preview scale. true = upscale to 320×240, false = native 160×120.
-// Safe to call mid-stream.
-export async function setLiveScale(upscale: boolean): Promise<void> {
+// Toggle the live preview between Raw and Enhanced regimes. Safe to call
+// mid-stream. true = full pipeline (median + EMA + CLAHE + 320x240 upscale +
+// unsharp). false = Y16 -> palette -> JPEG at native 160x120, no filtering.
+export async function setLiveProcessing(enhanced: boolean): Promise<void> {
   if (!UVCCamera) return
-  try { await UVCCamera.setLiveScale(upscale) } catch {}
+  try { await UVCCamera.setLiveProcessing(enhanced) } catch {}
 }
 
 // Pause display processing — stops emitting onDisplayFrame events (stream data still buffered).
@@ -174,24 +175,19 @@ export async function resumeCamera(): Promise<void> {
 
 // processCapture — temporal average + median filter + foot isolation + TIFF/CSV encode on a Kotlin thread.
 // Does NOT auto-save to device; call savePngToDevice / saveCsvToDevice with the final bundle filename.
-//
-// Slot semantics depend on feedMode:
-//   'unprocessed' -> [1] grayscale unprocessed, [2] palette processed, [3] isolated
-//   'processed'   -> [1] palette processed full-frame, [2] palette processed cropped to ROI
-//                    (null when no ROI was drawn), [3] isolated
-export type FeedMode = 'unprocessed' | 'processed'
+// Bundle artifacts are always 3 slots:
+//   [1] grayscale unprocessed, [2] palette processed, [3] isolated.
 
 export interface NativeProcessResult {
   slot1ImageB64:    string         // PNG, always present
-  slot2ImageB64:    string | null  // PNG; null only in feedMode='processed' with no ROI
+  slot2ImageB64:    string | null  // PNG; null only when processed slot was skipped
   slot3ImageB64:    string         // PNG (isolated), always present
-  feedMode:         FeedMode
   tiffB64:          string         // 16-bit TIFF (radiometric, Kelvin×100, native sensor res)
   csvContent:       string         // full-frame CSV (°C, 2 dp) at the working resolution
   maskedCsvContent: string         // foot-only CSV — background cells = "0.00"
   frameCount:       number
-  width:            number         // working width (320 when upscaled, 160 native)
-  height:           number         // working height (240 when upscaled, 120 native)
+  width:            number         // working width (320 when enhanced, 160 raw)
+  height:           number         // working height (240 when enhanced, 120 raw)
   minTemp:          number
   maxTemp:          number
   meanTemp:         number
@@ -208,11 +204,9 @@ export interface NativeCaptureOptions {
   crop?: NativeCropRoi | null
   /** Background fill for the isolated PNG. Default 'transparent'. */
   isolatedBg?: 'transparent' | 'black'
-  /** Bilinearly upscale the working matrix from native (160×120) to 320×240
-   *  before encoding artifacts. Default true. */
-  upscale?: boolean
-  /** Which 3-slot pipeline to produce. Default 'unprocessed'. */
-  feedMode?: FeedMode
+  /** Capture regime. false (default) = native 160x120 raw artifacts;
+   *  true = bilinear upscale to 320x240 + full processing pipeline. */
+  enhanced?: boolean
 }
 
 export async function processCapture(opts?: NativeCaptureOptions | null): Promise<NativeProcessResult> {
@@ -220,8 +214,7 @@ export async function processCapture(opts?: NativeCaptureOptions | null): Promis
   const params = {
     crop: opts?.crop ?? null,
     isolatedBg: opts?.isolatedBg ?? 'transparent',
-    upscale: opts?.upscale ?? true,
-    feedMode: opts?.feedMode ?? 'unprocessed',
+    enhanced: opts?.enhanced ?? false,
   }
   return UVCCamera.processCapture(params) as Promise<NativeProcessResult>
 }
@@ -244,12 +237,33 @@ export interface FrameStats {
   variance:   number   // spatial variance of temps (°C²) — low = FFC or no subject
   frameDiff:  number   // mean absolute diff from previous frame (°C) — high = motion
   frameIndex: number   // total frames received since connect
+  // Hottest / coldest pixel coordinates (normalized 0..1 over the sensor
+  // matrix) and their temperatures. Plus the frame mean. Used to drive the
+  // on-screen crosshair overlay (Hottest / Coldest / All Three).
+  hotX:       number
+  hotY:       number
+  hotTemp:    number
+  coldX:      number
+  coldY:      number
+  coldTemp:   number
+  meanTemp:   number
 }
 
 export function onFrameStats(callback: (stats: FrameStats) => void): () => void {
   if (!emitter) return () => {}
   const sub = emitter.addListener('onFrameStats', (raw: Record<string, number>) =>
-    callback({ variance: raw.variance, frameDiff: raw.frameDiff, frameIndex: raw.frameIndex })
+    callback({
+      variance:   raw.variance,
+      frameDiff:  raw.frameDiff,
+      frameIndex: raw.frameIndex,
+      hotX:       raw.hotX,
+      hotY:       raw.hotY,
+      hotTemp:    raw.hotTemp,
+      coldX:      raw.coldX,
+      coldY:      raw.coldY,
+      coldTemp:   raw.coldTemp,
+      meanTemp:   raw.meanTemp,
+    })
   )
   return () => sub.remove()
 }
