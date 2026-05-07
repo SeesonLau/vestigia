@@ -1,6 +1,20 @@
 # Supabase Changes Log — Vestigia
 
 ---
+## [2026-05-08] — Deploy admin-set-clinic-password Edge Function
+**Type:** Edge Function
+**Tables affected:** `clinic_password_reset_requests`, `auth.users` (via auth.admin API)
+
+### What was done
+Deployed v1 of the `admin-set-clinic-password` Edge Function, which the web admin console uses to issue temporary passwords to locked-out clinics. The function authenticates the caller's JWT, requires `profiles.role = 'admin'`, then uses the service role to call `auth.admin.updateUserById(profile_id, { password })` and stamp the matching `clinic_password_reset_requests` row to `'approved'` (with `reviewed_by`/`reviewed_at`).
+
+### Why
+Clinics use fabricated emails (DOH LTOs are not real mailboxes), so Supabase's email-based password reset is unusable. The admin mediates resets out-of-band: confirms identity by phone, then sets a temporary password through this function. Only the service role can update another user's password without their session — the function is the only place that key lives, and it's fenced behind an admin-role check before any privileged action runs.
+
+### Result
+Deployed cleanly, status `ACTIVE`, `verify_jwt: true`, version 1. Admin web console (`web/app/admin/password-resets/page.tsx`) invokes it via `supabase.functions.invoke("admin-set-clinic-password", { body: { request_id, profile_id, new_password } })`.
+
+---
 ## [2026-05-03 — v0.12.0] — Move angiosome data to classification_results
 **Type:** Schema change
 **Tables affected:** `thermal_captures`, `classification_results`
