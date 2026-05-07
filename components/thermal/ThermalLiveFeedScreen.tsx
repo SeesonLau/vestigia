@@ -4,7 +4,7 @@ import { useFocusEffect } from "expo-router"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import {
   Alert, Animated, Dimensions, Image, Modal,
-  ScrollView, StyleSheet, Text, TouchableOpacity, View,
+  Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from "react-native"
 import { useThermalStore } from "../../store/sessionStore"
 import { ROI_MIN_W, useRoiStore } from "../../store/roiStore"
@@ -27,8 +27,13 @@ import {
   setLiveProcessing as setLiveProcessingNative,
   setPalette as setPaletteNative,
 } from "../../lib/thermal/uvcCamera"
-import type { DisplayMode, FrameStats, PaletteType } from "../../lib/thermal/uvcCamera"
+import type { DisplayMode, FrameStats, MeasurementParams, PaletteType } from "../../lib/thermal/uvcCamera"
 import { PALETTES } from "../../lib/thermal/palettes"
+import {
+  EMISSIVITY_MAX, EMISSIVITY_MIN, MEASUREMENT_PARAM_DEFAULTS,
+  REFLECTED_MAX, REFLECTED_MIN,
+  loadMeasurementParams, saveMeasurementParams,
+} from "../../lib/thermal/measurementParams"
 import ReadinessIndicator from "./ReadinessIndicator"
 
 const { width: SCREEN_W } = Dimensions.get("window")
@@ -95,8 +100,31 @@ export default function ThermalLiveFeedScreen({
   const [capturing,     setCapturing]     = useState(false)
   const [allDone,       setAllDone]       = useState(false)
 
-  //Settings
+  //Settings sheet
   const [showSettings, setShowSettings] = useState(false)
+  const [sheetView,    setSheetView]    = useState<"uvc" | "measurement">("uvc")
+
+  //Radiometric correction parameters — persisted per-device. Loaded once on
+  //mount and re-pushed to native every time the camera connects.
+  const [measurement, setMeasurement] = useState<MeasurementParams>(MEASUREMENT_PARAM_DEFAULTS)
+  const [emissivityDraft,  setEmissivityDraft]  = useState<string>(MEASUREMENT_PARAM_DEFAULTS.emissivity.toFixed(2))
+  const [reflectedDraft,   setReflectedDraft]   = useState<string>(MEASUREMENT_PARAM_DEFAULTS.reflectedTempC.toFixed(1))
+  useEffect(() => {
+    let cancelled = false
+    loadMeasurementParams().then((p) => {
+      if (cancelled) return
+      setMeasurement(p)
+      setEmissivityDraft(p.emissivity.toFixed(2))
+      setReflectedDraft(p.reflectedTempC.toFixed(1))
+    })
+    return () => { cancelled = true }
+  }, [])
+  const persistMeasurement = async (p: MeasurementParams) => {
+    const clamped = await saveMeasurementParams(p)
+    setMeasurement(clamped)
+    setEmissivityDraft(clamped.emissivity.toFixed(2))
+    setReflectedDraft(clamped.reflectedTempC.toFixed(1))
+  }
 
   //Suppress ScrollView vertical scrolling while the user is dragging the
   //foot-frame overlay. Without this, after a few pixels of finger movement
@@ -232,14 +260,15 @@ export default function ThermalLiveFeedScreen({
     try { await setLiveProcessingNative(enhanced) } catch {}
   }
 
-  //Re-sync the native live-processing flag whenever the camera reconnects
-  //(the volatile resets on the native side, so non-default JS state needs to
-  //be re-applied after a reconnect).
+  //Re-sync native flags + measurement parameters whenever the camera
+  //reconnects (the volatiles reset on the native side, so non-default JS
+  //state needs to be re-applied after a reconnect).
   useEffect(() => {
     if (cameraStatus === "connected") {
       setLiveProcessingNative(captureEnhanced).catch(() => {})
+      saveMeasurementParams(measurement).catch(() => {})
     }
-  }, [cameraStatus, captureEnhanced])
+  }, [cameraStatus, captureEnhanced, measurement])
 
   const handleToggleCamera = async () => {
     const pausing = !cameraPaused
@@ -735,43 +764,136 @@ export default function ThermalLiveFeedScreen({
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.sectionLabel, { color: colors.textSec }]}>UVC PARAMETERS</Text>
-          {([
-            ["Packets Per Request",  "4"],
-            ["Active URBs",          "4"],
-            ["Max Packet Size",      "1,024 bytes"],
-            ["Frame Size",           "160 × 120 × 2 = 38,400 bytes"],
-            ["Camera Format Index",  "2  (Y16 radiometric)"],
-            ["Camera Frame Index",   "1"],
-            ["Image Size",           "160 × 120 px"],
-            ["Frame Interval",       "1,111,111 μs  (9 fps)"],
-          ] as [string, string][]).map(([label, value]) => (
-            <View key={label} style={[styles.paramRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.paramLabel, { color: colors.textSec }]}>{label}</Text>
-              <Text style={[styles.paramValue, { color: colors.text }]}>{value}</Text>
-            </View>
-          ))}
-
-          <Text style={[styles.sectionLabel, { color: colors.textSec, marginTop: Spacing.md }]}>CONNECTION</Text>
-          <View style={[styles.connBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <Text style={[styles.connText, { color: colors.textSec }]}>
-              Status:{" "}
-              <Text style={{ color: cameraStatus === "connected" ? colors.success : cameraStatus === "error" ? colors.error : colors.warning }}>
-                {cameraStatus.toUpperCase()}
-              </Text>
-            </Text>
-            {supportedFormats.length > 0 && (
-              <Text style={[styles.connText, { color: colors.textSec }]} numberOfLines={2}>{supportedFormats}</Text>
-            )}
+          {/* Paged view toggle */}
+          <View style={[styles.sheetTabs, { backgroundColor: colors.surface }]}>
+            {([
+              ["uvc",         "UVC Parameters"],
+              ["measurement", "Measurement"],
+            ] as const).map(([val, label]) => {
+              const active = sheetView === val
+              return (
+                <TouchableOpacity
+                  key={val}
+                  onPress={() => setSheetView(val)}
+                  style={[styles.sheetTabBtn, active && { backgroundColor: colors.accent }]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.sheetTabText, { color: active ? "#fff" : colors.textSec }]}>{label}</Text>
+                </TouchableOpacity>
+              )
+            })}
           </View>
 
-          <TouchableOpacity
-            style={[styles.reconnectBtn, { backgroundColor: colors.accent }]}
-            onPress={() => { setShowSettings(false); disconnectCamera(); setRetryKey((k) => k + 1) }}
-          >
-            <Ionicons name="refresh-outline" size={16} color="#fff" />
-            <Text style={styles.reconnectText}>Reconnect Camera</Text>
-          </TouchableOpacity>
+          {sheetView === "uvc" ? (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>UVC PARAMETERS</Text>
+              {([
+                ["Packets Per Request",  "4"],
+                ["Active URBs",          "4"],
+                ["Max Packet Size",      "1,024 bytes"],
+                ["Frame Size",           "160 × 120 × 2 = 38,400 bytes"],
+                ["Camera Format Index",  "2  (Y16 radiometric)"],
+                ["Camera Frame Index",   "1"],
+                ["Image Size",           "160 × 120 px"],
+                ["Frame Interval",       "1,111,111 μs  (9 fps)"],
+              ] as [string, string][]).map(([label, value]) => (
+                <View key={label} style={[styles.paramRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.paramLabel, { color: colors.textSec }]}>{label}</Text>
+                  <Text style={[styles.paramValue, { color: colors.text }]}>{value}</Text>
+                </View>
+              ))}
+
+              <Text style={[styles.sectionLabel, { color: colors.textSec, marginTop: Spacing.md }]}>CONNECTION</Text>
+              <View style={[styles.connBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.connText, { color: colors.textSec }]}>
+                  Status:{" "}
+                  <Text style={{ color: cameraStatus === "connected" ? colors.success : cameraStatus === "error" ? colors.error : colors.warning }}>
+                    {cameraStatus.toUpperCase()}
+                  </Text>
+                </Text>
+                {supportedFormats.length > 0 && (
+                  <Text style={[styles.connText, { color: colors.textSec }]} numberOfLines={2}>{supportedFormats}</Text>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.reconnectBtn, { backgroundColor: colors.accent }]}
+                onPress={() => { setShowSettings(false); disconnectCamera(); setRetryKey((k) => k + 1) }}
+              >
+                <Ionicons name="refresh-outline" size={16} color="#fff" />
+                <Text style={styles.reconnectText}>Reconnect Camera</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.sectionLabel, { color: colors.textSec }]}>MEASUREMENT</Text>
+              <Text style={[styles.measurementHelp, { color: colors.textSec }]}>
+                Applied to live preview AND captured artifacts. Defaults are tuned
+                for skin against typical clinic ambient.
+              </Text>
+
+              <View style={styles.measurementRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.measurementLabel, { color: colors.textSec }]}>Emissivity (ε)</Text>
+                  <Text style={[styles.measurementHint,  { color: colors.textSec }]}>
+                    {EMISSIVITY_MIN.toFixed(2)} – {EMISSIVITY_MAX.toFixed(2)}; skin ≈ 0.98
+                  </Text>
+                </View>
+                <TextInput
+                  value={emissivityDraft}
+                  onChangeText={setEmissivityDraft}
+                  onBlur={() => {
+                    const v = parseFloat(emissivityDraft)
+                    if (!Number.isFinite(v)) {
+                      setEmissivityDraft(measurement.emissivity.toFixed(2))
+                      return
+                    }
+                    persistMeasurement({ ...measurement, emissivity: v })
+                  }}
+                  keyboardType="decimal-pad"
+                  selectTextOnFocus
+                  style={[styles.measurementInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              <View style={styles.measurementRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.measurementLabel, { color: colors.textSec }]}>Reflected Temp (°C)</Text>
+                  <Text style={[styles.measurementHint,  { color: colors.textSec }]}>
+                    {REFLECTED_MIN} – {REFLECTED_MAX}; ambient ≈ 22 °C
+                  </Text>
+                </View>
+                <TextInput
+                  value={reflectedDraft}
+                  onChangeText={setReflectedDraft}
+                  onBlur={() => {
+                    const v = parseFloat(reflectedDraft)
+                    if (!Number.isFinite(v)) {
+                      setReflectedDraft(measurement.reflectedTempC.toFixed(1))
+                      return
+                    }
+                    persistMeasurement({ ...measurement, reflectedTempC: v })
+                  }}
+                  keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "numeric"}
+                  selectTextOnFocus
+                  style={[styles.measurementInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.measurementResetBtn, { borderColor: colors.border }]}
+                onPress={() => persistMeasurement(MEASUREMENT_PARAM_DEFAULTS)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh-outline" size={14} color={colors.textSec} />
+                <Text style={[styles.measurementResetText, { color: colors.textSec }]}>Reset to defaults</Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.measurementApplied, { color: colors.success }]}>
+                Active: ε = {measurement.emissivity.toFixed(2)} · T_refl = {measurement.reflectedTempC.toFixed(1)} °C
+              </Text>
+            </>
+          )}
         </View>
       </Modal>
     </ScreenWrapper>
@@ -956,7 +1078,9 @@ const styles = StyleSheet.create({
   hint:           { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 18, marginBottom: Spacing.md },
 
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet:    { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, paddingBottom: 40 },
+  // paddingBottom raised so the sheet clears the phone's system nav bar /
+  // gesture bar; was 40 (overlapped on devices with thicker nav surfaces).
+  sheet:    { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, paddingBottom: 64 },
   sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: Spacing.md },
   sheetHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md },
   sheetTitle:  { fontSize: Typography.sizes.md, fontFamily: Typography.fonts.heading },
@@ -970,4 +1094,17 @@ const styles = StyleSheet.create({
   connText:     { fontSize: 11, fontFamily: Typography.fonts.mono },
   reconnectBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: Spacing.md, borderRadius: Radius.md },
   reconnectText:{ fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.heading, color: "#fff" },
+
+  sheetTabs:    { flexDirection: "row", borderRadius: Radius.md, padding: 3, marginBottom: Spacing.md, gap: 3 },
+  sheetTabBtn:  { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: Radius.sm },
+  sheetTabText: { fontSize: 11, fontFamily: Typography.fonts.heading, letterSpacing: 0.4 },
+
+  measurementHelp:    { fontSize: 11, fontFamily: Typography.fonts.body, marginBottom: Spacing.sm, lineHeight: 15 },
+  measurementRow:     { flexDirection: "row", alignItems: "center", gap: Spacing.sm, paddingVertical: 8 },
+  measurementLabel:   { fontSize: 12, fontFamily: Typography.fonts.heading },
+  measurementHint:    { fontSize: 10, fontFamily: Typography.fonts.mono, marginTop: 2 },
+  measurementInput:   { width: 90, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderRadius: Radius.sm, fontSize: 13, fontFamily: Typography.fonts.mono, textAlign: "right" },
+  measurementResetBtn:{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 8, borderWidth: 1, borderRadius: Radius.md, marginTop: Spacing.sm },
+  measurementResetText:{ fontSize: 11, fontFamily: Typography.fonts.body },
+  measurementApplied: { fontSize: 10, fontFamily: Typography.fonts.mono, textAlign: "center", marginTop: Spacing.sm },
 })

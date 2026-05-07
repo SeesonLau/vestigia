@@ -161,6 +161,16 @@ export async function setLiveProcessing(enhanced: boolean): Promise<void> {
   try { await UVCCamera.setLiveProcessing(enhanced) } catch {}
 }
 
+// Apply emissivity / reflected-temperature correction to every decoded
+// frame (live preview AND capture artifacts). emissivity is clamped to
+// [0.10, 1.00]; reflectedTempC to [-50, 150] °C. Default values 0.98 / 22°C
+// are reasonable for diabetic foot screening (skin against clinic ambient).
+export interface MeasurementParams { emissivity: number; reflectedTempC: number }
+export async function setMeasurementParams(params: MeasurementParams): Promise<MeasurementParams | null> {
+  if (!UVCCamera) return null
+  try { return (await UVCCamera.setMeasurementParams(params.emissivity, params.reflectedTempC)) as MeasurementParams } catch { return null }
+}
+
 // Pause display processing — stops emitting onDisplayFrame events (stream data still buffered).
 export async function pauseCamera(): Promise<void> {
   if (!UVCCamera) return

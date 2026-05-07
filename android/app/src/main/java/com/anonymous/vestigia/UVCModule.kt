@@ -29,6 +29,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.floor
+import kotlin.math.sqrt
 
 class UVCModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -93,6 +94,17 @@ class UVCModule(reactContext: ReactApplicationContext) :
     // dampening per-frame microbolometer flicker without softening edges
     // (the spatial median already suppresses speckle).
     @Volatile private var prevDisplayFiltered: FloatArray? = null
+
+    // Radiometric correction parameters. Applied to every decoded pixel
+    // (live preview AND capture pipeline) so the displayed and captured
+    // temperatures reflect the real surface, not the apparent temperature
+    // the sensor reports against an idealised black-body.
+    //   emissivity    : 0.10 .. 1.00 (skin ≈ 0.98)
+    //   reflectedTempC: ambient surroundings, typical clinic ≈ 22 °C
+    // When emissivity == 1.0 the correction is a no-op and the raw decoded
+    // temperatures pass through unchanged.
+    @Volatile private var emissivity     = 0.98f
+    @Volatile private var reflectedTempC = 22.0f
 
     // Frame readiness tracking
     private var prevFrameForDiff: ByteArray? = null
@@ -192,6 +204,20 @@ class UVCModule(reactContext: ReactApplicationContext) :
         // frame doesn't blend with stale Raw-mode data.
         if (!enhanced) prevDisplayFiltered = null
         promise.resolve(displayEnhanced)
+    }
+
+    // Set radiometric correction parameters. Safe to call mid-stream.
+    // emissivity is clamped to [0.10, 1.00]; reflectedTempC to [-50, 150] °C.
+    // Drop the EMA history so the next frame doesn't blend across regimes.
+    @ReactMethod
+    fun setMeasurementParams(emissivityIn: Double, reflectedTempCIn: Double, promise: Promise) {
+        emissivity     = emissivityIn.toFloat().coerceIn(0.10f, 1.00f)
+        reflectedTempC = reflectedTempCIn.toFloat().coerceIn(-50f, 150f)
+        prevDisplayFiltered = null
+        val map = Arguments.createMap()
+        map.putDouble("emissivity",     emissivity.toDouble())
+        map.putDouble("reflectedTempC", reflectedTempC.toDouble())
+        promise.resolve(map)
     }
 
     // Pause display — no more onDisplayFrame events; Y16 frames still buffered for capture.
@@ -322,6 +348,9 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
         val n = rows * cols
+        val eps     = emissivity
+        val correct = eps < 0.999f
+        val refl4   = if (correct) computeRefl4() else 0f
         var sum = 0.0; var sumSq = 0.0
         var hotT  = -Float.MAX_VALUE; var hotIdx  = 0
         var coldT =  Float.MAX_VALUE; var coldIdx = 0
@@ -329,7 +358,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         for (i in 0 until n) {
             val lo = frame[i * 2].toInt() and 0xFF
             val hi = frame[i * 2 + 1].toInt() and 0xFF
-            val t = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+            val apparent = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+            val t = if (correct) emissivityCorrect(apparent, eps, refl4) else apparent
             temps[i] = t; sum += t; sumSq += t * t
             if (t > hotT)  { hotT  = t; hotIdx  = i }
             if (t < coldT) { coldT = t; coldIdx = i }
@@ -382,11 +412,15 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
 
+        val eps     = emissivity
+        val correct = eps < 0.999f
+        val refl4   = if (correct) computeRefl4() else 0f
         val temps = FloatArray(rows * cols)
         for (i in 0 until rows * cols) {
             val lo = frame[i * 2].toInt() and 0xFF
             val hi = frame[i * 2 + 1].toInt() and 0xFF
-            temps[i] = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+            val apparent = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
+            temps[i] = if (correct) emissivityCorrect(apparent, eps, refl4) else apparent
         }
 
         val pixels = IntArray(rows * cols)
@@ -617,6 +651,29 @@ class UVCModule(reactContext: ReactApplicationContext) :
         return out
     }
 
+    // Radiometric correction -- map an apparent temperature (what the sensor
+    // reports against an idealised black-body) to the real surface
+    // temperature given emissivity eps and reflected ambient temperature
+    // (precomputed as reflectedTempK^4 = refl4). Uses the standard
+    // black-body radiative form:
+    //     T_corrected^4 = (T_apparent^4 - (1 - eps) * T_reflected^4) / eps
+    // sqrt(sqrt(x)) is ~5x faster than pow(x, 0.25) on Android. Caller
+    // skips the call entirely when eps == 1.0 (no correction needed).
+    private fun emissivityCorrect(tApparentC: Float, eps: Float, refl4: Float): Float {
+        val tApparentK = tApparentC + 273.15f
+        val ta4        = tApparentK * tApparentK * tApparentK * tApparentK
+        val corrected4 = ((ta4 - (1f - eps) * refl4) / eps).coerceAtLeast(1f)
+        val correctedK = sqrt(sqrt(corrected4))
+        return correctedK - 273.15f
+    }
+
+    // Compute reflectedTempK^4 once per frame so per-pixel corrections only
+    // pay one multiply + one subtract + one divide + two sqrt calls.
+    private fun computeRefl4(): Float {
+        val rk = reflectedTempC + 273.15f
+        return rk * rk * rk * rk
+    }
+
     // Unsharp mask -- pixel = pixel + amount * (pixel - blurred). 3x3 box blur
     // per channel gives a 1-pixel sharpening radius, which matches the level
     // of softening introduced by bilinear upscaling. amount = 0.6 punches up
@@ -797,7 +854,17 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val rawAvg = IntArray(rows * cols) { i -> (sumBuf[i] / n).toInt() }
         log.add("Temporal average: $n frame(s)")
 
-        val tempFlat = FloatArray(rows * cols) { i -> (rawAvg[i] - KELVIN_OFFSET) / 100f }
+        // Decode averaged Y16 -> apparent °C, then apply emissivity /
+        // reflected-temp correction so captured artifacts and CSVs reflect
+        // the real surface temperature, not the sensor's black-body reading.
+        val eps     = emissivity
+        val correct = eps < 0.999f
+        val refl4   = if (correct) computeRefl4() else 0f
+        val tempFlat = FloatArray(rows * cols) { i ->
+            val apparent = (rawAvg[i] - KELVIN_OFFSET) / 100f
+            if (correct) emissivityCorrect(apparent, eps, refl4) else apparent
+        }
+        if (correct) log.add("Emissivity correction applied (ε=%.2f, T_refl=%.1f°C)".format(eps, reflectedTempC))
 
         val inRange = tempFlat.count { it in -50f..150f }
         if (inRange < tempFlat.size / 2)
