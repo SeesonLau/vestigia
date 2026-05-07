@@ -285,7 +285,7 @@ export default function ThermalLiveFeedScreen({
   }
 
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 160×120`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240 · median 3×3`
     : ""
 
   //Disable capture when the framing rectangle is collapsed below the

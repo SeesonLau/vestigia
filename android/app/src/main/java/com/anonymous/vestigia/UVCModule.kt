@@ -316,11 +316,17 @@ class UVCModule(reactContext: ReactApplicationContext) :
         sendEvent("onFrameStats", map)
     }
 
-    // Y16 → JPEG via the current displayMode and palette. Single frame, no
-    // averaging. The resulting bitmap is bilinear-upscaled to OUT_COLS x
-    // OUT_ROWS (320x240) before JPEG encoding so the live preview matches
-    // the capture pipeline's working resolution. Per-frame cost: ~5-10 ms
-    // at 9 fps, comfortably within budget on the Kotlin processing thread.
+    // Y16 -> JPEG via the current displayMode and palette. Single frame, no
+    // temporal averaging. Pipeline:
+    //   1. Decode Y16 to a temperature matrix (native 160x120).
+    //   2. 3x3 median filter -- de-speckles the "twinkling" hot/cold pixels
+    //      that uncooled microbolometers exhibit between frames.
+    //   3. Palette / mode mapping into ARGB pixels.
+    //   4. Bitmap built at native resolution.
+    //   5. Bilinear upscale to OUT_COLS x OUT_ROWS (320x240).
+    //   6. JPEG encode at quality 95 (negligible bandwidth bump vs 90,
+    //      removes most visible compression artefacts on smooth gradients).
+    // Per-frame cost: ~10-15 ms at 9 fps, comfortably within budget.
     private fun y16ToDisplayJpeg(frame: ByteArray): String {
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
@@ -332,7 +338,24 @@ class UVCModule(reactContext: ReactApplicationContext) :
             temps[i] = ((hi shl 8 or lo) - KELVIN_OFFSET) / 100f
         }
 
-        val sorted = temps.copyOf().also { it.sort() }
+        // 3x3 median filter -- removes salt-and-pepper microbolometer noise
+        // before the percentile / palette step. Operates on the native-sized
+        // matrix so the working set stays small (~19,200 floats); the upscale
+        // happens after the bitmap is built.
+        val filtered = FloatArray(rows * cols)
+        val medBuf   = FloatArray(9)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                var k = 0
+                for (dr in -1..1) for (dc in -1..1) {
+                    medBuf[k++] = temps[(r + dr).coerceIn(0, rows - 1) * cols + (c + dc).coerceIn(0, cols - 1)]
+                }
+                medBuf.sort()
+                filtered[r * cols + c] = medBuf[4]
+            }
+        }
+
+        val sorted = filtered.copyOf().also { it.sort() }
         val p1    = sorted[(sorted.size * 0.01f).toInt()]
         val p99   = sorted[(sorted.size * 0.99f).toInt()]
         val range = (p99 - p1).takeIf { it > 0f } ?: 1f
@@ -340,25 +363,25 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val pixels = IntArray(rows * cols)
         when (displayMode) {
             "raw" -> {
-                // Linear full-range grayscale — no percentile clip, true sensor range
-                val minT    = sorted[0]
+                // Linear full-range grayscale -- no percentile clip, true sensor range.
+                val minT     = sorted[0]
                 val rawRange = (sorted[sorted.size - 1] - minT).takeIf { it > 0f } ?: 1f
                 for (i in 0 until rows * cols) {
-                    val v = (((temps[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
+                    val v = (((filtered[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
                     pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
                 }
             }
             "agc" -> {
-                // Percentile-clipped grayscale — simulates camera hardware AGC output
+                // Percentile-clipped grayscale -- simulates camera hardware AGC output.
                 for (i in 0 until rows * cols) {
-                    val v = (((temps[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
+                    val v = (((filtered[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
                     pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
                 }
             }
             else -> {
-                // RGB — percentile-clipped + selected palette
+                // RGB -- percentile-clipped + selected palette.
                 for (i in 0 until rows * cols) {
-                    val t = ((temps[i] - p1) / range).coerceIn(0f, 1f)
+                    val t = ((filtered[i] - p1) / range).coerceIn(0f, 1f)
                     val (r, g, b) = paletteRgb(t, palette)
                     pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
                 }
@@ -377,7 +400,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         } else bmp
 
         val out = ByteArrayOutputStream()
-        upscaled.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        upscaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
         upscaled.recycle()
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }

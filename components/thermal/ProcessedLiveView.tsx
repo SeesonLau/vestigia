@@ -112,14 +112,14 @@ export default function ProcessedLiveView() {
   };
 
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 160×120`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240 · median 3×3`
     : "";
 
   return (
     <ScreenWrapper>
       <Header
         title="Thermal Preview"
-        subtitle="Processed feed · view-only"
+        subtitle="Processed feed · 320×240 · view-only"
         leftIcon={
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
