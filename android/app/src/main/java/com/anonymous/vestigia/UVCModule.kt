@@ -1193,20 +1193,31 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
         val subjectMask = if (hotRatio <= coldRatio) hotMask else coldMask
 
-        // Opening (erode 2 → dilate 2) — trims ragged boundary fringe pixels
-        return morphDilate(morphErode(subjectMask, rows, cols, 2), rows, cols, 2)
+        // Fill any large interior holes (cool spots inside a warm foot, etc.)
+        // that the 5-px close above couldn't reach.
+        val filled = fillHoles(subjectMask, rows, cols)
+
+        // Opening (erode 2 → dilate 2) — trims ragged boundary fringe pixels.
+        return morphDilate(morphErode(filled, rows, cols, 2), rows, cols, 2)
     }
 
     /**
      * ROI-aware isolation. Samples the background reference temperature
-     * from pixels OUTSIDE the user's framing rectangle (which the user
-     * has guaranteed as background by drawing the box around the subject)
-     * and marks INSIDE pixels as subject if their |T − T_bg| exceeds a
-     * threshold computed from the background's median absolute deviation.
+     * from a thin "moat" of pixels hugging the OUTSIDE of the user's
+     * framing rectangle. The moat is much less polluted than the entire
+     * outside-ROI region: when the subject (e.g. a foot) extends past the
+     * box on one side, sampling all outside pixels biases the background
+     * median toward the subject's own temperature, which inflates the
+     * threshold and causes the algorithm to under-isolate. Sampling close
+     * to the ROI edge is far more representative.
      *
-     * Pixels outside the rectangle are always background regardless of
-     * temperature. Pixels inside but near the background reading are
-     * also background (e.g. the empty space surrounding a centred foot).
+     * Then computes a *one-sided* threshold based on whether the inside-ROI
+     * is hotter or colder than the moat. One-sided is tighter than two-
+     * sided so we can use a smaller floor without flagging speckle.
+     *
+     * After thresholding we take the largest connected component and fill
+     * any holes inside it (a cool spot in the centre of a warm foot that
+     * fell below threshold should still be part of the foot, not a donut).
      */
     private fun isolateByRoiBackground(
         filtered: FloatArray, rows: Int, cols: Int, roi: CropRoi,
@@ -1217,58 +1228,84 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val x1 = ((roi.x + roi.w) * cols).toInt().coerceIn(x0 + 1, cols)
         val y1 = ((roi.y + roi.h) * rows).toInt().coerceIn(y0 + 1, rows)
 
-        // Collect background samples from pixels outside the ROI rectangle.
-        val outside = ArrayList<Float>(rows * cols - (y1 - y0) * (x1 - x0))
-        for (r in 0 until rows) {
+        // Moat: pixels inside an expanded ROI but outside the original. The
+        // moat width is 8% of the smaller frame dimension (≈ 10 px at
+        // 160×120, ≈ 19 px at 320×240) — wide enough to give a stable
+        // sample, narrow enough to avoid the foot's bottom in cases where
+        // the user framed only the upper part.
+        val moat = maxOf(6, (minOf(rows, cols) * 0.08f).toInt())
+        val mx0 = maxOf(0,    x0 - moat)
+        val my0 = maxOf(0,    y0 - moat)
+        val mx1 = minOf(cols, x1 + moat)
+        val my1 = minOf(rows, y1 + moat)
+
+        val moatSamples = ArrayList<Float>()
+        for (r in my0 until my1) {
             val rowOff = r * cols
             val inRowBand = r in y0 until y1
-            for (c in 0 until cols) {
-                if (inRowBand && c in x0 until x1) continue
-                outside.add(filtered[rowOff + c])
+            for (c in mx0 until mx1) {
+                if (inRowBand && c in x0 until x1) continue   // skip inside-ROI
+                moatSamples.add(filtered[rowOff + c])
             }
         }
-        // Pathological case: ROI fills the whole frame -- no background to learn from.
-        // Fall back to the Otsu path, which still helps in most setups.
-        if (outside.size < 32) return isolateFootMask(filtered, rows, cols, crop = null)
+        // Pathological case: ROI is too close to the frame edges or fills it
+        // entirely → no moat to learn from. Fall back to Otsu.
+        if (moatSamples.size < 32) return isolateFootMask(filtered, rows, cols, crop = null)
 
-        // Robust statistics: median (centre) + MAD (spread) of the background.
-        val bgArr = outside.toFloatArray().also { java.util.Arrays.sort(it) }
+        // Robust stats over the moat: median (centre) + MAD (spread).
+        val bgArr = moatSamples.toFloatArray().also { java.util.Arrays.sort(it) }
         val bgMedian = bgArr[bgArr.size / 2]
-
         val absDevs = FloatArray(bgArr.size) { Math.abs(bgArr[it] - bgMedian) }
         java.util.Arrays.sort(absDevs)
-        val mad = absDevs[absDevs.size / 2]
+        val mad   = absDevs[absDevs.size / 2]
+        val sigma = 1.4826f * mad
 
-        // Threshold: 3·σ_bg (where σ ≈ 1.4826·MAD), with a floor of 1.0°C so
-        // a rock-steady background with σ near zero doesn't flag every speckle.
-        val sigma     = 1.4826f * mad
-        val threshold = maxOf(1.0f, 3.0f * sigma)
+        // Decide subject direction: compare the median of inside-ROI to the
+        // moat median. If inside is hotter, subject is "warmer than bg".
+        val inside = ArrayList<Float>((y1 - y0) * (x1 - x0))
+        for (r in y0 until y1) {
+            val rowOff = r * cols
+            for (c in x0 until x1) inside.add(filtered[rowOff + c])
+        }
+        val insideArr = inside.toFloatArray().also { java.util.Arrays.sort(it) }
+        val insideMedian = insideArr[insideArr.size / 2]
+        val warmer = insideMedian >= bgMedian
+
+        // One-sided threshold. Floor 0.6 °C so a rock-steady moat with
+        // sigma≈0 still discriminates above sensor noise. 2·sigma keeps
+        // recall high without flagging warm-floor speckle.
+        val threshold = maxOf(0.6f, 2.0f * sigma)
 
         val mask = BooleanArray(rows * cols)
         for (r in y0 until y1) {
             val rowOff = r * cols
             for (c in x0 until x1) {
                 val i = rowOff + c
-                if (Math.abs(filtered[i] - bgMedian) > threshold) mask[i] = true
+                val signedDiff = if (warmer) filtered[i] - bgMedian else bgMedian - filtered[i]
+                if (signedDiff > threshold) mask[i] = true
             }
         }
 
-        // Same morphology as the legacy path: close (dilate→erode) to fill
-        // small interior holes, then open (erode→dilate) to trim fringes.
-        // Operates on the FULL frame so any spillover outside the ROI is
-        // automatically clipped away (we never set those pixels true above).
+        // Close small interior gaps (≤6 px wide) before component selection.
         val closed = morphClose(mask, rows, cols, 3, 3)
-        val opened = morphDilate(morphErode(closed, rows, cols, 1), rows, cols, 1)
 
-        // Re-clip to ROI in case morphology dilated past the rectangle edge.
+        // Largest connected component — drops any speckle that survived in
+        // an unrelated part of the ROI (e.g. a warm shadow at one corner).
+        val (largestMask, _, _) = largestComponentWithBorderCount(closed, rows, cols)
+
+        // Fill any larger holes inside the chosen component (the heel-hole
+        // failure mode the closing radius couldn't reach).
+        val filled = fillHoles(largestMask, rows, cols)
+
+        // Re-clip to the ROI rectangle so morphology can't bleed past it.
         for (r in 0 until rows) {
             val rowOff = r * cols
             val inRowBand = r in y0 until y1
             for (c in 0 until cols) {
-                if (!(inRowBand && c in x0 until x1)) opened[rowOff + c] = false
+                if (!(inRowBand && c in x0 until x1)) filled[rowOff + c] = false
             }
         }
-        return opened
+        return filled
     }
 
     private fun morphDilate(src: BooleanArray, rows: Int, cols: Int, r: Int): BooleanArray {
@@ -1309,6 +1346,49 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     private fun morphClose(src: BooleanArray, rows: Int, cols: Int, dilateR: Int, erodeR: Int): BooleanArray =
         morphErode(morphDilate(src, rows, cols, dilateR), rows, cols, erodeR)
+
+    /**
+     * Fill any hole that's fully enclosed by the mask. Algorithm: 4-connect
+     * flood-fill from every border pixel through the *inverse* (background)
+     * cells. Any inverse cell that wasn't reached is, by definition, an
+     * interior hole — promote it to foreground.
+     *
+     * This catches the "donut" failure mode where a cool spot in the centre
+     * of a warm foot was below threshold and showed up as a black hole in
+     * the isolated PNG, even after closing morphology (which only patches
+     * holes up to its kernel radius).
+     */
+    private fun fillHoles(mask: BooleanArray, rows: Int, cols: Int): BooleanArray {
+        val n = rows * cols
+        val visited = BooleanArray(n)
+        val queue   = IntArray(n)
+        var head = 0; var tail = 0
+
+        // Seed: every border background pixel.
+        for (c in 0 until cols) {
+            val top = c
+            val bot = (rows - 1) * cols + c
+            if (!mask[top] && !visited[top]) { visited[top] = true; queue[tail++] = top }
+            if (!mask[bot] && !visited[bot]) { visited[bot] = true; queue[tail++] = bot }
+        }
+        for (r in 0 until rows) {
+            val left  = r * cols
+            val right = r * cols + (cols - 1)
+            if (!mask[left]  && !visited[left])  { visited[left]  = true; queue[tail++] = left }
+            if (!mask[right] && !visited[right]) { visited[right] = true; queue[tail++] = right }
+        }
+        // 4-connect BFS through background cells.
+        while (head < tail) {
+            val cur = queue[head++]
+            val r = cur / cols; val c = cur % cols
+            if (r > 0)        { val ni = cur - cols; if (!mask[ni] && !visited[ni]) { visited[ni] = true; queue[tail++] = ni } }
+            if (r < rows - 1) { val ni = cur + cols; if (!mask[ni] && !visited[ni]) { visited[ni] = true; queue[tail++] = ni } }
+            if (c > 0)        { val ni = cur - 1;    if (!mask[ni] && !visited[ni]) { visited[ni] = true; queue[tail++] = ni } }
+            if (c < cols - 1) { val ni = cur + 1;    if (!mask[ni] && !visited[ni]) { visited[ni] = true; queue[tail++] = ni } }
+        }
+        // Original mask OR pixels not reachable from border = foreground.
+        return BooleanArray(n) { mask[it] || !visited[it] }
+    }
 
     private fun largestComponentWithBorderCount(mask: BooleanArray, rows: Int, cols: Int): Triple<BooleanArray, Int, Int> {
         val labels = IntArray(rows * cols) { -1 }
