@@ -1,19 +1,24 @@
 // lib/thermal/captureProcessor.ts
 // Thin JS wrapper around the native Kotlin thermal processor.
-// All heavy computation (averaging, median filter, bilinear upscale to 320×240,
-// isolation, TIFF encoding) runs on a Kotlin thread.
+// All heavy computation (averaging, median filter, optional bilinear upscale,
+// isolation, TIFF/CSV encoding) runs on a Kotlin thread.
 
-import { processCapture as nativeProcess, type NativeCaptureOptions } from './uvcCamera'
+import { processCapture as nativeProcess, type FeedMode, type NativeCaptureOptions } from './uvcCamera'
 
+// 3-slot pipeline. Slot content depends on feedMode:
+//   'unprocessed' -> [1] grayscale unprocessed, [2] palette processed, [3] isolated
+//   'processed'   -> [1] palette processed full-frame, [2] palette processed cropped
+//                    to ROI (null when no ROI), [3] isolated
 export interface ProcessedCapture {
-  rawImageUri:     string   // grayscale render of the upscaled matrix (no palette, no mask)
-  displayPngUri:   string   // data:image/png;base64,... — palette-mapped display image
-  isolatedPngUri:  string   // data:image/png;base64,... — RGBA PNG, foot only, bg removed
-  tiffB64:         string   // base64 TIFF (16-bit radiometric, Kelvin×100, native sensor res)
-  csvContent:      string   // full-frame CSV (°C, 2 dp) — at upscaled resolution (320×240)
-  maskedCsvContent:string   // foot-only CSV — background cells = "0.00"
-  width:           number   // upscaled width (320 by default)
-  height:          number   // upscaled height (240 by default)
+  slot1ImageUri:   string         // data:image/png;base64,... — slot [1]
+  slot2ImageUri:   string | null  // null only in 'processed' feed mode with no ROI
+  slot3ImageUri:   string         // data:image/png;base64,... — slot [3] isolated
+  feedMode:        FeedMode
+  tiffB64:         string         // 16-bit TIFF (radiometric, native sensor res)
+  csvContent:      string         // full-frame CSV (°C, 2 dp) at working resolution
+  maskedCsvContent:string         // foot-only CSV — background cells = "0.00"
+  width:           number         // 320 when upscaled, 160 when native
+  height:          number         // 240 when upscaled, 120 when native
   frameCount:      number
   stats: { min: number; max: number; mean: number }
   log:             string[]
@@ -23,16 +28,17 @@ export async function processFrames(opts?: NativeCaptureOptions | null): Promise
   const r = await nativeProcess(opts)
 
   return {
-    rawImageUri:      'data:image/png;base64,' + r.unprocessedPngB64,
-    displayPngUri:    'data:image/png;base64,' + r.displayPngB64,
-    isolatedPngUri:   'data:image/png;base64,' + r.isolatedPngB64,
-    tiffB64:          r.tiffB64,
-    csvContent:       r.csvContent,
-    maskedCsvContent: r.maskedCsvContent,
-    width:            r.width,
-    height:           r.height,
-    frameCount:       r.frameCount,
-    stats:            { min: r.minTemp, max: r.maxTemp, mean: r.meanTemp },
-    log:              r.log,
+    slot1ImageUri:   'data:image/png;base64,' + r.slot1ImageB64,
+    slot2ImageUri:   r.slot2ImageB64 ? ('data:image/png;base64,' + r.slot2ImageB64) : null,
+    slot3ImageUri:   'data:image/png;base64,' + r.slot3ImageB64,
+    feedMode:        r.feedMode,
+    tiffB64:         r.tiffB64,
+    csvContent:      r.csvContent,
+    maskedCsvContent:r.maskedCsvContent,
+    width:           r.width,
+    height:          r.height,
+    frameCount:      r.frameCount,
+    stats:           { min: r.minTemp, max: r.maxTemp, mean: r.meanTemp },
+    log:             r.log,
   }
 }

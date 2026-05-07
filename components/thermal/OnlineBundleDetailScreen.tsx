@@ -35,9 +35,10 @@ interface ThermalCaptureRow {
   max_temp_c: number;
   mean_temp_c: number;
   raw_image_path: string | null;
-  processed_image_path: string;
+  processed_image_path: string | null;
   isolated_image_path: string;
   csv_path: string | null;
+  feed_mode: "unprocessed" | "processed" | null;
 }
 
 interface SessionRow {
@@ -66,9 +67,10 @@ interface SessionRow {
 
 interface FootSigned {
   rawUri:       string | null;
-  processedUri: string;
+  processedUri: string | null;
   isolatedUri:  string | null;
   csvPath:      string | null;
+  feedMode:     "unprocessed" | "processed";
   stats: { min: number; max: number; mean: number };
 }
 
@@ -115,7 +117,7 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             .maybeSingle(),
           supabase
             .from("thermal_captures")
-            .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path")
+            .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path, feed_mode")
             .eq("session_id", sessionId),
         ]);
 
@@ -152,9 +154,10 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
           if (!row) return null;
           return {
             rawUri:       signed(row.raw_image_path),
-            processedUri: signed(row.processed_image_path) ?? "",
+            processedUri: signed(row.processed_image_path),
             isolatedUri:  signed(row.isolated_image_path),
             csvPath:      row.csv_path,
+            feedMode:     row.feed_mode ?? "unprocessed",
             stats: {
               min:  Number(row.min_temp_c),
               max:  Number(row.max_temp_c),
@@ -397,23 +400,31 @@ function FootImageCard({
   onViewCsv?: () => void;
   colors: ThemeColors;
 }) {
-  //Derive a SINGLE aspect ratio from the processed image (the post-crop
-  //artifact) and use it for all three cells. If we let each cell use its
-  //own aspect, the row gets dominated by the tallest cell and looks
-  //unbalanced. resizeMode="contain" letterboxes the raw 4:3 image inside
-  //its (now portrait) cell so its content stays visible.
+  // Derive a single row aspect from whichever colorized cell is present so
+  // all three cells share a consistent shape. resizeMode="contain"
+  // letterboxes the source image inside its cell.
   const [rowAspect, setRowAspect] = useState<number>(160 / 120);
+  const aspectSourceUri = foot?.processedUri ?? foot?.rawUri ?? null;
   useEffect(() => {
-    const uri = foot?.processedUri;
-    if (!uri) return;
+    if (!aspectSourceUri) return;
     let cancelled = false;
     RNImage.getSize(
-      uri,
+      aspectSourceUri,
       (w, h) => { if (!cancelled && w > 0 && h > 0) setRowAspect(w / h); },
       () => {/* keep default */},
     );
     return () => { cancelled = true; };
-  }, [foot?.processedUri]);
+  }, [aspectSourceUri]);
+
+  // Slot labels depend on which pipeline produced the bundle.
+  const feedMode = foot?.feedMode ?? "unprocessed";
+  const slot1Label = feedMode === "processed" ? "POST-PROCESSED" : "UNPROCESSED";
+  const slot1Icon  = feedMode === "processed" ? "image-outline"  : "camera-outline";
+  const slot2Label = feedMode === "processed" ? "POST-PROCESSED · CROPPED" : "POST-PROCESSED";
+  // Hide the middle cell entirely if the row legitimately has no slot 2
+  // (processed feed without a ROI). For unprocessed-mode rows that simply
+  // failed to upload, fall through and let ImageCell render its placeholder.
+  const showSlot2 = !(feedMode === "processed" && !foot?.processedUri);
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
       <View style={styles.footCardHeader}>
@@ -431,9 +442,11 @@ function FootImageCard({
       </View>
 
       <View style={styles.imageRow}>
-        <ImageCell label="UNPROCESSED"    uri={foot?.rawUri ?? null}        icon="camera-outline" aspect={rowAspect} colors={colors} />
-        <ImageCell label="POST-PROCESSED" uri={foot?.processedUri || null}  icon="image-outline"  aspect={rowAspect} colors={colors} />
-        <ImageCell label="ISOLATED"       uri={foot?.isolatedUri ?? null}   icon="scan-outline"   aspect={rowAspect} colors={colors} />
+        <ImageCell label={slot1Label}    uri={foot?.rawUri ?? null}      icon={slot1Icon as keyof typeof Ionicons.glyphMap} aspect={rowAspect} colors={colors} />
+        {showSlot2 ? (
+          <ImageCell label={slot2Label}  uri={foot?.processedUri ?? null} icon="image-outline" aspect={rowAspect} colors={colors} />
+        ) : null}
+        <ImageCell label="ISOLATED"      uri={foot?.isolatedUri ?? null}  icon="scan-outline"  aspect={rowAspect} colors={colors} />
       </View>
 
       {foot ? (

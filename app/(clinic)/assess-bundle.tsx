@@ -111,19 +111,39 @@ export default function AssessBundleScreen() {
         return;
       }
 
-      // 1. Captures
+      // 1. Captures. Pull both raw and processed paths so we can fall back to
+      //    the slot-1 path when slot 2 is null (processed feed without ROI).
+      type CapRow = {
+        foot: string;
+        raw_image_path: string | null;
+        processed_image_path: string | null;
+        csv_path: string;
+        feed_mode: "unprocessed" | "processed" | null;
+      };
       const caps = await supabase
         .from("thermal_captures")
-        .select("foot, processed_image_path, csv_path")
+        .select("foot, raw_image_path, processed_image_path, csv_path, feed_mode")
         .eq("session_id", session_id);
       if (caps.error) throw caps.error;
-      const left  = caps.data?.find((c: { foot: string }) => c.foot === "left")  as { processed_image_path: string; csv_path: string } | undefined;
-      const right = caps.data?.find((c: { foot: string }) => c.foot === "right") as { processed_image_path: string; csv_path: string } | undefined;
+      const left  = caps.data?.find((c: { foot: string }) => c.foot === "left")  as CapRow | undefined;
+      const right = caps.data?.find((c: { foot: string }) => c.foot === "right") as CapRow | undefined;
       if (!left || !right) throw new Error("Both left and right captures are required.");
+
+      // The DPN scan wants the colorized processed image. In 'processed' feed
+      // mode without a ROI, the processed slot is null and slot 1 (raw_image_path)
+      // already holds the processed full-frame image, so fall back to it.
+      const pickPng = (row: CapRow): string | null =>
+        row.processed_image_path
+          ?? (row.feed_mode === "processed" ? row.raw_image_path : null);
+      const leftPngPath  = pickPng(left);
+      const rightPngPath = pickPng(right);
+      if (!leftPngPath || !rightPngPath) {
+        throw new Error("Processed image is missing for one or both feet.");
+      }
 
       // 2. Sign URLs in two batches (one per bucket)
       const [pngSigns, csvSigns] = await Promise.all([
-        supabase.storage.from("thermal-images").createSignedUrls([left.processed_image_path, right.processed_image_path], SIGN_EXPIRY),
+        supabase.storage.from("thermal-images").createSignedUrls([leftPngPath, rightPngPath], SIGN_EXPIRY),
         supabase.storage.from("thermal-csv").createSignedUrls([left.csv_path, right.csv_path], SIGN_EXPIRY),
       ]);
       if (pngSigns.error) throw pngSigns.error;
@@ -131,8 +151,8 @@ export default function AssessBundleScreen() {
 
       const pngs = pngSigns.data ?? [];
       const csvs = csvSigns.data ?? [];
-      const leftPng  = pngs.find((p) => p.path === left.processed_image_path)?.signedUrl;
-      const rightPng = pngs.find((p) => p.path === right.processed_image_path)?.signedUrl;
+      const leftPng  = pngs.find((p) => p.path === leftPngPath)?.signedUrl;
+      const rightPng = pngs.find((p) => p.path === rightPngPath)?.signedUrl;
       const leftCsv  = csvs.find((p) => p.path === left.csv_path)?.signedUrl;
       const rightCsv = csvs.find((p) => p.path === right.csv_path)?.signedUrl;
       if (!leftPng || !rightPng || !leftCsv || !rightCsv) {

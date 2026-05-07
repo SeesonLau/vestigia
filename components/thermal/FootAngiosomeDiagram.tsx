@@ -163,7 +163,7 @@ function tempColor(t: number): string {
 
 //---- Component --------------------------------------------------------
 
-export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) {
+export default function FootAngiosomeDiagram({ left, right }: Props) {
   const { colors } = useTheme();
 
   //Bilateral min/max for relative coloring.
@@ -182,17 +182,6 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
     return hi - lo < 0.1 ? { vmin: lo - 0.5, vmax: lo + 0.5 } : { vmin: lo, vmax: hi };
   }, [left, right]);
 
-  const threshold = asymmetry?.threshold_used ?? 2.2;
-  const flagged   = useMemo(() => {
-    const s = new Set<RegionKey>();
-    const ra = asymmetry?.region_asymmetry;
-    if (!ra) return s;
-    for (const k of REGION_KEYS) {
-      if (Number(ra[k]) >= threshold) s.add(k);
-    }
-    return s;
-  }, [asymmetry, threshold]);
-
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.headerRow}>
@@ -204,12 +193,12 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
 
       <View style={styles.feetRow}>
         <FootSvg
-          id="left"  label="LEFT"  regions={left}  flagged={flagged} mirrored
+          id="left"  label="LEFT"  regions={left}  mirrored
           image={FOOT_PLANTAR_LEFT}
           vmin={vmin} vmax={vmax} colors={colors}
         />
         <FootSvg
-          id="right" label="RIGHT" regions={right} flagged={flagged}
+          id="right" label="RIGHT" regions={right}
           image={FOOT_PLANTAR_RIGHT}
           vmin={vmin} vmax={vmax} colors={colors}
         />
@@ -228,22 +217,16 @@ export default function FootAngiosomeDiagram({ left, right, asymmetry }: Props) 
         </View>
       </View>
 
-      {flagged.size > 0 ? (
-        <Text style={[styles.flagHint, { color: colors.error }]}>
-          ! marker = |L − R| ≥ {threshold.toFixed(1)} °C in that angiosome
-        </Text>
-      ) : null}
     </View>
   );
 }
 
 function FootSvg({
-  id, label, regions, flagged, mirrored, image, vmin, vmax, colors,
+  id, label, regions, mirrored, image, vmin, vmax, colors,
 }: {
   id: string;
   label: "LEFT" | "RIGHT";
   regions: RegionMeans | null | undefined;
-  flagged: Set<RegionKey>;
   /** Mirror the SVG quadrants + labels (canvas-internal medial/lateral
    *  flip). Does NOT mirror the image — supply already-correct L/R
    *  illustrations via `image` instead. */
@@ -285,8 +268,16 @@ function FootSvg({
   //Mirroring is applied to the full silhouette + clipped region; labels
   //are drawn AFTER mirroring (in screen coords) so text stays upright.
   const mirrorTransform = mirrored ? `translate(${VIEW_W},0) scale(-1,1)` : undefined;
+  // Push medial labels (MPA/MCA) toward the medial edge of their quadrant
+  // and lateral labels (LPA/LCA) toward the lateral edge so the
+  // MPA-vs-LPA and MCA-vs-LCA pairs have visible breathing room either
+  // side of the dividing line.
   const labelPos = (key: RegionKey) => {
-    const c = labelXY(key);
+    const q = QUADS[key];
+    const isMedial = key === "MPA" || key === "MCA";
+    const xCenter = q.x + q.w / 2;
+    const xShift  = q.w * 0.18;
+    const c = { x: isMedial ? xCenter - xShift : xCenter + xShift, y: q.y + q.h / 2 };
     return mirrored ? { x: VIEW_W - c.x, y: c.y } : c;
   };
 
@@ -318,7 +309,12 @@ function FootSvg({
 
     const imgLabel = (key: RegionKey) => {
       const q = imgQuads[key];
-      const c = { x: q.x + q.w / 2, y: q.y + q.h / 2 };
+      // Same medial/lateral nudge as labelPos — adds breathing room between
+      // MPA-LPA and MCA-LCA pairs across the dividing line.
+      const isMedial = key === "MPA" || key === "MCA";
+      const xCenter = q.x + q.w / 2;
+      const xShift  = q.w * 0.18;
+      const c = { x: isMedial ? xCenter - xShift : xCenter + xShift, y: q.y + q.h / 2 };
       return mirrored ? { x: VIEW_W - c.x, y: c.y } : c;
     };
 
@@ -330,7 +326,6 @@ function FootSvg({
           mirrorTransform={mirrorTransform}
           imgQuads={imgQuads}
           boxX={boxX} boxY={boxY} boxW={boxW} boxH={boxH}
-          flagged={flagged}
           fill={fill}
           valText={valText}
           imgLabel={imgLabel}
@@ -404,24 +399,24 @@ function FootSvg({
         {/* Labels — outside the mirror transform so they stay upright. */}
         {REGION_KEYS.map((key) => {
           const p = labelPos(key);
-          const isFlagged = flagged.has(key);
-          return <RegionLabel key={key} keyName={key} isFlagged={isFlagged} value={valText(key)} cx={p.x} cy={p.y} />;
+          return <RegionLabel key={key} keyName={key} pillColor={fill(key)} value={valText(key)} cx={p.x} cy={p.y} />;
         })}
       </Svg>
     </View>
   );
 }
 
-//Region label = dark translucent pill + bold white text. The pill gives
-//the labels a consistent contrast no matter what color (bright yellow,
-//pale red, etc.) the underlying angiosome region is filled with.
+// Region label — pill takes its background color from the underlying
+// angiosome temperature so the legend's gradient reads through into the
+// labels themselves. White text with a thin dark stroke keeps the label
+// readable on any palette stop (deep blue through bright amber).
 function RegionLabel({
-  keyName, isFlagged, value, cx, cy,
+  keyName, value, cx, cy, pillColor,
 }: {
-  keyName: string; isFlagged: boolean; value: string; cx: number; cy: number;
+  keyName: string; value: string; cx: number; cy: number; pillColor: string;
 }) {
-  const pillW = 40;
-  const pillH = 30;
+  const pillW = 34;
+  const pillH = 26;
   return (
     <G>
       <Rect
@@ -431,19 +426,23 @@ function RegionLabel({
         height={pillH}
         rx={5}
         ry={5}
-        fill="rgba(0,0,0,0.62)"
+        fill={pillColor}
+        stroke="rgba(0,0,0,0.55)"
+        strokeWidth={0.6}
       />
       <SvgText
-        x={cx} y={cy - 3}
-        fontSize={9.5} fontWeight="bold"
-        fill="#fff" textAnchor="middle"
+        x={cx} y={cy - 2}
+        fontSize={8} fontWeight="bold"
+        fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.4}
+        textAnchor="middle"
       >
-        {keyName}{isFlagged ? " !" : ""}
+        {keyName}
       </SvgText>
       <SvgText
-        x={cx} y={cy + 11}
-        fontSize={12} fontWeight="bold"
-        fill="#fff" textAnchor="middle"
+        x={cx} y={cy + 9}
+        fontSize={10} fontWeight="bold"
+        fill="#fff" stroke="rgba(0,0,0,0.7)" strokeWidth={0.4}
+        textAnchor="middle"
       >
         {value}
       </SvgText>
@@ -458,13 +457,12 @@ function RegionLabel({
 //via aspectRatio: 1.
 function FootImageBox({
   image, mirrorTransform, imgQuads,
-  boxX, boxY, boxW, boxH, flagged, fill, valText, imgLabel,
+  boxX, boxY, boxW, boxH, fill, valText, imgLabel,
 }: {
   image: import("react-native").ImageSourcePropType;
   mirrorTransform: string | undefined;
   imgQuads: Record<RegionKey, QuadRect>;
   boxX: number; boxY: number; boxW: number; boxH: number;
-  flagged: Set<RegionKey>;
   fill: (k: RegionKey) => string;
   valText: (k: RegionKey) => string;
   imgLabel: (k: RegionKey) => { x: number; y: number };
@@ -503,8 +501,7 @@ function FootImageBox({
         {/* Labels — outside the mirror transform so text stays upright. */}
         {REGION_KEYS.map((key) => {
           const p = imgLabel(key);
-          const isFlagged = flagged.has(key);
-          return <RegionLabel key={key} keyName={key} isFlagged={isFlagged} value={valText(key)} cx={p.x} cy={p.y} />;
+          return <RegionLabel key={key} keyName={key} pillColor={fill(key)} value={valText(key)} cx={p.x} cy={p.y} />;
         })}
       </Svg>
     </View>
@@ -558,10 +555,4 @@ const styles = StyleSheet.create({
   },
   legendLabels: { flexDirection: "row", justifyContent: "space-between" },
   legendText:   { fontSize: 9, fontFamily: Typography.fonts.mono },
-
-  flagHint: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.body,
-    textAlign: "center",
-  },
 });

@@ -57,21 +57,23 @@ export default function DpnResultView({ result }: Props) {
 
   return (
     <View style={{ gap: Spacing.md }}>
-      {/* Verdict */}
-      <View style={[styles.card, { backgroundColor: colors.card, borderColor: `${verdictColor}66` }]}>
-        <View style={[styles.iconBubble, { backgroundColor: `${verdictColor}1A` }]}>
+      {/* Verdict — compact horizontal card */}
+      <View style={[styles.verdictCard, { backgroundColor: colors.card, borderColor: `${verdictColor}66` }]}>
+        <View style={[styles.verdictIcon, { backgroundColor: `${verdictColor}1A` }]}>
           <Ionicons
             name={isPositive ? "alert-circle" : "checkmark-circle"}
-            size={56}
+            size={28}
             color={verdictColor}
           />
         </View>
-        <Text style={[styles.verdictTitle, { color: verdictColor }]}>
-          DPN {isPositive ? "POSITIVE" : "NEGATIVE"}
-        </Text>
-        <Text style={[styles.confidence, { color: colors.textSec }]}>
-          {result.combined_confidence.toFixed(1)}% confidence · {result.combined_prediction}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.verdictTitleCompact, { color: verdictColor }]}>
+            DPN {isPositive ? "POSITIVE" : "NEGATIVE"}
+          </Text>
+          <Text style={[styles.confidenceCompact, { color: colors.textSec }]}>
+            {result.combined_confidence.toFixed(1)}% confidence · {result.combined_prediction}
+          </Text>
+        </View>
       </View>
 
       {/* Bilateral angiosome diagram — visualizes the four regions of each
@@ -95,7 +97,7 @@ export default function DpnResultView({ result }: Props) {
 
       {/* Diagnosis factors */}
       {result.diagnosis_factors?.length ? (
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "stretch" }]}>
+        <View style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.textSec }]}>Diagnosis Factors</Text>
           {result.diagnosis_factors.map((f, i) => (
             <Text key={i} style={[styles.factorItem, { color: colors.text }]}>• {f}</Text>
@@ -110,7 +112,7 @@ function FootCard({ label, foot, colors }: { label: string; foot: FootResult; co
   const isPositive = foot.is_diabetic;
   const accent = isPositive ? colors.error : colors.success;
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "stretch" }]}>
+    <View style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.headerRow}>
         <Text style={[styles.sectionTitle, { color: colors.textSec }]}>{label.toUpperCase()}</Text>
         <View style={[styles.pill, { backgroundColor: `${accent}1A` }]}>
@@ -137,12 +139,6 @@ function FootCard({ label, foot, colors }: { label: string; foot: FootResult; co
             <SubModelChip label="Temp (sklearn)" probs={foot.sklearn_probabilities} colors={colors} />
           ) : null}
         </View>
-      ) : null}
-
-      {foot.fusion_method ? (
-        <Text style={[styles.metaLine, { color: colors.textSec }]}>
-          Fusion: {foot.fusion_method}
-        </Text>
       ) : null}
 
       {/* Region temps */}
@@ -205,7 +201,7 @@ function RegionsTable({ regions, colors }: { regions: RegionMeans; colors: Theme
 function AsymmetryCard({ a, colors }: { a: AsymmetryResult; colors: ThemeColors }) {
   const sigColor = a.asymmetry_significant ? colors.error : colors.success;
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "stretch" }]}>
+    <View style={[styles.compactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.headerRow}>
         <Text style={[styles.sectionTitle, { color: colors.textSec }]}>Asymmetry</Text>
         <View style={[styles.pill, { backgroundColor: `${sigColor}1A` }]}>
@@ -260,6 +256,7 @@ function Stat({ label, value, colors }: { label: string; value: string; colors: 
 }
 
 const styles = StyleSheet.create({
+  // Used by the "scan rejected" branch which still wants the old emphasis.
   card: {
     borderWidth: 1, borderRadius: Radius.xl,
     padding: Spacing.lg, alignItems: "center", gap: Spacing.sm,
@@ -270,6 +267,27 @@ const styles = StyleSheet.create({
   },
   verdictTitle: { fontSize: Typography.sizes.xl, fontFamily: Typography.fonts.heading, letterSpacing: 1 },
   confidence:   { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.mono },
+
+  // Compact verdict — horizontal: small icon | title + confidence stacked
+  verdictCard: {
+    borderWidth: 1, borderRadius: Radius.lg,
+    padding: Spacing.sm,
+    flexDirection: "row", alignItems: "center", gap: Spacing.sm,
+  },
+  verdictIcon: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: "center", justifyContent: "center",
+  },
+  verdictTitleCompact: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.heading, letterSpacing: 0.5 },
+  confidenceCompact:   { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono, marginTop: 2 },
+
+  // Slim card variant for FootCard + AsymmetryCard
+  compactCard: {
+    borderWidth: 1, borderRadius: Radius.lg,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+
   note:         { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", lineHeight: 20 },
 
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },

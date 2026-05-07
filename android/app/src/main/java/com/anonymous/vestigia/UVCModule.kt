@@ -27,6 +27,8 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+import kotlin.math.floor
 
 class UVCModule(reactContext: ReactApplicationContext) :
     ReactContextBaseJavaModule(reactContext) {
@@ -77,7 +79,17 @@ class UVCModule(reactContext: ReactApplicationContext) :
     @Volatile private var displayRunning = false
     @Volatile private var streamPaused  = false
     @Volatile private var displayMode   = "rgb"    // raw | agc | rgb
-    @Volatile private var palette       = "ironbow" // ironbow | rainbow | rainbow_hc | white_hot | black_hot | arctic | sepia
+    @Volatile private var palette       = "medical" // medical | ironbow | rainbow | white_hot
+    // When true the live preview JPEG is bilinearly upscaled to OUT_COLS x OUT_ROWS
+    // (320x240); when false it is emitted at native sensor resolution (160x120).
+    // Toggled from JS via setLiveScale; takes effect on the next frame.
+    @Volatile private var displayUpscale = true
+
+    // Temporal EMA state for the live preview pipeline. Holds the last
+    // smoothed FloatArray so each new frame blends with the running average,
+    // dampening per-frame microbolometer flicker without softening edges
+    // (the spatial median already suppresses speckle).
+    @Volatile private var prevDisplayFiltered: FloatArray? = null
 
     // Frame readiness tracking
     private var prevFrameForDiff: ByteArray? = null
@@ -161,10 +173,18 @@ class UVCModule(reactContext: ReactApplicationContext) :
     @ReactMethod
     fun setPalette(pal: String, promise: Promise) {
         palette = when (pal) {
-            "ironbow", "rainbow", "rainbow_hc", "rainbow3", "lepton", "white_hot", "black_hot", "arctic", "sepia" -> pal
-            else -> "ironbow"
+            "medical", "ironbow", "rainbow", "white_hot" -> pal
+            else -> "medical"
         }
         promise.resolve(palette)
+    }
+
+    // Toggle live preview scale -- safe to call mid-stream. true = upscaled to
+    // OUT_COLS x OUT_ROWS (320x240); false = native sensor resolution.
+    @ReactMethod
+    fun setLiveScale(upscale: Boolean, promise: Promise) {
+        displayUpscale = upscale
+        promise.resolve(displayUpscale)
     }
 
     // Pause display — no more onDisplayFrame events; Y16 frames still buffered for capture.
@@ -191,6 +211,13 @@ class UVCModule(reactContext: ReactApplicationContext) :
         //Optional capture-time options:
         //  crop        ROI rect, normalized [0..1] over the sensor matrix
         //  isolatedBg  "transparent" (default) or "black" for the bg fill
+        //  upscale     true (default) -> bilinear upscale matrix to OUT res before
+        //              encoding artifacts. false -> stay at native sensor res.
+        //  feedMode    "unprocessed" (default) -> 3-artifact pipeline:
+        //                 [1] grayscale unprocessed, [2] palette processed, [3] isolated
+        //              "processed" -> [1] palette processed full-frame,
+        //                 [2] palette processed cropped to ROI (null if no ROI),
+        //                 [3] isolated
         val cropMap = opts?.takeIf { it.hasKey("crop") && !it.isNull("crop") }?.getMap("crop")
         val crop: CropRoi? = cropMap?.let {
             CropRoi(
@@ -202,22 +229,28 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         val isolatedBgBlack = opts?.takeIf { it.hasKey("isolatedBg") }
             ?.getString("isolatedBg") == "black"
+        val upscale = if (opts?.hasKey("upscale") == true && !opts.isNull("upscale")) opts.getBoolean("upscale") else true
+        val feedMode = if (opts?.hasKey("feedMode") == true && !opts.isNull("feedMode")) {
+            when (opts.getString("feedMode")) { "processed" -> "processed"; else -> "unprocessed" }
+        } else "unprocessed"
         Thread {
             try {
-                val result = processThermalFrames(frames, crop, isolatedBgBlack)
+                val result = processThermalFrames(frames, crop, isolatedBgBlack, upscale, feedMode)
                 val map = Arguments.createMap()
-                map.putString("displayPngB64",    result.displayPngB64)
-                map.putString("isolatedPngB64",   result.isolatedPngB64)
-                map.putString("unprocessedPngB64",result.unprocessedPngB64)
-                map.putString("tiffB64",          result.tiffB64)
-                map.putString("csvContent",       result.csvContent)
+                map.putString("slot1ImageB64", result.slot1ImageB64)
+                if (result.slot2ImageB64 != null) map.putString("slot2ImageB64", result.slot2ImageB64)
+                else map.putNull("slot2ImageB64")
+                map.putString("slot3ImageB64", result.slot3ImageB64)
+                map.putString("feedMode",      result.feedMode)
+                map.putString("tiffB64",       result.tiffB64)
+                map.putString("csvContent",    result.csvContent)
                 map.putString("maskedCsvContent", result.maskedCsvContent)
-                map.putInt   ("frameCount",       result.frameCount)
-                map.putInt   ("width",            result.width)
-                map.putInt   ("height",           result.height)
-                map.putDouble("minTemp",          result.minTemp)
-                map.putDouble("maxTemp",          result.maxTemp)
-                map.putDouble("meanTemp",         result.meanTemp)
+                map.putInt   ("frameCount",    result.frameCount)
+                map.putInt   ("width",         result.width)
+                map.putInt   ("height",        result.height)
+                map.putDouble("minTemp",       result.minTemp)
+                map.putDouble("maxTemp",       result.maxTemp)
+                map.putDouble("meanTemp",      result.meanTemp)
                 val logs = Arguments.createArray()
                 result.log.forEach { logs.pushString(it) }
                 map.putArray("log", logs)
@@ -262,6 +295,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
     private fun startDisplayLoop() {
         displayRunning = true
         prevFrameForDiff = null
+        prevDisplayFiltered = null
         frameIndex = 0
         Thread {
             while (displayRunning) {
@@ -316,17 +350,20 @@ class UVCModule(reactContext: ReactApplicationContext) :
         sendEvent("onFrameStats", map)
     }
 
-    // Y16 -> JPEG via the current displayMode and palette. Single frame, no
-    // temporal averaging. Pipeline:
+    // Y16 -> JPEG via the current displayMode and palette. Pipeline:
     //   1. Decode Y16 to a temperature matrix (native 160x120).
-    //   2. 3x3 median filter -- de-speckles the "twinkling" hot/cold pixels
-    //      that uncooled microbolometers exhibit between frames.
-    //   3. Palette / mode mapping into ARGB pixels.
-    //   4. Bitmap built at native resolution.
-    //   5. Bilinear upscale to OUT_COLS x OUT_ROWS (320x240).
-    //   6. JPEG encode at quality 95 (negligible bandwidth bump vs 90,
-    //      removes most visible compression artefacts on smooth gradients).
-    // Per-frame cost: ~10-15 ms at 9 fps, comfortably within budget.
+    //   2. 3x3 median -- de-speckles single-pixel "twinkles".
+    //   3. Motion-adaptive temporal EMA -- per-pixel alpha, smooths
+    //      stationary regions while leaving motion crisp.
+    //   4. CLAHE (8x8 tiles, clipLimit 3.0) -- local contrast stretching;
+    //      replaces the previous global p1/p99 percentile clip.
+    //   5. Palette / mode mapping into ARGB pixels.
+    //   6. Bitmap built at native resolution.
+    //   7. Bilinear upscale to OUT_COLS x OUT_ROWS (320x240).
+    //   8. Unsharp mask (3x3 box, amount=0.6) -- restores edge crispness
+    //      lost to the bilinear upscale.
+    //   9. JPEG encode at quality 95.
+    // Per-frame cost: ~15-25 ms at 9 fps, comfortably within budget.
     private fun y16ToDisplayJpeg(frame: ByteArray): String {
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
@@ -342,8 +379,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         // before the percentile / palette step. Operates on the native-sized
         // matrix so the working set stays small (~19,200 floats); the upscale
         // happens after the bitmap is built.
-        val filtered = FloatArray(rows * cols)
-        val medBuf   = FloatArray(9)
+        val median = FloatArray(rows * cols)
+        val medBuf = FloatArray(9)
         for (r in 0 until rows) {
             for (c in 0 until cols) {
                 var k = 0
@@ -351,39 +388,69 @@ class UVCModule(reactContext: ReactApplicationContext) :
                     medBuf[k++] = temps[(r + dr).coerceIn(0, rows - 1) * cols + (c + dc).coerceIn(0, cols - 1)]
                 }
                 medBuf.sort()
-                filtered[r * cols + c] = medBuf[4]
+                median[r * cols + c] = medBuf[4]
             }
         }
 
-        val sorted = filtered.copyOf().also { it.sort() }
-        val p1    = sorted[(sorted.size * 0.01f).toInt()]
-        val p99   = sorted[(sorted.size * 0.99f).toInt()]
-        val range = (p99 - p1).takeIf { it > 0f } ?: 1f
+        // Motion-adaptive temporal EMA -- per-pixel alpha based on inter-frame
+        // delta. Stationary pixels (delta < MOTION_LOW) get heavy smoothing,
+        // moving pixels (delta > MOTION_HIGH) bypass blending entirely. This
+        // kills flicker on the background without introducing motion afterimages.
+        // Thresholds in degC; tuned around Lepton 3.5 NETD (~50 mK).
+        val motionLow  = 0.15f
+        val motionHigh = 0.80f
+        val alphaStill  = 0.20f
+        val alphaMotion = 1.00f
+        val prev = prevDisplayFiltered
+        val filtered = if (prev != null && prev.size == median.size) {
+            FloatArray(median.size) { i ->
+                val delta = abs(median[i] - prev[i])
+                val a = when {
+                    delta <= motionLow  -> alphaStill
+                    delta >= motionHigh -> alphaMotion
+                    else -> {
+                        val t = (delta - motionLow) / (motionHigh - motionLow)
+                        alphaStill + t * (alphaMotion - alphaStill)
+                    }
+                }
+                a * median[i] + (1f - a) * prev[i]
+            }
+        } else {
+            median.copyOf()
+        }
+        prevDisplayFiltered = filtered
 
         val pixels = IntArray(rows * cols)
         when (displayMode) {
             "raw" -> {
-                // Linear full-range grayscale -- no percentile clip, true sensor range.
-                val minT     = sorted[0]
-                val rawRange = (sorted[sorted.size - 1] - minT).takeIf { it > 0f } ?: 1f
+                // Linear full-range grayscale -- no contrast stretch, true sensor range.
+                var minT = filtered[0]
+                var maxT = filtered[0]
+                for (v in filtered) {
+                    if (v < minT) minT = v
+                    if (v > maxT) maxT = v
+                }
+                val rawRange = (maxT - minT).takeIf { it > 0f } ?: 1f
                 for (i in 0 until rows * cols) {
                     val v = (((filtered[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
                     pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
                 }
             }
-            "agc" -> {
-                // Percentile-clipped grayscale -- simulates camera hardware AGC output.
-                for (i in 0 until rows * cols) {
-                    val v = (((filtered[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
-                    pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-                }
-            }
             else -> {
-                // RGB -- percentile-clipped + selected palette.
-                for (i in 0 until rows * cols) {
-                    val t = ((filtered[i] - p1) / range).coerceIn(0f, 1f)
-                    val (r, g, b) = paletteRgb(t, palette)
-                    pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                // CLAHE-normalised values feed AGC grayscale and RGB palette mapping.
+                // Local-contrast stretching gives much better foot/background
+                // separation than the global p1/p99 clip we used previously.
+                val normalised = claheNormalise(filtered, rows, cols)
+                if (displayMode == "agc") {
+                    for (i in 0 until rows * cols) {
+                        val v = (normalised[i].coerceIn(0f, 1f) * 255).toInt()
+                        pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+                    }
+                } else {
+                    for (i in 0 until rows * cols) {
+                        val (r, g, b) = paletteRgb(normalised[i].coerceIn(0f, 1f), palette)
+                        pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+                    }
                 }
             }
         }
@@ -395,28 +462,179 @@ class UVCModule(reactContext: ReactApplicationContext) :
         // resolution (OUT_COLS x OUT_ROWS = 320x240). filter=true triggers
         // bilinear interpolation, equivalent to the upscaleBilinear routine
         // used in processThermalFrames.
-        val upscaled = if (cols != OUT_COLS || rows != OUT_ROWS) {
+        val target = if (displayUpscale && (cols != OUT_COLS || rows != OUT_ROWS)) {
             Bitmap.createScaledBitmap(bmp, OUT_COLS, OUT_ROWS, true).also { bmp.recycle() }
         } else bmp
 
+        // Unsharp mask -- restores edge crispness lost to bilinear upscaling
+        // and the spatial median. Operates in-place at whatever scale the
+        // bitmap currently is (320x240 when upscale on, 160x120 when off).
+        val w = target.width
+        val h = target.height
+        val targetPixels = IntArray(w * h)
+        target.getPixels(targetPixels, 0, w, 0, 0, w, h)
+        unsharpMaskInPlace(targetPixels, w, h, 0.6f)
+        target.setPixels(targetPixels, 0, w, 0, 0, w, h)
+
         val out = ByteArrayOutputStream()
-        upscaled.compress(Bitmap.CompressFormat.JPEG, 95, out)
-        upscaled.recycle()
+        target.compress(Bitmap.CompressFormat.JPEG, 95, out)
+        target.recycle()
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    }
+
+    // CLAHE -- Contrast-Limited Adaptive Histogram Equalisation. Splits the
+    // matrix into an 8x8 grid; per tile, builds a histogram, clips bin peaks
+    // (clipLimit x average), redistributes the excess uniformly, and converts
+    // to a normalised CDF lookup. Per-pixel output is bilinear interpolation
+    // between the four neighbouring tile LUTs to avoid tile-boundary seams.
+    // Replaces the global p1/p99 stretch -- gives much higher local contrast,
+    // especially for cool feet against a slightly cooler background.
+    private fun claheNormalise(
+        src: FloatArray,
+        rows: Int,
+        cols: Int,
+        tilesX: Int = 8,
+        tilesY: Int = 8,
+        bins: Int = 256,
+        clipLimit: Float = 3.0f,
+    ): FloatArray {
+        var tMin = src[0]
+        var tMax = src[0]
+        for (v in src) {
+            if (v < tMin) tMin = v
+            if (v > tMax) tMax = v
+        }
+        val span = (tMax - tMin).takeIf { it > 0.01f } ?: 0.01f
+        val binScale = (bins - 1) / span
+
+        // Tile boundaries (integer pixel indices) and per-tile LUTs (0..1).
+        val rowEdges = IntArray(tilesY + 1) { (it * rows / tilesY) }
+        val colEdges = IntArray(tilesX + 1) { (it * cols / tilesX) }
+        val luts = Array(tilesY) { Array(tilesX) { FloatArray(bins) } }
+        val hist = FloatArray(bins)
+
+        for (ty in 0 until tilesY) {
+            val rStart = rowEdges[ty]
+            val rEnd   = rowEdges[ty + 1]
+            for (tx in 0 until tilesX) {
+                val cStart = colEdges[tx]
+                val cEnd   = colEdges[tx + 1]
+
+                hist.fill(0f)
+                var pixCount = 0
+                for (r in rStart until rEnd) {
+                    val rowOff = r * cols
+                    for (c in cStart until cEnd) {
+                        val bin = ((src[rowOff + c] - tMin) * binScale).toInt().coerceIn(0, bins - 1)
+                        hist[bin] += 1f
+                        pixCount++
+                    }
+                }
+
+                if (pixCount == 0) continue
+                val avg = pixCount.toFloat() / bins
+                val clipThresh = clipLimit * avg
+                var excess = 0f
+                for (k in 0 until bins) {
+                    if (hist[k] > clipThresh) {
+                        excess += hist[k] - clipThresh
+                        hist[k] = clipThresh
+                    }
+                }
+                val redistribute = excess / bins
+                val lut = luts[ty][tx]
+                var cum = 0f
+                val total = pixCount.toFloat()
+                for (k in 0 until bins) {
+                    cum += hist[k] + redistribute
+                    lut[k] = (cum / total).coerceIn(0f, 1f)
+                }
+            }
+        }
+
+        // Per-pixel bilinear blend across the four nearest tile LUTs.
+        val tileWf = cols.toFloat() / tilesX
+        val tileHf = rows.toFloat() / tilesY
+        val out = FloatArray(rows * cols)
+        for (r in 0 until rows) {
+            val fy = (r + 0.5f) / tileHf - 0.5f
+            val fyFloor = floor(fy).toInt()
+            val ty0 = fyFloor.coerceIn(0, tilesY - 1)
+            val ty1 = (fyFloor + 1).coerceIn(0, tilesY - 1)
+            val wy = if (ty1 == ty0) 0f else (fy - fyFloor).coerceIn(0f, 1f)
+            val rowOff = r * cols
+
+            for (c in 0 until cols) {
+                val fx = (c + 0.5f) / tileWf - 0.5f
+                val fxFloor = floor(fx).toInt()
+                val tx0 = fxFloor.coerceIn(0, tilesX - 1)
+                val tx1 = (fxFloor + 1).coerceIn(0, tilesX - 1)
+                val wx = if (tx1 == tx0) 0f else (fx - fxFloor).coerceIn(0f, 1f)
+
+                val bin = ((src[rowOff + c] - tMin) * binScale).toInt().coerceIn(0, bins - 1)
+                val v00 = luts[ty0][tx0][bin]
+                val v10 = luts[ty0][tx1][bin]
+                val v01 = luts[ty1][tx0][bin]
+                val v11 = luts[ty1][tx1][bin]
+                val top = v00 * (1f - wx) + v10 * wx
+                val bot = v01 * (1f - wx) + v11 * wx
+                out[rowOff + c] = top * (1f - wy) + bot * wy
+            }
+        }
+        return out
+    }
+
+    // Unsharp mask -- pixel = pixel + amount * (pixel - blurred). 3x3 box blur
+    // per channel gives a 1-pixel sharpening radius, which matches the level
+    // of softening introduced by bilinear upscaling. amount = 0.6 punches up
+    // edges noticeably without producing halos around hot regions.
+    private fun unsharpMaskInPlace(pixels: IntArray, w: Int, h: Int, amount: Float) {
+        val n = w * h
+        val rA = IntArray(n)
+        val gA = IntArray(n)
+        val bA = IntArray(n)
+        for (i in 0 until n) {
+            val p = pixels[i]
+            rA[i] = (p shr 16) and 0xFF
+            gA[i] = (p shr 8)  and 0xFF
+            bA[i] =  p         and 0xFF
+        }
+        val rB = boxBlur3x3(rA, w, h)
+        val gB = boxBlur3x3(gA, w, h)
+        val bB = boxBlur3x3(bA, w, h)
+        for (i in 0 until n) {
+            val r = (rA[i] + amount * (rA[i] - rB[i])).toInt().coerceIn(0, 255)
+            val g = (gA[i] + amount * (gA[i] - gB[i])).toInt().coerceIn(0, 255)
+            val b = (bA[i] + amount * (bA[i] - bB[i])).toInt().coerceIn(0, 255)
+            pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+        }
+    }
+
+    private fun boxBlur3x3(src: IntArray, w: Int, h: Int): IntArray {
+        val out = IntArray(w * h)
+        for (y in 0 until h) {
+            val y0 = (y - 1).coerceAtLeast(0)
+            val y2 = (y + 1).coerceAtMost(h - 1)
+            for (x in 0 until w) {
+                val x0 = (x - 1).coerceAtLeast(0)
+                val x2 = (x + 1).coerceAtMost(w - 1)
+                val sum =
+                    src[y0 * w + x0] + src[y0 * w + x] + src[y0 * w + x2] +
+                    src[y  * w + x0] + src[y  * w + x] + src[y  * w + x2] +
+                    src[y2 * w + x0] + src[y2 * w + x] + src[y2 * w + x2]
+                out[y * w + x] = sum / 9
+            }
+        }
+        return out
     }
 
     // ── Color palettes ────────────────────────────────────────────────────────
 
     private fun paletteRgb(t: Float, pal: String): Triple<Int, Int, Int> = when (pal) {
-        "rainbow"    -> rainbowRgb(t)
-        "rainbow_hc" -> rainbowHcRgb(t)
-        "rainbow3"   -> rainbow3Rgb(t)
-        "lepton"     -> leptonRgb(t)
-        "white_hot"  -> whiteHotRgb(t)
-        "black_hot"  -> blackHotRgb(t)
-        "arctic"     -> arcticRgb(t)
-        "sepia"      -> sepiaRgb(t)
-        else         -> ironbowRgb(t)
+        "ironbow"   -> ironbowRgb(t)
+        "rainbow"   -> rainbowRgb(t)
+        "white_hot" -> whiteHotRgb(t)
+        else        -> medicalRgb(t)  // default + the renamed rainbow3 LUT
     }
 
     // Ironbow — heated metal: black→purple→red→orange→yellow→white
@@ -442,9 +660,9 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
     }
 
-    // Rainbow3 — user-specified 8-step LUT.
+    // Medical — clinical 8-step LUT (renamed from "rainbow3").
     // Purple → Blue → Cyan → Green → Yellow → Orange → Red → White.
-    private fun rainbow3Rgb(t: Float): Triple<Int, Int, Int> {
+    private fun medicalRgb(t: Float): Triple<Int, Int, Int> {
         val n = t.coerceIn(0f, 1f)
         val stops = arrayOf(
             intArrayOf(149,   0, 181),  // 0.000 — purple (coldest)
@@ -468,84 +686,25 @@ class UVCModule(reactContext: ReactApplicationContext) :
         return Triple(r, g, bl)
     }
 
-    // Lepton — smooth wide-spectrum thermal: deep purple→blue→cyan→green→yellow→orange→red→pink/white.
-    // Models the FLIR Lepton desktop app's default high-contrast view.
-    private fun leptonRgb(t: Float): Triple<Int, Int, Int> {
-        val n = t.coerceIn(0f, 1f)
-        // 8 stops, evenly spaced; smooth linear interpolation between adjacent stops.
-        val stops = arrayOf(
-            intArrayOf( 40,   0,  90),  // 0.000 — dark purple (coldest)
-            intArrayOf(  0,   0, 200),  // 0.143 — blue
-            intArrayOf(  0, 180, 255),  // 0.286 — cyan
-            intArrayOf(  0, 255,  80),  // 0.429 — green
-            intArrayOf(255, 255,   0),  // 0.571 — yellow
-            intArrayOf(255, 140,   0),  // 0.714 — orange
-            intArrayOf(255,  30,   0),  // 0.857 — red
-            intArrayOf(255, 220, 220),  // 1.000 — pink/white (hottest)
-        )
-        val seg = (stops.size - 1).toFloat()
-        val pos = n * seg
-        val idx = pos.toInt().coerceAtMost(stops.size - 2)
-        val f   = pos - idx
-        val a = stops[idx]
-        val b = stops[idx + 1]
-        val r = (a[0] + (b[0] - a[0]) * f).toInt().coerceIn(0, 255)
-        val g = (a[1] + (b[1] - a[1]) * f).toInt().coerceIn(0, 255)
-        val bl = (a[2] + (b[2] - a[2]) * f).toInt().coerceIn(0, 255)
-        return Triple(r, g, bl)
-    }
-
-    // Rainbow HC — 6-band high-contrast: dark→blue→cyan→green→yellow→red→magenta
-    private fun rainbowHcRgb(t: Float): Triple<Int, Int, Int> {
-        val n = t.coerceIn(0f, 1f)
-        return when {
-            n < 0.167f -> { val f = n/0.167f;            Triple(0,                    0,                  (128+127*f).toInt()) }
-            n < 0.333f -> { val f = (n-0.167f)/0.167f;   Triple(0,                    (255*f).toInt(),    255)                 }
-            n < 0.500f -> { val f = (n-0.333f)/0.167f;   Triple(0,                    255,                (255*(1-f)).toInt()) }
-            n < 0.667f -> { val f = (n-0.500f)/0.167f;   Triple((255*f).toInt(),      255,                0)                  }
-            n < 0.833f -> { val f = (n-0.667f)/0.167f;   Triple(255,                  (255*(1-f)).toInt(),0)                  }
-            else       -> { val f = (n-0.833f)/0.167f;   Triple(255,                  0,                  (200*f).toInt())    }
-        }
-    }
-
     // White Hot — linear grayscale, white = warmest
     private fun whiteHotRgb(t: Float): Triple<Int, Int, Int> {
         val v = (t.coerceIn(0f, 1f) * 255).toInt()
         return Triple(v, v, v)
     }
 
-    // Black Hot — inverted grayscale, black = warmest
-    private fun blackHotRgb(t: Float): Triple<Int, Int, Int> {
-        val v = ((1f - t.coerceIn(0f, 1f)) * 255).toInt()
-        return Triple(v, v, v)
-    }
-
-    // Arctic — cold=deep blue, warm=golden yellow
-    private fun arcticRgb(t: Float): Triple<Int, Int, Int> {
-        val n = t.coerceIn(0f, 1f)
-        return when {
-            n < 0.40f -> { val f = n/0.40f;              Triple((20*f).toInt(),       (40*f).toInt(),     (180+75*f).toInt())    }
-            n < 0.65f -> { val f = (n-0.40f)/0.25f;      Triple((20+180*f).toInt(),   (40+160*f).toInt(), (255-255*f).toInt())   }
-            else      -> { val f = (n-0.65f)/0.35f;      Triple((200+55*f).toInt(),   (200+55*f).toInt(), (50*f).toInt())        }
-        }
-    }
-
-    // Sepia — warm brown/golden gradient; reduces eye fatigue in prolonged viewing
-    private fun sepiaRgb(t: Float): Triple<Int, Int, Int> {
-        val v = t.coerceIn(0f, 1f)
-        return Triple(
-            (255 * v).toInt().coerceIn(0, 255),
-            (200 * v).toInt().coerceIn(0, 255),
-            (140 * v * v).toInt().coerceIn(0, 255),
-        )
-    }
-
     // ── Capture processing ────────────────────────────────────────────────────
 
+    // Bundle artifacts as a 3-slot pipeline. Slot content depends on feedMode:
+    //   'unprocessed': [1] grayscale unprocessed, [2] palette processed, [3] isolated
+    //   'processed':   [1] palette processed full-frame, [2] palette processed
+    //                  cropped to ROI (null when no ROI), [3] isolated
+    // All slots that *do* exist are cropped to the framing rect when one is
+    // supplied -- except slot [1] in 'processed' mode, which is always full.
     private data class ThermalResult(
-        val displayPngB64:    String,
-        val isolatedPngB64:   String,
-        val unprocessedPngB64:String,   // grayscale render of the upscaled matrix, no palette / no mask
+        val slot1ImageB64:    String,
+        val slot2ImageB64:    String?,
+        val slot3ImageB64:    String,
+        val feedMode:         String,
         val tiffB64:          String,
         val csvContent:       String,
         val maskedCsvContent: String,
@@ -576,6 +735,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         frames: List<ByteArray>,
         crop: CropRoi? = null,
         isolatedBgBlack: Boolean = false,
+        upscale: Boolean = true,
+        feedMode: String = "unprocessed",
     ): ThermalResult {
         val log = mutableListOf<String>()
         log.add("Received ${frames.size} frame(s)")
@@ -625,37 +786,40 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("Median 3×3 filter applied")
 
         // 16-bit TIFF — radiometric raw at NATIVE sensor resolution.
-        // Encoded BEFORE the upscale because TIFF represents the raw
-        // measurement, not an interpretation; downstream artifacts get
-        // upscaled but TIFF stays true to the sensor's native data.
         val tiffBytes = encodeTiff16(rawAvg, cols, rows)
         val tiffB64   = Base64.encodeToString(tiffBytes, Base64.NO_WRAP)
         log.add("TIFF encoded (${tiffBytes.size} bytes, ${rows}×${cols} native)")
 
-        // ── Upscale to high-resolution working matrix ─────────────────────────
-        // Bilinear upscale of the temperature matrix from native (120×160)
-        // to OUT_ROWS×OUT_COLS (240×320 — exact 2× per axis). All artifacts
-        // below are derived from this upscaled matrix so they share one
-        // high-density source. ROI crop coordinates are normalised so they
-        // operate identically on the larger matrix.
-        val filtered = upscaleBilinear(filteredNative, rows, cols, OUT_ROWS, OUT_COLS)
-        val rowsHi = OUT_ROWS
-        val colsHi = OUT_COLS
-        log.add("Upscaled $rows×$cols → $rowsHi×$colsHi (bilinear)")
+        // Optional bilinear upscale of the temperature matrix from native
+        // (120×160) to OUT_ROWS×OUT_COLS (240×320). When upscale is false
+        // every artifact below is encoded at native sensor resolution.
+        val filtered: FloatArray
+        val rowsW: Int
+        val colsW: Int
+        if (upscale) {
+            filtered = upscaleBilinear(filteredNative, rows, cols, OUT_ROWS, OUT_COLS)
+            rowsW = OUT_ROWS
+            colsW = OUT_COLS
+            log.add("Upscaled $rows×$cols → $rowsW×$colsW (bilinear)")
+        } else {
+            filtered = filteredNative
+            rowsW = rows
+            colsW = cols
+            log.add("Native scale retained ($rowsW×$colsW)")
+        }
 
-        // Temperature stats — computed from the upscaled matrix so reported
-        // values correspond to what is actually shipped in the artifacts.
+        // Temperature stats from the working matrix.
         var minT = Float.MAX_VALUE; var maxT = -Float.MAX_VALUE; var sumT = 0.0
         for (v in filtered) { if (v < minT) minT = v; if (v > maxT) maxT = v; sumT += v }
         val meanT = sumT / filtered.size
         log.add("Stats: min=%.2f°C max=%.2f°C mean=%.2f°C".format(minT, maxT, meanT))
 
-        // CSV (°C, 2 dp) — at upscaled resolution.
-        val csvSB = StringBuilder(rowsHi * colsHi * 8)
-        for (r in 0 until rowsHi) {
-            for (c in 0 until colsHi) {
+        // CSV (°C, 2 dp) — full working-resolution matrix.
+        val csvSB = StringBuilder(rowsW * colsW * 8)
+        for (r in 0 until rowsW) {
+            for (c in 0 until colsW) {
                 if (c > 0) csvSB.append(',')
-                csvSB.append("%.2f".format(filtered[r * colsHi + c]))
+                csvSB.append("%.2f".format(filtered[r * colsW + c]))
             }
             csvSB.append('\n')
         }
@@ -668,67 +832,91 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val minVal  = sorted[0]
         val rawRange = (sorted[sorted.size - 1] - minVal).takeIf { it > 0f } ?: 1f
 
-        // Display PNG — palette-mapped colorized image at upscaled resolution.
-        val pixels = IntArray(rowsHi * colsHi)
+        // Foot isolation — always cropped to ROI when supplied. Slot [3].
+        val mask           = isolateFootMask(filtered, rowsW, colsW, crop)
+        val slot3ImageB64  = buildIsolatedPng(filtered, mask, rowsW, colsW, p1, range, crop, isolatedBgBlack)
+        val maskedCsv      = buildMaskedCsv(filtered, mask, rowsW, colsW)
+        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
+            + (if (isolatedBgBlack) " · black bg" else ""))
+
+        // Slots [1] and [2] depend on feedMode.
+        val slot1ImageB64: String
+        val slot2ImageB64: String?
+        if (feedMode == "processed") {
+            // [1] palette processed FULL FRAME (no crop, even if ROI is set)
+            slot1ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop = null)
+            log.add("Slot1 processed PNG encoded · full frame (mode=$displayMode palette=$palette)")
+            // [2] same processed image cropped to ROI; null if no ROI
+            slot2ImageB64 = if (crop != null) {
+                val s = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
+                log.add("Slot2 processed PNG encoded · cropped to ROI")
+                s
+            } else {
+                log.add("Slot2 skipped (no ROI in processed feed mode)")
+                null
+            }
+        } else {
+            // 'unprocessed' (default): legacy 3-artifact pipeline. All slots
+            // cropped to ROI when one is set.
+            slot1ImageB64 = buildUnprocessedPng(filtered, rowsW, colsW, minVal, rawRange, crop)
+            log.add("Slot1 unprocessed PNG encoded" + (if (crop != null) " · cropped to ROI" else ""))
+            slot2ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
+            log.add("Slot2 processed PNG encoded (mode=$displayMode palette=$palette)" + (if (crop != null) " · cropped to ROI" else ""))
+        }
+
+        log.add("Processing complete · feedMode=$feedMode")
+
+        return ThermalResult(
+            slot1ImageB64    = slot1ImageB64,
+            slot2ImageB64    = slot2ImageB64,
+            slot3ImageB64    = slot3ImageB64,
+            feedMode         = feedMode,
+            tiffB64          = tiffB64,
+            csvContent       = csvSB.toString(),
+            maskedCsvContent = maskedCsv,
+            frameCount       = n,
+            width            = colsW,
+            height           = rowsW,
+            minTemp          = minT.toDouble(),
+            maxTemp          = maxT.toDouble(),
+            meanTemp         = meanT,
+            log              = log,
+        )
+    }
+
+    // Build a palette-mapped PNG honouring the current displayMode. Mirrors
+    // the previous inline display-PNG logic; factored out so processThermal
+    // Frames can call it twice in 'processed' feed mode (once full-frame for
+    // slot 1, once cropped for slot 2).
+    private fun buildProcessedPng(
+        filtered: FloatArray, rows: Int, cols: Int,
+        p1: Float, range: Float,
+        minVal: Float, rawRange: Float,
+        crop: CropRoi?,
+    ): String {
+        val pixels = IntArray(rows * cols)
         when (displayMode) {
-            "raw" -> for (i in 0 until rowsHi * colsHi) {
+            "raw" -> for (i in 0 until rows * cols) {
                 val v = (((filtered[i] - minVal) / rawRange).coerceIn(0f, 1f) * 255).toInt()
                 pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
             }
-            "agc" -> for (i in 0 until rowsHi * colsHi) {
+            "agc" -> for (i in 0 until rows * cols) {
                 val v = (((filtered[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
                 pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
             }
-            else -> for (i in 0 until rowsHi * colsHi) {
+            else -> for (i in 0 until rows * cols) {
                 val t = ((filtered[i] - p1) / range).coerceIn(0f, 1f)
                 val (ri, gi, bi) = paletteRgb(t, palette)
                 pixels[i] = (0xFF shl 24) or (ri shl 16) or (gi shl 8) or bi
             }
         }
-        val bmp = Bitmap.createBitmap(colsHi, rowsHi, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(pixels, 0, colsHi, 0, 0, colsHi, rowsHi)
-        val displayBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
-        val pngOut = ByteArrayOutputStream()
-        displayBmp.compress(Bitmap.CompressFormat.PNG, 100, pngOut)
-        displayBmp.recycle()
-        val displayPngB64 = Base64.encodeToString(pngOut.toByteArray(), Base64.NO_WRAP)
-        log.add("Display PNG encoded (mode=$displayMode palette=$palette" + (if (crop != null) " · cropped to ROI" else "") + ")")
-
-        log.add("Processing complete")
-
-        // Foot isolation — operates on the upscaled matrix. Pass the framing
-        // rectangle so the algorithm can sample background from outside the
-        // ROI (direction-agnostic threshold) and only mark INSIDE pixels as
-        // subject. When crop is null the function falls back to the
-        // Otsu / largest-component approach.
-        val mask             = isolateFootMask(filtered, rowsHi, colsHi, crop)
-        val isolatedPngB64   = buildIsolatedPng(filtered, mask, rowsHi, colsHi, p1, range, crop, isolatedBgBlack)
-        val maskedCsvContent = buildMaskedCsv(filtered, mask, rowsHi, colsHi)
-        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
-            + (if (isolatedBgBlack) " · black bg" else ""))
-
-        // Unprocessed PNG — grayscale render of the upscaled matrix without
-        // palette mapping or background masking. This replaces the legacy
-        // practice of using the live JPEG as the "raw" artifact, so all
-        // four bundle artifacts now share a single high-density source.
-        val unprocessedPngB64 = buildUnprocessedPng(filtered, rowsHi, colsHi, minVal, rawRange, crop)
-        log.add("Unprocessed PNG encoded" + (if (crop != null) " · cropped to ROI" else ""))
-
-        return ThermalResult(
-            displayPngB64     = displayPngB64,
-            isolatedPngB64    = isolatedPngB64,
-            unprocessedPngB64 = unprocessedPngB64,
-            tiffB64           = tiffB64,
-            csvContent        = csvSB.toString(),
-            maskedCsvContent  = maskedCsvContent,
-            frameCount        = n,
-            width             = colsHi,
-            height            = rowsHi,
-            minTemp           = minT.toDouble(),
-            maxTemp           = maxT.toDouble(),
-            meanTemp          = meanT,
-            log               = log,
-        )
+        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+        val outBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
+        val out = ByteArrayOutputStream()
+        outBmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        outBmp.recycle()
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 
     // ── Bilinear upscale for FloatArray temperature matrices ──────────────────
@@ -1199,6 +1387,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         streamPaused   = false
         displayQueue.clear()
         prevFrameForDiff = null
+        prevDisplayFiltered = null
         frameIndex = 0
         if (connected || usbConnection != null) {
             try { nativeClose() } catch (_: Exception) {}

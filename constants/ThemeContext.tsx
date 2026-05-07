@@ -13,8 +13,8 @@ interface ThemeContextValue {
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  colors: darkColors,
-  isDark: true,
+  colors: lightColors,
+  isDark: false,
   toggleTheme: () => {},
 });
 
@@ -32,7 +32,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const isDark = override != null ? override === "dark" : systemScheme !== "light";
+  // Default to light mode unless the user has explicitly toggled dark or
+  // their system setting is dark.
+  const isDark = override != null ? override === "dark" : systemScheme === "dark";
   const colors = isDark ? darkColors : lightColors;
 
   const toggleTheme = useCallback(() => {

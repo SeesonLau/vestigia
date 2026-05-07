@@ -13,15 +13,18 @@ export default function OfflineLiveFeedScreen() {
   const { colors } = useTheme()
   const thermalStore = useThermalStore()
 
+  const stripDataUri = (uri: string | null) =>
+    uri ? uri.replace(/^data:image\/[a-z]+;base64,/, "") : null
+
   const handleCapture = async (result: ThermalCaptureResult, step: CaptureStep, _foot: Foot) => {
-    const rawB64       = result.rawImageUri.replace("data:image/jpeg;base64,", "")
-    const processedB64 = result.displayPngUri.replace("data:image/png;base64,", "")
-    const isolatedB64  = result.isolatedPngUri.replace("data:image/png;base64,", "")
+    const slot1 = stripDataUri(result.slot1ImageUri) ?? ""
+    const slot2 = stripDataUri(result.slot2ImageUri)
+    const slot3 = stripDataUri(result.slot3ImageUri) ?? ""
     if (step === "left") {
-      thermalStore.captureLeft([] as number[][], rawB64, processedB64, isolatedB64, result.maskedCsvContent, result.stats)
+      thermalStore.captureLeft([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats, result.feedMode)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     } else {
-      thermalStore.captureRight([] as number[][], rawB64, processedB64, isolatedB64, result.maskedCsvContent, result.stats)
+      thermalStore.captureRight([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats, result.feedMode)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     }
   }

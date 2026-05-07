@@ -12,14 +12,11 @@ export interface PaletteMeta {
   desc:   string;
 }
 
+// Order is the rendered chip order. "Medical" sits first so it lines up
+// with the default selection on capture screens.
 export const PALETTES: readonly PaletteMeta[] = [
-  { id: "ironbow",    label: "Ironbow",    swatch: "#FF4500", desc: "Heated metal: black→red→orange→white" },
-  { id: "rainbow",    label: "Rainbow",    swatch: "#00BFFF", desc: "Full spectrum: blue (cold) → red (hot)" },
-  { id: "rainbow_hc", label: "Rainbow HC", swatch: "#FF00FF", desc: "High-contrast 6-band · fine Δ°C" },
-  { id: "rainbow3",   label: "Rainbow 3",  swatch: "#9500B5", desc: "8-step LUT: purple → blue → cyan → green → yellow → orange → red → white" },
-  { id: "lepton",     label: "Lepton",     swatch: "#00B4FF", desc: "Wide spectrum: purple → blue → cyan → green → yellow → orange → red → pink" },
-  { id: "white_hot",  label: "White Hot",  swatch: "#FFFFFF", desc: "Grayscale · white = warmest" },
-  { id: "black_hot",  label: "Black Hot",  swatch: "#444444", desc: "Inverted grayscale · black = warmest" },
-  { id: "arctic",     label: "Arctic",     swatch: "#4488FF", desc: "Cold=blue, warm=golden yellow" },
-  { id: "sepia",      label: "Sepia",      swatch: "#C4933F", desc: "Warm brown tones · low eye fatigue" },
+  { id: "medical",   label: "Medical",   swatch: "#9500B5", desc: "8-step clinical LUT: purple → blue → cyan → green → yellow → orange → red → white" },
+  { id: "ironbow",   label: "Ironbow",   swatch: "#FF4500", desc: "Heated metal: black → red → orange → white" },
+  { id: "rainbow",   label: "Rainbow",   swatch: "#00BFFF", desc: "Full spectrum: blue (cold) → red (hot)" },
+  { id: "white_hot", label: "White Hot", swatch: "#FFFFFF", desc: "Grayscale · white = warmest" },
 ] as const;

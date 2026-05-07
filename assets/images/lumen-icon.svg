@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI brand mark
+       Original work: rounded-square teal-gradient backdrop with a stylised
+       pulse / heartbeat line and a single warm accent dot at the peak.
+       Intended for export to icon.png (1024) and favicon.png (48). -->
+
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+
+    <linearGradient id="lumen-glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#E0FBFC" stop-opacity="0.92" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square backdrop. iOS / favicon contexts get the soft tile;
+       Android adaptive icon mask will round it further as needed. -->
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Decorative inner ring to give the mark a centred "lens" feel. -->
+  <circle cx="512" cy="512" r="408" fill="none"
+          stroke="rgba(255,255,255,0.20)" stroke-width="6" />
+  <circle cx="512" cy="512" r="356" fill="none"
+          stroke="rgba(255,255,255,0.10)" stroke-width="2" />
+
+  <!-- Pulse / ECG line. Drawn left-to-right with a flat baseline, small
+       atrial bump, sharp QRS spike, and a flat tail returning to baseline. -->
+  <path
+    d="M 168 512
+       L 332 512
+       L 372 462
+       L 410 568
+       L 456 372
+       L 502 720
+       L 558 244
+       L 614 612
+       L 662 512
+       L 856 512"
+    fill="none"
+    stroke="url(#lumen-glow)"
+    stroke-width="44"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Warm accent dot at the peak — a subtle "thermal" cue tying the
+       ECG-style mark to the app's thermal-imaging core. -->
+  <circle cx="558" cy="244" r="26" fill="#FFD06B" />
+  <circle cx="558" cy="244" r="14" fill="#FFFFFF" />
+</svg>

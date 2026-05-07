@@ -42,7 +42,7 @@ export default function ProcessedLiveView() {
   const [displayUri,      setDisplayUri]      = useState<string | null>(null);
 
   const [displayMode, setDisplayMode] = useState<DisplayMode>("rgb");
-  const [palette,     setPalette]     = useState<PaletteType>("ironbow");
+  const [palette,     setPalette]     = useState<PaletteType>("medical");
 
   const frameTimestamps = useRef<number[]>([]);
   const computeFps = useCallback(() => {
@@ -112,7 +112,7 @@ export default function ProcessedLiveView() {
   };
 
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240 · median 3×3`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240 · median · adaptive EMA · CLAHE · unsharp`
     : "";
 
   return (

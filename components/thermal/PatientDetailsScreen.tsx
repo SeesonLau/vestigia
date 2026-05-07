@@ -82,13 +82,29 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
   const { setActiveSession } = useSessionStore();
   const {
     leftMatrix, rightMatrix,
-    leftRawB64, rightRawB64,
-    leftProcessedB64, rightProcessedB64,
-    leftIsolatedB64, rightIsolatedB64,
+    leftSlot1B64,  rightSlot1B64,
+    leftSlot2B64,  rightSlot2B64,
+    leftSlot3B64,  rightSlot3B64,
     leftCsvContent, rightCsvContent,
     leftStats, rightStats,
+    feedMode,
     clearBilateral,
   } = useThermalStore();
+  // Thumbnail / DB column mapping: slot1 -> raw_image_path,
+  // slot2 -> processed_image_path (nullable in 'processed' feed without ROI),
+  // slot3 -> isolated_image_path. The variable names below mirror the column
+  // names so the upload code stays readable; their *content* depends on
+  // feedMode (see store comments).
+  const leftRawB64       = leftSlot1B64;
+  const rightRawB64      = rightSlot1B64;
+  const leftProcessedB64 = leftSlot2B64;
+  const rightProcessedB64= rightSlot2B64;
+  const leftIsolatedB64  = leftSlot3B64;
+  const rightIsolatedB64 = rightSlot3B64;
+  // For thumbnail display, prefer the processed slot (slot2). Fall back to
+  // slot1 in 'processed' feed mode without ROI where slot2 is null.
+  const leftThumbB64  = leftSlot2B64  ?? (feedMode === "processed" ? leftSlot1B64  : null);
+  const rightThumbB64 = rightSlot2B64 ?? (feedMode === "processed" ? rightSlot1B64 : null);
 
   const [form, setForm] = useState<FormState>({
     firstName: "", middleName: "", lastName: "",
@@ -201,7 +217,10 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
     if (age === null || age < 0 || age > 120) return "Birthdate results in an invalid age.";
     if (isNaN(weight) || weight <= 0) return "Enter a valid weight (kg).";
     if (isNaN(height) || height <= 0) return "Enter a valid height (cm).";
-    if (!leftProcessedB64 || !rightProcessedB64) return "Both foot captures are required.";
+    // Slot1 is always present after a successful capture; slot2 may legitimately
+    // be null in 'processed' feed mode when no ROI was drawn. Slot3 (isolated)
+    // is always required.
+    if (!leftRawB64       || !rightRawB64)       return "Both foot captures are required.";
     if (!leftIsolatedB64  || !rightIsolatedB64)  return "Capture data is incomplete.";
     if (!leftCsvContent   || !rightCsvContent)   return "Capture CSV is missing.";
     return null;
@@ -354,8 +373,14 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           uploadPng(e.isolatedB64,  session.id, e.foot, "isolated"),
           uploadCsv(e.csv,          session.id, e.foot),
         ]);
-        if (!processedPath || !isolatedPath) {
+        // Slot1 (raw_image_path) and slot3 (isolated_image_path) are always
+        // required. Slot2 (processed_image_path) is null when feedMode is
+        // 'processed' and no ROI was drawn -- skip it cleanly in that case.
+        if (!rawPath || !isolatedPath) {
           throw new Error(`Failed to upload ${e.foot} foot images.`);
+        }
+        if (e.processedB64 && !processedPath) {
+          throw new Error(`Failed to upload ${e.foot} processed image.`);
         }
 
         const { error: capErr } = await supabase.from("thermal_captures").insert({
@@ -371,6 +396,7 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           processed_image_path: processedPath,
           isolated_image_path:  isolatedPath,
           csv_path:             csvPath,
+          feed_mode:            feedMode,
           captured_at:          startedAt,
         });
         if (capErr) throw new Error(`Failed to save ${e.foot} thermal capture.`);
@@ -447,9 +473,9 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
         >
           {/* Capture thumbnails */}
           <View style={[styles.thumbRow, { borderColor: colors.border, backgroundColor: colors.card }]}>
-            <FootThumb label="Left Foot"  b64={leftProcessedB64}  stats={leftStats}  colors={colors} />
+            <FootThumb label="Left Foot"  b64={leftThumbB64}     stats={leftStats}  colors={colors} />
             <View style={[styles.thumbDivider, { backgroundColor: colors.border }]} />
-            <FootThumb label="Right Foot" b64={rightProcessedB64} stats={rightStats} colors={colors} />
+            <FootThumb label="Right Foot" b64={rightThumbB64}    stats={rightStats} colors={colors} />
           </View>
 
           {/* Clinic-only: Patient ID lookup */}

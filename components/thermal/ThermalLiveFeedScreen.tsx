@@ -24,9 +24,10 @@ import {
   onFrameStats,
   pauseCamera, resumeCamera,
   setDisplayMode as setDisplayModeNative,
+  setLiveScale as setLiveScaleNative,
   setPalette as setPaletteNative,
 } from "../../lib/thermal/uvcCamera"
-import type { DisplayMode, PaletteType } from "../../lib/thermal/uvcCamera"
+import type { DisplayMode, FeedMode, PaletteType } from "../../lib/thermal/uvcCamera"
 import { PALETTES } from "../../lib/thermal/palettes"
 import ReadinessIndicator from "./ReadinessIndicator"
 import type { ReadinessState } from "./ReadinessIndicator"
@@ -73,8 +74,18 @@ export default function ThermalLiveFeedScreen({
 
   //Display controls
   const [displayMode,  setDisplayMode]  = useState<DisplayMode>("rgb")
-  const [palette,      setPalette]      = useState<PaletteType>("ironbow")
+  const [palette,      setPalette]      = useState<PaletteType>("medical")
   const [cameraPaused, setCameraPaused] = useState(false)
+
+  //Capture options — control native pipeline at capture time AND govern the
+  //live preview scale (so what you see is what gets captured).
+  //captureScale: "upscaled" → 320×240 bilinear-upscaled artifacts + preview;
+  //              "native"   → 160×120 sensor-resolution artifacts + preview.
+  //captureFeedMode: "unprocessed" → [unprocessed, processed, isolated];
+  //                 "processed"   → [processed full, processed cropped, isolated]
+  //                                 (slot 2 skipped when no ROI is drawn).
+  const [captureScale,    setCaptureScale]    = useState<"native" | "upscaled">("upscaled")
+  const [captureFeedMode, setCaptureFeedMode] = useState<FeedMode>("unprocessed")
 
   //Capture
   const [captureStep,   setCaptureStep]   = useState<"left" | "right">("left")
@@ -210,6 +221,20 @@ export default function ThermalLiveFeedScreen({
     try { await setPaletteNative(p) } catch {}
   }
 
+  const handleSetCaptureScale = async (s: "native" | "upscaled") => {
+    setCaptureScale(s)
+    try { await setLiveScaleNative(s === "upscaled") } catch {}
+  }
+
+  //Re-sync the native live-scale flag whenever the camera reconnects (the
+  //volatile defaults to true on the native side, so non-default JS state
+  //needs to be re-applied after a reconnect).
+  useEffect(() => {
+    if (cameraStatus === "connected") {
+      setLiveScaleNative(captureScale === "upscaled").catch(() => {})
+    }
+  }, [cameraStatus, captureScale])
+
   const handleToggleCamera = async () => {
     const pausing = !cameraPaused
     setCameraPaused(pausing)
@@ -236,14 +261,19 @@ export default function ThermalLiveFeedScreen({
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      //Pass the ROI + isolated-bg setting to native. The native processor
-      //runs the full pipeline (average → median → bilinear upscale to
-      //320×240 → palette → isolation) and returns the four artifacts
+      //Pass ROI + isolated-bg + scale + feedMode to native. The native
+      //processor runs the configurable pipeline (average → median → optional
+      //bilinear upscale → palette → isolation) and returns the slot artifacts
       //already cropped to the framing rect when one is supplied. CSVs come
-      //back full-frame at the upscaled resolution; we crop them on the JS
+      //back full-frame at the working resolution; we crop them on the JS
       //side so the cell coordinates stay aligned with the cropped images.
       const cropArg = roiVisible ? roiRect : null
-      const result = await processFrames({ crop: cropArg, isolatedBg })
+      const result = await processFrames({
+        crop: cropArg,
+        isolatedBg,
+        upscale: captureScale === "upscaled",
+        feedMode: captureFeedMode,
+      })
       const finalResult: ProcessedCapture = cropArg
         ? {
             ...result,
@@ -284,8 +314,9 @@ export default function ThermalLiveFeedScreen({
     onDiscard()
   }
 
+  const liveResLabel = captureScale === "upscaled" ? "320×240" : "160×120"
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240 · median 3×3`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · ${liveResLabel} · median · adaptive EMA · CLAHE · unsharp · feed=${captureFeedMode}`
     : ""
 
   //Disable capture when the framing rectangle is collapsed below the
@@ -301,12 +332,6 @@ export default function ThermalLiveFeedScreen({
         rightIcon={
           <View style={styles.headerRight}>
             {extraHeaderRight}
-            <View style={[styles.fpsTag, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Ionicons name="hardware-chip-outline" size={11} color={colors.textSec} />
-              <Text style={[styles.fpsText, { color: colors.success }]}>
-                {cameraStatus === "connected" ? `${fps} fps` : "--"}
-              </Text>
-            </View>
             <TouchableOpacity onPress={() => setShowSettings(true)} hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}>
               <Ionicons name="settings-outline" size={20} color={colors.textSec} />
             </TouchableOpacity>
@@ -556,6 +581,74 @@ export default function ThermalLiveFeedScreen({
           </View>
         )}
 
+        {/* Capture options — scale + feed mode. Hidden once both feet are
+            captured (allDone) since the controls no longer apply. */}
+        {!allDone && (
+          <View style={[styles.captureOptsCard, { backgroundColor: colors.surface }]}>
+            <View style={styles.captureOptsRow}>
+              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>SCALE</Text>
+              <View style={styles.captureOptsSeg}>
+                {([
+                  ["native",   "Original 160×120"],
+                  ["upscaled", "Upscaled 320×240"],
+                ] as const).map(([val, label]) => {
+                  const active = captureScale === val
+                  return (
+                    <TouchableOpacity
+                      key={val}
+                      onPress={() => handleSetCaptureScale(val)}
+                      style={[
+                        styles.captureOptsSegBtn,
+                        { backgroundColor: active ? colors.accent : "transparent" },
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.captureOptsSegText, { color: active ? "#fff" : colors.textSec }]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+
+            <View style={styles.captureOptsRow}>
+              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>FEED</Text>
+              <View style={styles.captureOptsSeg}>
+                {([
+                  ["unprocessed", "Unprocessed"],
+                  ["processed",   "Processed"],
+                ] as const).map(([val, label]) => {
+                  const active = captureFeedMode === val
+                  return (
+                    <TouchableOpacity
+                      key={val}
+                      onPress={() => setCaptureFeedMode(val)}
+                      style={[
+                        styles.captureOptsSegBtn,
+                        { backgroundColor: active ? colors.accent : "transparent" },
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.captureOptsSegText, { color: active ? "#fff" : colors.textSec }]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+            </View>
+
+            <Text style={[styles.captureOptsHint, { color: colors.textSec }]}>
+              {captureFeedMode === "processed"
+                ? roiVisible
+                  ? "Processed feed · slots: full · cropped · isolated"
+                  : "Processed feed · no ROI → only full + isolated will be saved"
+                : "Unprocessed feed · slots: unprocessed · processed · isolated"}
+            </Text>
+          </View>
+        )}
+
         {/* Capture / post-capture */}
         <View style={styles.controls}>
           {!allDone ? (
@@ -735,8 +828,6 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: Spacing["2xl"] },
 
   headerRight: { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
-  fpsTag:      { borderRadius: Radius.md, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, flexDirection: "row", alignItems: "center", gap: 4 },
-  fpsText:     { fontSize: 10, fontFamily: Typography.fonts.mono, letterSpacing: 0.5 },
 
   stepRow:  { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: Radius.lg, borderWidth: 1, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, marginBottom: Spacing.md, gap: Spacing.lg },
   stepLine: { flex: 1, height: 2, borderRadius: 1 },
@@ -774,6 +865,14 @@ const styles = StyleSheet.create({
   footRow:     { flexDirection: "row", gap: Spacing.sm, marginBottom: Spacing.md },
   footBtn:     { flex: 1, alignItems: "center", paddingVertical: Spacing.sm, borderRadius: Radius.md, borderWidth: 1 },
   footBtnText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body },
+
+  captureOptsCard:    { borderRadius: Radius.lg, padding: Spacing.sm, marginBottom: Spacing.md, gap: Spacing.xs },
+  captureOptsRow:     { flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+  captureOptsLabel:   { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 1.5, width: 50 },
+  captureOptsSeg:     { flex: 1, flexDirection: "row", gap: Spacing.xs },
+  captureOptsSegBtn:  { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: Radius.sm },
+  captureOptsSegText: { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 0.5 },
+  captureOptsHint:    { fontSize: 9, fontFamily: Typography.fonts.mono, marginTop: Spacing.xs },
 
   controls:       { alignItems: "center", marginBottom: Spacing.md },
   captureBtn:     { alignItems: "center" },

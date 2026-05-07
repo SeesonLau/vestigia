@@ -50,7 +50,11 @@
       "mcp__supabase__list_edge_functions",
       "mcp__supabase__deploy_edge_function",
       "Read(//tmp/**)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb devices; & $adb install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
+      "PowerShell($adb = \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; & $adb install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")",
+      "PowerShell(& \"$env:LOCALAPPDATA\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install -r \"C:\\\\Users\\\\PotatoIV\\\\Desktop\\\\SD3\\\\vestigia\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\LumenAI-release.apk\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\PotatoIV\\Desktop\\UVCCamera"

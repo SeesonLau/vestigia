@@ -54,9 +54,12 @@ export interface ThermalCapture extends AngiosomeTemps {
   resolution_x?: number;
   resolution_y?: number;
   raw_image_path?: string | null;
-  processed_image_path: string;
+  processed_image_path: string | null;
   isolated_image_path: string;
   csv_path?: string | null;
+  /** 'unprocessed' (default, legacy) -> [raw, processed, isolated];
+   *  'processed' -> [processed full, processed cropped (null if no ROI), isolated]. */
+  feed_mode?: "unprocessed" | "processed";
   captured_at: string;
 }
 

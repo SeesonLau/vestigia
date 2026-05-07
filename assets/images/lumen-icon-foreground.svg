@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI adaptive-icon FOREGROUND.
+       Transparent backdrop. The glyph sits in the centre 60% safe zone
+       so Android masks (circle, squircle, rounded square) don't crop it. -->
+  <defs>
+    <linearGradient id="fg-glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="100%" stop-color="#E0FBFC" stop-opacity="0.92" />
+    </linearGradient>
+  </defs>
+
+  <!-- Pulse line, scaled into the safe zone (centre ~600 px of the canvas). -->
+  <g transform="translate(212, 212) scale(0.585)">
+    <path
+      d="M 168 512 L 332 512 L 372 462 L 410 568 L 456 372 L 502 720 L 558 244 L 614 612 L 662 512 L 856 512"
+      fill="none"
+      stroke="url(#fg-glow)"
+      stroke-width="62"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+    <circle cx="558" cy="244" r="36" fill="#FFD06B" />
+    <circle cx="558" cy="244" r="20" fill="#FFFFFF" />
+  </g>
+</svg>
