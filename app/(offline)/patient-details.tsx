@@ -7,7 +7,7 @@
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -55,7 +55,6 @@ export default function OfflinePatientDetailsScreen() {
   const { colors } = useTheme();
 
   const {
-    leftMatrix, rightMatrix,
     leftSlot1B64, rightSlot1B64,
     leftSlot2B64, rightSlot2B64,
     leftSlot3B64, rightSlot3B64,
@@ -72,12 +71,25 @@ export default function OfflinePatientDetailsScreen() {
   // completing both feet (shouldn't normally happen, but guard cleanly).
   const haveCaptures = !!(leftStats && rightStats && leftSlot1B64 && rightSlot1B64);
 
+  // Input format="date" stores 8 raw digits (YYYYMMDD); reformat when
+  // handing off and validate by digit count + a real-Date sanity check.
+  const formatBirthdate = (digits: string): string =>
+    digits.length === 8 ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` : "";
+
   const validate = (): boolean => {
     const next: Partial<Record<keyof FormState, string>> = {};
     if (!form.firstName.trim())  next.firstName = "First name is required.";
     if (!form.lastName.trim())   next.lastName  = "Last name is required.";
     if (!form.sex)               next.sex       = "Select a sex.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.birthdate)) next.birthdate = "Use YYYY-MM-DD.";
+    if (!/^\d{8}$/.test(form.birthdate)) {
+      next.birthdate = "Enter date as YYYYMMDD.";
+    } else {
+      const iso = formatBirthdate(form.birthdate);
+      const parsed = new Date(iso + "T00:00:00");
+      if (Number.isNaN(parsed.getTime()) || iso !== parsed.toISOString().slice(0, 10)) {
+        next.birthdate = "Date is not valid.";
+      }
+    }
     const w = parseFloat(form.weightKg);
     const h = parseFloat(form.heightCm);
     if (!Number.isFinite(w) || w <= 0)   next.weightKg = "Enter weight in kg.";
@@ -101,7 +113,7 @@ export default function OfflinePatientDetailsScreen() {
           middle_name: form.middleName.trim(),
           last_name:   form.lastName.trim(),
           gender:      form.sex,
-          birthdate:   form.birthdate,
+          birthdate:   formatBirthdate(form.birthdate),
           weight_kg:   parseFloat(form.weightKg),
           height_cm:   parseFloat(form.heightCm),
         },
@@ -135,14 +147,6 @@ export default function OfflinePatientDetailsScreen() {
     }
   };
 
-  // Stats summary card values pulled from the captured matrices for display.
-  const statsLine = useMemo(() => {
-    if (!leftStats || !rightStats) return null;
-    const min = Math.min(leftStats.min, rightStats.min);
-    const max = Math.max(leftStats.max, rightStats.max);
-    return `${min.toFixed(1)} – ${max.toFixed(1)} °C`;
-  }, [leftStats, rightStats]);
-
   return (
     <ScreenWrapper>
       <Header
@@ -163,31 +167,6 @@ export default function OfflinePatientDetailsScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Capture summary */}
-          <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={styles.summaryHead}>
-              <Ionicons name="footsteps-outline" size={16} color={colors.success} />
-              <Text style={[styles.summaryTitle, { color: colors.text }]}>Bilateral capture ready</Text>
-            </View>
-            {statsLine ? (
-              <Text style={[styles.summaryText, { color: colors.textSec }]}>
-                Temperature range across both feet: {statsLine}
-              </Text>
-            ) : (
-              <Text style={[styles.summaryText, { color: colors.warning }]}>
-                Captures missing. Go back and re-capture both feet.
-              </Text>
-            )}
-            {(leftMatrix?.length || rightMatrix?.length)
-              ? (
-                <Text style={[styles.summaryHint, { color: colors.textSec }]}>
-                  Matrix size: {leftMatrix?.[0]?.length ?? rightMatrix?.[0]?.length ?? 0}
-                  {" × "}
-                  {leftMatrix?.length ?? rightMatrix?.length ?? 0} per foot
-                </Text>
-              ) : null}
-          </View>
-
           {/* Patient form */}
           <Text style={[styles.section, { color: colors.textSec }]}>PATIENT</Text>
 
@@ -283,16 +262,6 @@ export default function OfflinePatientDetailsScreen() {
 
 const styles = StyleSheet.create({
   scroll: { padding: Spacing.lg, paddingBottom: Spacing["2xl"], gap: Spacing.sm },
-
-  summaryCard: {
-    borderWidth: 1, borderRadius: Radius.lg,
-    padding: Spacing.md, gap: Spacing.xs,
-    marginBottom: Spacing.md,
-  },
-  summaryHead: { flexDirection: "row", alignItems: "center", gap: 6 },
-  summaryTitle: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.heading },
-  summaryText:  { fontSize: Typography.sizes.sm,   fontFamily: Typography.fonts.body },
-  summaryHint:  { fontSize: Typography.sizes.xs,   fontFamily: Typography.fonts.mono, marginTop: 2 },
 
   section: {
     fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.heading,
