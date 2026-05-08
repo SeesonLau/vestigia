@@ -3,6 +3,105 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.0.0] — 2026-05-08
+
+First production-ready release. All three roles (clinic, patient, admin) are
+fully wired end-to-end against Supabase. Bilateral thermal capture, the
+HuggingFace DPN classifier, the AsyncStorage-backed offline guest flow, and
+the new admin web console all ship in this build.
+
+### Added — Admin web console (Next.js, `web/`)
+- Admin-only console at the same Supabase project: `useAdminSession` hook gates
+  non-admins; sidebar shell + login at `/admin/login`; LumenAI mark in
+  [web/app/icon.svg](web/app/icon.svg) + brand thermal backdrop
+  ([web/components/ThermalBackground.tsx](web/components/ThermalBackground.tsx)).
+- Dashboard counts ([web/app/admin/page.tsx](web/app/admin/page.tsx)) — pending
+  clinics, pending password resets, open + in-progress tickets.
+- **Clinics queue** — [web/app/admin/clinics/page.tsx](web/app/admin/clinics/page.tsx)
+  with Approve / Reject (with reason) modals; calls `admin_approve_clinic` /
+  `admin_reject_clinic` SECURITY DEFINER RPCs.
+- **Password resets queue** — [web/app/admin/password-resets/page.tsx](web/app/admin/password-resets/page.tsx);
+  Set Password modal invokes the `admin-set-clinic-password` Edge Function
+  (service-role-only `auth.admin.updateUserById` + stamps the matching
+  reset request as approved). Verifies the caller's JWT has
+  `profiles.role='admin'` before any privileged action.
+- **Ticket inbox** — [web/app/admin/tickets/page.tsx](web/app/admin/tickets/page.tsx);
+  list + detail; Mark in Progress / Resolve with response.
+- Root `/` redirects to `/admin`; create-next-app boilerplate dropped.
+
+### Added — Admin gating + support tickets (mobile + Supabase)
+- New migration `supabase/migrations/20260508_admin_gating_and_tickets.sql`:
+  `clinics.approval_status` (+ `approved_by` / `approved_at` / `rejection_reason`)
+  fenced by trigger `clinics_block_non_admin_approval_change`;
+  `clinic_password_reset_requests` table + RLS; `support_tickets` table + RLS;
+  RPCs `submit_password_reset_request`, `submit_support_ticket`,
+  `admin_approve_clinic`, `admin_reject_clinic`, `admin_resolve_ticket`.
+  Existing clinics back-filled to `approval_status='approved'`.
+- Mobile `store/authStore.ts` — clinic login now signs out `pending` /
+  `rejected` clinics with a clear message; `registerClinic()` no longer
+  auto-signs-in (lands on the new `clinic-pending-approval` screen).
+- New `app/(auth)/clinic-pending-approval.tsx` and an in-Settings
+  `app/(clinic)/request-password-reset.tsx`.
+- `app/(auth)/forgot-password.tsx` split into patient (existing email path)
+  and clinic ("contact your admin" — locked-out clinics can't authenticate
+  to the RPC).
+- New shared `components/feedback/FeedbackScreen.tsx` rendered by both
+  `app/(clinic)/feedback.tsx` and `app/(patient)/feedback.tsx`; Settings
+  entries on both roles.
+
+### Changed — Symmetric Raw/Enhanced 3-slot capture pipeline
+- Native `processCapture` now derives `feedMode` from the `enhanced` flag
+  and runs a single uniform path: slot 1 = palette full frame, slot 2 =
+  palette cropped to ROI (null when no ROI was drawn), slot 3 = isolated
+  foot cropped. Both modes share the same shape — only the underlying
+  matrix differs (160×120 unenhanced vs 320×240 enhanced).
+- TS bridge (`lib/thermal/captureProcessor.ts`) passes `feedMode` through
+  instead of hardcoding `'unprocessed'`.
+- Bundle viewers (online + offline) now show RAW / RAW · CROPPED / ISOLATED
+  vs ENHANCED / ENHANCED · CROPPED / ISOLATED.
+- Offline `ThermalBundle` persists `feed_mode`;
+  `FootData.processed_image_b64` is now nullable.
+- Dead `buildUnprocessedPng` removed from `UVCModule.kt` after the collapse.
+
+### Added — LumenAI brand identity
+- New brand mark — teal-gradient lens with pulse line + warm thermal
+  accent dot (`assets/images/lumen-icon.svg`). Used as the Android adaptive
+  icon (foreground / background / monochrome PNGs at every density), the
+  iOS launcher icon, the favicon, and the splash screen.
+- Web admin uses the same mark in the sidebar header / login page /
+  browser tab favicon.
+- Re-ran `npx expo prebuild --platform android --no-install` so the 25
+  baked-in `mipmap-*/ic_launcher*.webp` files now show the LumenAI mark
+  instead of the create-expo-app default blue triangle. Splash colors
+  pulled from `app.json` (`#0E7490` light, `#083344` dark).
+
+### Fixed — QA polish (24 items closed across two audits)
+- WCAG colour contrast — `accent` (#009DAE → #0E7A89), `error`
+  (#EF4444 → #B91C1C), `warning` (#F59E0B → #B45309); `Colors.text.muted`
+  raised to AA-compliant ratios.
+- Cleanup of dead code: WatermelonDB orphan directory, legacy
+  `(patient)/save.tsx`, `generateMockThermalMatrix` export from
+  `ThermalMap.tsx`, residual `case "admin":` branch in `(auth)/login.tsx`.
+- `lib/profile/avatarUpload.ts` upload path corrected to
+  `profiles/${userId}/avatar.jpg` (RLS path enforcement).
+- `avatars` storage bucket flipped public so signed URLs load.
+- `useRef` cleanup for the success-message setTimeout in both profile
+  screens; deactivate flow surfaces alerts on Supabase error instead of
+  silently signing out.
+- `(clinic)/_layout.tsx` JSX attribute spacing on Tabs.Screen icons; web
+  `app/layout.tsx` file-path comment; FeedbackScreen + request-password-reset
+  back-arrow `accessibilityLabel`.
+- Web admin: native `confirm()` and `alert()` replaced with styled modals /
+  inline banners.
+
+### Schema
+- New tables: `clinic_password_reset_requests`, `support_tickets`.
+- New columns on `clinics`: `approval_status`, `approved_by`, `approved_at`,
+  `rejection_reason`.
+- `feed_mode` semantics on `thermal_captures` reframed as Raw / Enhanced
+  symmetric layout (no SQL change — existing CHECK and nullable
+  `processed_image_path` still apply).
+
 ## [0.12.0] — 2026-05-03
 
 ### Changed — DPN API integration
