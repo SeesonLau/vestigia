@@ -60,6 +60,7 @@ export default function OfflinePatientDetailsScreen() {
     leftSlot3B64, rightSlot3B64,
     leftCsvContent, rightCsvContent,
     leftStats, rightStats,
+    feedMode,
     clearBilateral,
   } = useThermalStore();
 
@@ -118,20 +119,21 @@ export default function OfflinePatientDetailsScreen() {
           height_cm:   parseFloat(form.heightCm),
         },
         {
-          raw_image_b64:       leftSlot1B64  ?? "",
-          processed_image_b64: leftSlot2B64  ?? "",
-          isolated_image_b64:  leftSlot3B64  ?? "",
+          raw_image_b64:       leftSlot1B64 ?? "",
+          processed_image_b64: leftSlot2B64,            // null when no ROI was drawn
+          isolated_image_b64:  leftSlot3B64 ?? "",
           csv_content:         leftCsvContent ?? "",
           stats:               leftStats!,
         },
         {
-          raw_image_b64:       rightSlot1B64  ?? "",
-          processed_image_b64: rightSlot2B64  ?? "",
-          isolated_image_b64:  rightSlot3B64  ?? "",
+          raw_image_b64:       rightSlot1B64 ?? "",
+          processed_image_b64: rightSlot2B64,           // null when no ROI was drawn
+          isolated_image_b64:  rightSlot3B64 ?? "",
           csv_content:         rightCsvContent ?? "",
           stats:               rightStats!,
         },
         capturedAt,
+        feedMode,
       );
       clearBilateral();
       Alert.alert(

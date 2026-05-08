@@ -1,22 +1,25 @@
 -- 2026-05-07 — Add feed_mode column + relax processed_image_path NOT NULL.
+-- 2026-05-08 — Updated docstring: slot semantics are now SYMMETRIC across
+-- feed_mode. Only the underlying matrix changes (Raw 160x120 vs Enhanced
+-- 320x240); the (full, cropped, isolated) slot shape is identical:
 --
--- Captures now ship in one of two pipeline shapes (controlled by the new
--- in-app "Feed" toggle on the capture screen):
---
---   feed_mode = 'unprocessed' (default, legacy behaviour)
---     [raw_image_path]       grayscale unprocessed render
---     [processed_image_path] palette-mapped processed image
---     [isolated_image_path]  isolated foot (background removed)
---
---   feed_mode = 'processed' (new)
---     [raw_image_path]       palette-mapped processed image, full frame
---     [processed_image_path] same processed image cropped to the framing
+--   feed_mode = 'unprocessed'  (= Raw mode)
+--     [raw_image_path]       palette full frame, native 160x120 unenhanced
+--     [processed_image_path] same palette image cropped to the framing
 --                            rectangle. NULL when no rectangle was drawn.
---     [isolated_image_path]  isolated foot (background removed)
+--     [isolated_image_path]  isolated foot, cropped to ROI when one is set
 --
--- The slot mapping in storage stays identical so existing rows render
--- correctly under the default 'unprocessed' value. The middle slot must be
--- nullable to support 'processed' captures with no ROI.
+--   feed_mode = 'processed'    (= Enhanced mode)
+--     [raw_image_path]       palette full frame, 320x240 with CLAHE +
+--                            unsharp + emissivity correction
+--     [processed_image_path] same palette image cropped to the framing
+--                            rectangle. NULL when no rectangle was drawn.
+--     [isolated_image_path]  isolated foot, cropped to ROI when one is set
+--
+-- The middle slot must be nullable in both modes to support captures with
+-- no ROI. Pre-2026-05-08 'unprocessed' rows used a different layout
+-- (grayscale slot 1, always-present palette slot 2) — those legacy rows
+-- still display in the bundle viewer but slot 1 will look grayscale.
 
 ALTER TABLE thermal_captures
   ADD COLUMN feed_mode TEXT NOT NULL DEFAULT 'unprocessed'

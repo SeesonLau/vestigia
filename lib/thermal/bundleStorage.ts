@@ -2,6 +2,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { savePngToDevice, saveCsvToDevice } from './uvcCamera'
 
+export type BundleFeedMode = 'unprocessed' | 'processed'
+
 export interface BundlePatient {
   first_name:  string
   middle_name: string
@@ -17,10 +19,10 @@ export interface FootData {
   processed_filename: string
   isolated_filename:  string
   csv_filename:       string
-  raw_image_b64:      string   // JPEG snapshot taken before processing
-  processed_image_b64:string   // palette PNG from Kotlin
-  isolated_image_b64: string   // RGBA PNG, transparent background, foot only
-  csv_content:        string   // masked CSV (background = "0.00")
+  raw_image_b64:      string         // slot 1: palette full frame (always present)
+  processed_image_b64:string | null  // slot 2: palette cropped — null when no ROI was drawn
+  isolated_image_b64: string         // slot 3: isolated foot, cropped to ROI when one is set
+  csv_content:        string         // masked CSV (background = "0.00")
   stats:              { min: number; max: number; mean: number }
 }
 
@@ -28,6 +30,9 @@ export interface ThermalBundle {
   bundle_code: string
   captured_at: string
   synced:      boolean
+  /** Mirrors the Raw / Enhanced toggle the operator used at capture time:
+   *  'unprocessed' = Raw (native 160x120), 'processed' = Enhanced (320x240). */
+  feed_mode:   BundleFeedMode
   patient:     BundlePatient
   left:        FootData
   right:       FootData
@@ -49,7 +54,7 @@ function generateBundleCode(lastName: string, capturedAt: string): string {
 
 interface FootInput {
   raw_image_b64:       string
-  processed_image_b64: string
+  processed_image_b64: string | null  // null when no ROI was drawn
   isolated_image_b64:  string
   csv_content:         string
   stats:               { min: number; max: number; mean: number }
@@ -60,6 +65,7 @@ export async function saveBundle(
   leftInput:  FootInput,
   rightInput: FootInput,
   capturedAt: string,
+  feedMode:   BundleFeedMode = 'unprocessed',
 ): Promise<ThermalBundle> {
   const bundle_code = generateBundleCode(patient.last_name, capturedAt)
   const code = bundle_code
@@ -92,6 +98,7 @@ export async function saveBundle(
     bundle_code: code,
     captured_at: capturedAt,
     synced: false,
+    feed_mode: feedMode,
     patient,
     left:  leftFoot,
     right: rightFoot,
@@ -108,12 +115,17 @@ export async function saveBundle(
   if (!index.includes(code)) index.unshift(code)
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index))
 
-  // Save images and CSV to device storage with bundle-code filenames
+  // Save images and CSV to device storage with bundle-code filenames.
+  // Skip slot 2 ("processed", cropped) writes when no ROI was drawn.
   const saves: Promise<unknown>[] = [
-    savePngToDevice(leftFoot.processed_filename,  leftInput.processed_image_b64).catch(() => {}),
+    leftInput.processed_image_b64
+      ? savePngToDevice(leftFoot.processed_filename, leftInput.processed_image_b64).catch(() => {})
+      : Promise.resolve(),
     savePngToDevice(leftFoot.isolated_filename,   leftInput.isolated_image_b64).catch(() => {}),
     saveCsvToDevice(leftFoot.csv_filename,        leftInput.csv_content).catch(() => {}),
-    savePngToDevice(rightFoot.processed_filename, rightInput.processed_image_b64).catch(() => {}),
+    rightInput.processed_image_b64
+      ? savePngToDevice(rightFoot.processed_filename, rightInput.processed_image_b64).catch(() => {})
+      : Promise.resolve(),
     savePngToDevice(rightFoot.isolated_filename,  rightInput.isolated_image_b64).catch(() => {}),
     saveCsvToDevice(rightFoot.csv_filename,       rightInput.csv_content).catch(() => {}),
   ]

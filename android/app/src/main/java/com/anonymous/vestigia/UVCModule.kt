@@ -281,8 +281,13 @@ class UVCModule(reactContext: ReactApplicationContext) :
         //  isolatedBg  "transparent" (default) or "black" for the bg fill
         //  enhanced    false (default) -> native 160x120, no enhancement.
         //              true -> bilinear upscale to 320x240 + full processing.
-        //  Capture artifacts always follow the 3-slot 'unprocessed' shape:
-        //    [1] grayscale unprocessed, [2] palette processed, [3] isolated.
+        //  Slot layout is symmetric across modes — only the input matrix differs:
+        //    [1] palette full frame   (always present)
+        //    [2] palette cropped      (null when no ROI)
+        //    [3] isolated foot, cropped to ROI when one is set
+        //  feedMode mirrors the toggle: enhanced=true -> "processed",
+        //  enhanced=false -> "unprocessed". The DB allows both values; the
+        //  bundle viewer uses feed_mode to pick "RAW" vs "ENHANCED" labels.
         val cropMap = opts?.takeIf { it.hasKey("crop") && !it.isNull("crop") }?.getMap("crop")
         val crop: CropRoi? = cropMap?.let {
             CropRoi(
@@ -296,7 +301,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
             ?.getString("isolatedBg") == "black"
         val enhanced = if (opts?.hasKey("enhanced") == true && !opts.isNull("enhanced")) opts.getBoolean("enhanced") else false
         val upscale  = enhanced
-        val feedMode = "unprocessed"
+        val feedMode = if (enhanced) "processed" else "unprocessed"
         Thread {
             try {
                 val result = processThermalFrames(frames, crop, isolatedBgBlack, upscale, feedMode)
@@ -999,29 +1004,19 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
             + (if (isolatedBgBlack) " · black bg" else ""))
 
-        // Slots [1] and [2] depend on feedMode.
-        val slot1ImageB64: String
-        val slot2ImageB64: String?
-        if (feedMode == "processed") {
-            // [1] palette processed FULL FRAME (no crop, even if ROI is set)
-            slot1ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop = null)
-            log.add("Slot1 processed PNG encoded · full frame (mode=$displayMode palette=$palette)")
-            // [2] same processed image cropped to ROI; null if no ROI
-            slot2ImageB64 = if (crop != null) {
-                val s = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
-                log.add("Slot2 processed PNG encoded · cropped to ROI")
-                s
-            } else {
-                log.add("Slot2 skipped (no ROI in processed feed mode)")
-                null
-            }
+        // Slots [1] and [2] are uniform across feedMode — only the underlying
+        // 'filtered' matrix differs (raw 160x120 when feedMode='unprocessed',
+        // enhanced 320x240 when feedMode='processed'). Slot 1 is the full
+        // frame; slot 2 is the same image cropped to the ROI, null if no ROI.
+        val slot1ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop = null)
+        log.add("Slot1 PNG encoded · full frame (feedMode=$feedMode mode=$displayMode palette=$palette)")
+        val slot2ImageB64: String? = if (crop != null) {
+            val s = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
+            log.add("Slot2 PNG encoded · cropped to ROI")
+            s
         } else {
-            // 'unprocessed' (default): legacy 3-artifact pipeline. All slots
-            // cropped to ROI when one is set.
-            slot1ImageB64 = buildUnprocessedPng(filtered, rowsW, colsW, minVal, rawRange, crop)
-            log.add("Slot1 unprocessed PNG encoded" + (if (crop != null) " · cropped to ROI" else ""))
-            slot2ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
-            log.add("Slot2 processed PNG encoded (mode=$displayMode palette=$palette)" + (if (crop != null) " · cropped to ROI" else ""))
+            log.add("Slot2 skipped (no ROI drawn)")
+            null
         }
 
         log.add("Processing complete · feedMode=$feedMode")

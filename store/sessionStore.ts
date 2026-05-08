@@ -49,11 +49,11 @@ interface ThermalState {
   fps: number
   leftMatrix: number[][] | null
   rightMatrix: number[][] | null
-  // Slot-keyed base64 PNGs. In feedMode='unprocessed' the *Slot1B64 holds the
-  // grayscale unprocessed render and *Slot2B64 holds the palette processed
-  // render. In feedMode='processed' the *Slot1B64 holds the palette processed
-  // full frame and *Slot2B64 holds the same processed image cropped to the
-  // ROI (or null when no ROI was drawn). Slot 3 is always the isolated foot.
+  // Slot-keyed base64 PNGs. Symmetric across feedMode — only the underlying
+  // matrix differs (unenhanced 160x120 vs enhanced 320x240):
+  //   *Slot1B64  = palette full frame (always present)
+  //   *Slot2B64  = palette cropped to ROI (null when no ROI was drawn)
+  //   *Slot3B64  = isolated foot, cropped to ROI when one is set
   leftSlot1B64: string | null
   rightSlot1B64: string | null
   leftSlot2B64: string | null

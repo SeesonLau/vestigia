@@ -197,13 +197,14 @@ export async function resumeCamera(): Promise<void> {
 
 // processCapture — temporal average + median filter + foot isolation + TIFF/CSV encode on a Kotlin thread.
 // Does NOT auto-save to device; call savePngToDevice / saveCsvToDevice with the final bundle filename.
-// Bundle artifacts are always 3 slots:
-//   [1] grayscale unprocessed, [2] palette processed, [3] isolated.
+// Bundle artifacts are 3 slots, symmetric across feedMode:
+//   [1] palette full frame, [2] palette cropped (null when no ROI), [3] isolated.
 
 export interface NativeProcessResult {
-  slot1ImageB64:    string         // PNG, always present
-  slot2ImageB64:    string | null  // PNG; null only when processed slot was skipped
+  slot1ImageB64:    string         // PNG, full frame, always present
+  slot2ImageB64:    string | null  // PNG, cropped to ROI; null when no ROI was drawn
   slot3ImageB64:    string         // PNG (isolated), always present
+  feedMode:         'unprocessed' | 'processed'  // mirrors the Raw/Enhanced toggle
   tiffB64:          string         // 16-bit TIFF (radiometric, Kelvin×100, native sensor res)
   csvContent:       string         // full-frame CSV (°C, 2 dp) at the working resolution
   maskedCsvContent: string         // foot-only CSV — background cells = "0.00"

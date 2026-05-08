@@ -424,15 +424,16 @@ function FootImageCard({
     return () => { cancelled = true; };
   }, [aspectSourceUri]);
 
-  // Slot labels depend on which pipeline produced the bundle.
+  // Slot 1 / 2 labels follow the Raw / Enhanced toggle that produced the
+  // bundle. feed_mode='unprocessed' (= Raw) and 'processed' (= Enhanced)
+  // share the same (full, cropped, isolated) shape; only the underlying
+  // matrix differs.
   const feedMode = foot?.feedMode ?? "unprocessed";
-  const slot1Label = feedMode === "processed" ? "POST-PROCESSED" : "UNPROCESSED";
-  const slot1Icon  = feedMode === "processed" ? "image-outline"  : "camera-outline";
-  const slot2Label = feedMode === "processed" ? "POST-PROCESSED · CROPPED" : "POST-PROCESSED";
-  // Hide the middle cell entirely if the row legitimately has no slot 2
-  // (processed feed without a ROI). For unprocessed-mode rows that simply
-  // failed to upload, fall through and let ImageCell render its placeholder.
-  const showSlot2 = !(feedMode === "processed" && !foot?.processedUri);
+  const slot1Label = feedMode === "processed" ? "ENHANCED" : "RAW";
+  const slot1Icon  = feedMode === "processed" ? "sparkles-outline" : "image-outline";
+  const slot2Label = feedMode === "processed" ? "ENHANCED · CROPPED" : "RAW · CROPPED";
+  // Slot 2 is null whenever no ROI was drawn — hide the middle cell.
+  const showSlot2 = !!foot?.processedUri;
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
       <View style={styles.footCardHeader}>

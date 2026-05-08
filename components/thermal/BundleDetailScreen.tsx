@@ -103,12 +103,12 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
         {/* Thermal images */}
         <Section title="Thermal Images" colors={colors}>
           <FootImageCard
-            label="Left Foot"  foot={bundle.left}
+            label="Left Foot"  foot={bundle.left}  feedMode={bundle.feed_mode ?? "unprocessed"}
             onViewCsv={onViewCsv ? () => onViewCsv("left")  : undefined}
             colors={colors}
           />
           <FootImageCard
-            label="Right Foot" foot={bundle.right}
+            label="Right Foot" foot={bundle.right} feedMode={bundle.feed_mode ?? "unprocessed"}
             onViewCsv={onViewCsv ? () => onViewCsv("right") : undefined}
             colors={colors}
           />
@@ -161,15 +161,23 @@ function InfoCell({ label, value, colors }: { label: string; value: string; colo
 }
 
 function FootImageCard({
-  label, foot, onViewCsv, colors,
+  label, foot, feedMode, onViewCsv, colors,
 }: {
   label: string
   foot: ThermalBundle["left"]
+  feedMode: "unprocessed" | "processed"
   onViewCsv?: () => void
   colors: ThemeColors
 }) {
   const hasRaw      = !!foot.raw_image_b64
   const hasIsolated = !!foot.isolated_image_b64
+  const hasCropped  = !!foot.processed_image_b64
+
+  // Slot 1 / 2 labels mirror the Raw / Enhanced toggle the operator used.
+  // 'unprocessed' = Raw, 'processed' = Enhanced. Slot 2 hides when the
+  // operator captured without drawing a framing rectangle.
+  const slot1Label = feedMode === "processed" ? "ENHANCED" : "RAW"
+  const slot2Label = feedMode === "processed" ? "ENHANCED · CROPPED" : "RAW · CROPPED"
 
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
@@ -187,32 +195,34 @@ function FootImageCard({
         )}
       </View>
 
-      {/* Three images: Unprocessed | Post-Processed | Isolated */}
+      {/* Three images: full | cropped (or hidden) | isolated */}
       <View style={styles.imageRow}>
         <View style={styles.imageCell}>
-          <Text style={[styles.imageLabel, { color: colors.textSec }]}>UNPROCESSED</Text>
+          <Text style={[styles.imageLabel, { color: colors.textSec }]}>{slot1Label}</Text>
           {hasRaw ? (
             <ZoomableImage
-              uri={"data:image/jpeg;base64," + foot.raw_image_b64}
+              uri={"data:image/png;base64," + foot.raw_image_b64}
               style={[styles.footImage, { borderColor: colors.border }]}
               resizeMode="contain"
               fadeDuration={0}
             />
           ) : (
             <View style={[styles.footImage, styles.noImage, { borderColor: colors.border, backgroundColor: colors.surface }]}>
-              <Ionicons name="camera-outline" size={16} color={colors.border} />
+              <Ionicons name="image-outline" size={16} color={colors.border} />
             </View>
           )}
         </View>
-        <View style={styles.imageCell}>
-          <Text style={[styles.imageLabel, { color: colors.textSec }]}>POST-PROCESSED</Text>
-          <ZoomableImage
-            uri={"data:image/png;base64," + foot.processed_image_b64}
-            style={[styles.footImage, { borderColor: colors.border }]}
-            resizeMode="contain"
-            fadeDuration={0}
-          />
-        </View>
+        {hasCropped ? (
+          <View style={styles.imageCell}>
+            <Text style={[styles.imageLabel, { color: colors.textSec }]}>{slot2Label}</Text>
+            <ZoomableImage
+              uri={"data:image/png;base64," + foot.processed_image_b64}
+              style={[styles.footImage, { borderColor: colors.border }]}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
+          </View>
+        ) : null}
         <View style={styles.imageCell}>
           <Text style={[styles.imageLabel, { color: colors.textSec }]}>ISOLATED</Text>
           {hasIsolated ? (
