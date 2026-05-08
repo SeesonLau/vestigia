@@ -1115,32 +1115,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         return dst
     }
 
-    // ── Unprocessed PNG (grayscale, no palette, no isolation) ─────────────────
-    /**
-     * Encode a grayscale PNG from the (already-upscaled) filtered float
-     * matrix using the same min/range normalisation as the "raw" display
-     * mode. Produces the bundle's "unprocessed" artifact — what the sensor
-     * sees, with zero interpretive layers applied.
-     */
-    private fun buildUnprocessedPng(
-        filtered: FloatArray, rows: Int, cols: Int,
-        minVal: Float, range: Float,
-        crop: CropRoi?,
-    ): String {
-        val pixels = IntArray(rows * cols)
-        for (i in 0 until rows * cols) {
-            val v = (((filtered[i] - minVal) / range).coerceIn(0f, 1f) * 255).toInt()
-            pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-        }
-        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
-        val outBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
-        val out = ByteArrayOutputStream()
-        outBmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-        outBmp.recycle()
-        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-    }
-
     // ── Foot isolation ────────────────────────────────────────────────────────
 
     /**

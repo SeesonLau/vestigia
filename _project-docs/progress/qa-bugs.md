@@ -1,7 +1,9 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
+**Last verified:** 2026-05-08 (post-pipeline-collapse audit @ `main 50f0489`)
 
-Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gating overhaul — clinic signup now requires admin approval before login (`clinics.approval_status` + RLS-fenced trigger); admin-mediated password-reset queue (`clinic_password_reset_requests` + `submit_password_reset_request` RPC + `admin-set-clinic-password` Edge Function with service-role-only password update); support tickets table + `submit_support_ticket` RPC + per-role Settings entries; new mobile screens (`clinic-pending-approval`, `forgot-password` patient/clinic split, in-Settings `request-password-reset`, shared `FeedbackScreen` rendered by both `(clinic)/feedback` and `(patient)/feedback`); new admin Next.js web console under `web/` (login, dashboard, clinics queue, password-reset queue, ticket inbox) with `useAdminSession` hook + typed RPC wrappers + Edge-Function-backed Set Password modal; LumenAI logo + thermal background motif (cool teal blob, warm amber/rose blob, isotherm rings, plantar-foot silhouettes) applied across the admin web app; create-next-app boilerplate dropped (root `/` now redirects to `/admin`).
+Changes since the earlier 2026-05-08 audit at `main eac6ed3`: regenerated Android launcher icons from `app.json` (the create-expo-app default blue triangle was still baked into `mipmap-*/ic_launcher*.webp`; prebuild now emits the LumenAI pulse mark); splash colours pulled from `app.json` (`#0E7490` light, `#083344` dark); symmetric 3-slot capture pipeline driven by the user-facing Raw/Enhanced toggle — both modes produce (palette full frame, palette cropped or null, isolated cropped to ROI) and only the underlying matrix differs. Native `processCapture` derives `feedMode` from the `enhanced` flag, the divergent `unprocessed`/`processed` branches in `processThermalFrames` are collapsed to one uniform path, the TS bridge passes the value through instead of hardcoding, and the bundle viewers (online + offline) now show RAW / RAW · CROPPED / ISOLATED or ENHANCED / ENHANCED · CROPPED / ISOLATED. Offline `ThermalBundle` persists `feed_mode` and `FootData.processed_image_b64` is now nullable.
+
+Earlier 2026-05-08 changes (still in scope): admin-gating overhaul — clinic signup now requires admin approval before login (`clinics.approval_status` + RLS-fenced trigger); admin-mediated password-reset queue (`clinic_password_reset_requests` + `submit_password_reset_request` RPC + `admin-set-clinic-password` Edge Function with service-role-only password update); support tickets table + `submit_support_ticket` RPC + per-role Settings entries; new mobile screens (`clinic-pending-approval`, `forgot-password` patient/clinic split, in-Settings `request-password-reset`, shared `FeedbackScreen` rendered by both `(clinic)/feedback` and `(patient)/feedback`); new admin Next.js web console under `web/` (login, dashboard, clinics queue, password-reset queue, ticket inbox) with `useAdminSession` hook + typed RPC wrappers + Edge-Function-backed Set Password modal; LumenAI logo + thermal background motif applied across the admin web app; create-next-app boilerplate dropped.
 
 ---
 
@@ -33,6 +35,7 @@ Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gatin
 | ~~CODE-22~~ | `app/(clinic)/_layout.tsx` | 59, 68, 86 | JSX attribute spacing fixed — added a space between `icon="..."` and `focused={focused}` on all three Tabs.Screen tabBarIcon usages. | Low | ✅ Fixed 2026-05-08 |
 | ~~CODE-23~~ | `web/app/layout.tsx` | 1 | Added `// web/app/layout.tsx` file-path comment on line 1. | Low | ✅ Fixed 2026-05-08 |
 | ~~CODE-24~~ | `components/feedback/FeedbackScreen.tsx` | 91 | Dropped the dead `cancelled` local + cleanup; left a comment explaining why the trailing `.catch(() => {})` exists (it silences the floating promise inside `useFocusEffect`; the actual error is captured into `loadError` state by `refreshList`). | Low | ✅ Fixed 2026-05-08 |
+| ~~CODE-25~~ | `android/app/src/main/java/com/anonymous/vestigia/UVCModule.kt` | 1125 | Deleted the dead `buildUnprocessedPng` private fn + its docstring. Slot 1 is now always rendered via `buildProcessedPng(crop=null)` so the unused grayscale encoder is gone. `compileReleaseKotlin` clean in 15s. | Low | ✅ Fixed 2026-05-08 |
 
 ---
 
@@ -192,6 +195,7 @@ Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gatin
 | ~~DB-05~~ | `supabase/migrations/20260507120000_add_feed_mode_to_thermal_captures.sql` | — | Added `feed_mode TEXT NOT NULL DEFAULT 'unprocessed'` + relaxed `processed_image_path` NOT NULL so the new 3-slot pipeline can store rows where slot 2 is null | — | ✅ Applied 2026-05-07 |
 | ~~DB-06~~ | `supabase/migrations/20260507130000_avatars_bucket_public.sql` | — | Flip `avatars` bucket public | — | ✅ Applied 2026-05-07 |
 | ~~DB-07~~ | `supabase/migrations/20260508_admin_gating_and_tickets.sql` | — | New: `clinics.approval_status` (+ `approved_by` / `approved_at` / `rejection_reason`); `clinic_password_reset_requests` + RLS; `support_tickets` + RLS; RPCs `submit_password_reset_request`, `submit_support_ticket`, `admin_approve_clinic`, `admin_reject_clinic`, `admin_resolve_ticket`. Existing clinics back-filled to `approval_status='approved'`. Trigger `clinics_block_non_admin_approval_change` fences the new admin-only columns from non-admin updates. | — | ✅ Applied 2026-05-07 |
+| ~~DB-08~~ | `supabase/migrations/20260507120000_add_feed_mode_to_thermal_captures.sql` | — | Docstring rewritten to describe the new symmetric semantics of `feed_mode`: 'unprocessed' = Raw mode, 'processed' = Enhanced mode; both produce (full, cropped or null, isolated). No SQL change — the existing CHECK constraint and nullable `processed_image_path` are still correct. | — | ✅ Updated 2026-05-08 |
 
 ---
 
@@ -205,6 +209,8 @@ Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gatin
 | ~~ISO-04~~ | `UVCModule.kt` | Variance guardrail empirical | Low | ✅ Resolved 2026-05-07 — superseded by ROI moat sampler + one-sided threshold |
 | ~~ISO-05~~ | `UVCModule.kt` | Internal "donut" hole inside warm foot remained even after closing morph | High | ✅ Fixed 2026-05-07 — new `fillHoles()` helper does 4-connect BFS from frame border on the inverse mask |
 | ~~ISO-06~~ | `UVCModule.kt` | When the foot extended past the framing rectangle, `bgMedian` over the entire outside region was pulled toward the foot's own temperature; threshold ballooned and most of the foot fell below it | High | ✅ Fixed 2026-05-07 — moat sampler reads only the thin ring outside the ROI |
+| ~~ISO-07~~ | `UVCModule.kt`, `lib/thermal/captureProcessor.ts`, `lib/thermal/uvcCamera.ts`, `lib/thermal/bundleStorage.ts`, `app/(offline)/patient-details.tsx`, `components/thermal/OnlineBundleDetailScreen.tsx`, `components/thermal/BundleDetailScreen.tsx` | Symmetric 3-slot pipeline: `processCapture` derives `feedMode` from the `enhanced` flag; `processThermalFrames`'s divergent branches collapsed into one uniform path producing slot 1 = palette full, slot 2 = palette cropped (null when no ROI), slot 3 = isolated cropped. Bundle viewers (online + offline) read `feed_mode` and render RAW/ENHANCED labels. Offline `ThermalBundle` now persists `feed_mode`; `FootData.processed_image_b64` is nullable. | — | ✅ Applied 2026-05-08 |
+| ~~ISO-08~~ | `android/app/src/main/res/mipmap-*/ic_launcher*.webp`, `android/app/src/main/res/values/colors.xml`, `values-night/colors.xml` | Re-ran `npx expo prebuild --platform android --no-install` to regenerate the 25 baked-in launcher webp files (5 sizes × 5 variants) from the LumenAI adaptive-icon paths in `app.json` — the create-expo-app default blue triangle was sticking around because prebuild had not been re-run since the brand assets were swapped. Splash colours `splashscreen_background` (light/dark) also picked up the teal values from app.json. UVCModule.kt and the rest of the java source were untouched. | — | ✅ Applied 2026-05-08 |
 
 ---
 
@@ -212,7 +218,7 @@ Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gatin
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 24 | 1 | 22 | 1 (CODE-17 by design) |
+| Code Quality | 25 | 1 | 23 | 1 (CODE-17 by design) |
 | UI / UX | 26 | 0 | 26 | 0 |
 | Supabase / Data | 17 | 0 | 15 | 2 (GAP-08) |
 | Performance | 13 | 0 | 13 | 0 |
@@ -220,11 +226,11 @@ Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gatin
 | Security | 6 | 0 | 6 | 0 |
 | Navigation | 7 | 1 | 6 | 0 (NAV-01 by design) |
 | Auth | 17 | 0 | 17 | 0 |
-| Schema / DB | 12 | 0 | 11 | 1 (DB-04) |
-| Thermal Isolation | 6 | 0 | 6 | 0 |
-| **Total** | **139** | **2** | **133** | **4** |
+| Schema / DB | 13 | 0 | 12 | 1 (DB-04) |
+| Thermal Isolation | 8 | 0 | 8 | 0 |
+| **Total** | **143** | **2** | **137** | **4** |
 
-**Overall QA status:** All seven new findings from this sweep (CODE-22..24, UX-20..21, A11Y-10..11) closed in the same session — 133 of 139 actionable items now fixed. The 2 remaining "Open" rows are by design (CODE-17 — three Zustand stores grouped in `store/sessionStore.ts`; NAV-01 — `(clinic)/assessment.tsx` has no back arrow on the wait-for-inference screen).
+**Overall QA status:** CODE-25 (the lone new finding from this sweep) closed in the same session; the symmetric pipeline change (ISO-07) and launcher-icon regen (ISO-08) are recorded as resolved. 137 of 143 actionable items now fixed. The 2 remaining "Open" rows are by design (CODE-17 — three Zustand stores grouped in `store/sessionStore.ts`; NAV-01 — `(clinic)/assessment.tsx` has no back arrow on the wait-for-inference screen).
 
 The 4 deferred rows depend on external work:
 - **GAP-08** — per-angiosome spatial overlay; deferred until the DPN API exposes per-region coordinates.
