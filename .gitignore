@@ -47,3 +47,6 @@ app-example
 # /android — removed from gitignore: project now uses bare workflow with custom native UVC modules
 .claude/worktrees/sharp-babbage/
 .claude/worktrees/cranky-raman/
+
+# GitHub release tooling — local notes + scripts, not source of truth
+.releases/

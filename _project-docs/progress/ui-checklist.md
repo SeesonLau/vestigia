@@ -1,5 +1,5 @@
 # UI Screens Checklist
-**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
+**Last verified:** 2026-05-08 (post-pipeline-collapse audit @ `main 50f0489`)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Stub/mock only | N/A not applicable to this screen
 
@@ -23,13 +23,13 @@ Legend: ✅ Done | 🔄 Partial | ❌ Stub/mock only | N/A not applicable to thi
 |---|---|---|---|---|---|---|---|---|
 | UI-02 | Mode Select | `app/mode-select.tsx` | ✅ | ✅ | N/A | N/A | N/A | Online → login; Offline → offline live-feed |
 | UI-03 | Clinic Home | `(clinic)/index.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Profile hero + Today/This Month/All filter + counts strip + SessionCard list. Pulls clinic name + sessions via `useFocusEffect` |
-| UI-04 | Live Thermal Capture | `(clinic)/live-feed.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Bilateral capture; Raw vs Enhanced single toggle; crosshair overlays bounded to ROI; emissivity-corrected pipeline; live UVC over PureThermal |
+| UI-04 | Live Thermal Capture | `(clinic)/live-feed.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Bilateral capture; Raw vs Enhanced toggle now produces a symmetric 3-slot bundle: slot 1 palette full frame, slot 2 palette cropped (null when no ROI), slot 3 isolated; crosshair overlays bounded to ROI; emissivity-corrected pipeline; live UVC over PureThermal |
 | UI-05 | Patient Details (post-capture) | `components/thermal/PatientDetailsScreen.tsx` (rendered by `(clinic)/patient-details.tsx`) | ✅ | ✅ | ✅ | ✅ | N/A | Full patient form; uploads slot1/slot2/slot3 PNGs + masked CSV via `feed_mode` column |
 | UI-06 | Clinical Data | `(clinic)/clinical-data.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Vitals + angiosomes; inserts session, captures, vitals; null-safe slot 2 |
 | UI-07 | AI Assessment | `(clinic)/assessment.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Real `dpnApi.scanPatient()`; server-waking retry; breathing progress |
 | UI-08 | Assess Bundle | `(clinic)/assess-bundle.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Reads thermal_captures + signed URLs; falls back to `raw_image_path` when slot 2 null in `processed` feed mode |
 | UI-09 | DPN Result | `(clinic)/dpn-result.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Compact verdict + slim foot/asymmetry cards + colour-pilled angiosome map |
-| UI-10 | Bundle Detail (online) | `components/thermal/OnlineBundleDetailScreen.tsx` (rendered by `(clinic)/bundle-detail.tsx`, `(patient)/bundle-detail.tsx`) | ✅ | ✅ | ✅ | ✅ | N/A | `feed_mode` switches slot labels; circular avatar in header; UUID early-return guard |
+| UI-10 | Bundle Detail (online) | `components/thermal/OnlineBundleDetailScreen.tsx` (rendered by `(clinic)/bundle-detail.tsx`, `(patient)/bundle-detail.tsx`) | ✅ | ✅ | ✅ | ✅ | N/A | `feed_mode` drives RAW / RAW · CROPPED / ISOLATED  vs  ENHANCED / ENHANCED · CROPPED / ISOLATED labels. Slot 2 hides whenever `processedUri` is null (no ROI). Circular avatar in header; UUID early-return guard |
 | UI-11 | Session History | `(clinic)/history.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | SessionCard list; PostgREST join normalised |
 | UI-12 | Manage Patients | `(clinic)/manage-patients.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | Clinic-access relationships; revoke RPC |
 | UI-13 | Patient Select | `(clinic)/patient-select.tsx` | ✅ | ✅ | ✅ | ✅ | ✅ | `find_patient_by_code` RPC |
@@ -65,9 +65,9 @@ Legend: ✅ Done | 🔄 Partial | ❌ Stub/mock only | N/A not applicable to thi
 | ID | Screen | File | Built | Real Data | Loading | Error State | Empty State | Notes |
 |---|---|---|---|---|---|---|---|---|
 | UI-33 | Live Thermal (offline) | `(offline)/live-feed.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Same shared `ThermalLiveFeedScreen` |
-| UI-34 | Patient Details (offline) | `(offline)/patient-details.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Real form (commit-4); uses `bundleStorage.saveBundle`; date validation fixed 2026-05-07 |
+| UI-34 | Patient Details (offline) | `(offline)/patient-details.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Real form; uses `bundleStorage.saveBundle`; now threads `feedMode` from the thermal store and passes slot 2 verbatim (null propagates when no ROI was drawn) |
 | UI-35 | Saved Bundles | `(offline)/history.tsx` | ✅ | ✅ | ✅ | N/A | ✅ | Reads `getAllBundles()` |
-| UI-36 | Bundle Detail (offline) | `(offline)/bundle-detail.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | `BundleDetailScreen` against `getBundleByCode()` |
+| UI-36 | Bundle Detail (offline) | `(offline)/bundle-detail.tsx` → `components/thermal/BundleDetailScreen.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | Reads `bundle.feed_mode` for the RAW/ENHANCED label switch; slot 2 conditionally rendered based on `processed_image_b64` (null when no ROI). Loaded via `getBundleByCode()` |
 | UI-37 | CSV Viewer (offline) | `(offline)/csv-viewer.tsx` | ✅ | ✅ | ✅ | ✅ | N/A | |
 
 ## Other (mobile)

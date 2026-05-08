@@ -1,5 +1,5 @@
 # Functional Requirements Checklist
-**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
+**Last verified:** 2026-05-08 (post-pipeline-collapse audit @ `main 50f0489`)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
@@ -37,7 +37,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-301 | Thermal Data Reception | High | ✅ | UVC live with full enhancement pipeline; WiFi path stubbed for ESP32 hardware |
 | FR-302 | Real-Time Thermal Map Rendering | High | ✅ | Live preview at native or upscaled scale; Medical default palette |
 | FR-303 | Temperature Annotation Display | Medium | ✅ | On-screen Hot / Cold / All-3 crosshair overlays bounded to ROI |
-| FR-304 | Thermal Image Capture | High | ✅ | Bilateral two-step; 3-slot bundle artifacts (slot1 unprocessed, slot2 processed, slot3 isolated); `feed_mode` column |
+| FR-304 | Thermal Image Capture | High | ✅ | Bilateral two-step; symmetric 3-slot bundle (slot 1 palette full, slot 2 palette cropped or null, slot 3 isolated cropped); `feed_mode` mirrors the Raw/Enhanced toggle ('unprocessed' = Raw, 'processed' = Enhanced) |
 | FR-305 | Bilateral Foot Positioning Guidance | Medium | ✅ | `FootFrameOverlay` draggable rectangle; ROI doubles as crosshair scan bound |
 | FR-306 | Radiometric Correction | Medium | ✅ | Emissivity (skin ε ≈ 0.98) + reflected-temperature correction applied per-pixel; persisted per-device via `lib/thermal/measurementParams.ts`; paged settings sheet |
 | FR-307 | Foot Isolation | High | ✅ | Median + (optional) upscale + Otsu / ROI-aware thresholding + closing + largest-component + hole-fill (`fillHoles()` flood from border on inverse mask) + opening. Moat-based bg sampler hardened against subjects extending past the ROI box |
@@ -68,7 +68,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-506 | Thermal Preprocessing | High | ✅ | Native Kotlin pipeline at capture time |
 | FR-507 | File Import Substitute | Medium | ✅ | CSV + image import on clinic / patient / offline |
 | FR-508 | Preliminary Risk Scoring | High | ✅ | Asymmetry threshold 2.2 °C inter-foot + 1.0 °C pixel-level (matches Lavery/Hernandez-Contreras literature) |
-| FR-509 | Capture Mode Selection | Medium | ✅ | Single Raw / Enhanced toggle replaces the previous Scale + Feed two-toggle setup; default Raw |
+| FR-509 | Capture Mode Selection | Medium | ✅ | Single Raw / Enhanced toggle. As of 2026-05-08 the toggle drives a symmetric 3-slot pipeline (slot 1 full, slot 2 cropped or null, slot 3 isolated) — only the underlying matrix differs (160×120 unenhanced vs 320×240 enhanced). Default Raw |
 | FR-510 | Domain Shift Awareness | Medium | 🔄 | DPN API was trained on FLIR E60; we capture with Lepton 3.5. Known cause of "everything = positive" verdicts. Mitigation candidates documented in repo notes; not yet implemented |
 
 ---

@@ -1,5 +1,5 @@
 # Data Layer Checklist
-**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
+**Last verified:** 2026-05-08 (post-pipeline-collapse audit @ `main 50f0489`)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 
@@ -14,7 +14,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Issue found
 | `patients` | ✅ | ✅ | ✅ | |
 | `devices` | ✅ | ✅ | ✅ | |
 | `screening_sessions` | ✅ | ✅ | ✅ | |
-| `thermal_captures` | ✅ | ✅ | ✅ | `feed_mode TEXT NOT NULL DEFAULT 'unprocessed'`; `processed_image_path` nullable for the 3-slot pipeline |
+| `thermal_captures` | ✅ | ✅ | ✅ | `feed_mode TEXT NOT NULL DEFAULT 'unprocessed'`; `processed_image_path` nullable. As of 2026-05-08 `feed_mode` mirrors the Raw/Enhanced toggle: 'unprocessed' = Raw (160×120), 'processed' = Enhanced (320×240). Both modes share the symmetric (full, cropped or null, isolated) slot shape |
 | `patient_vitals` | ✅ | ✅ | ✅ | |
 | `classification_results` | ✅ | ✅ | ✅ | |
 | `system_config` | ✅ | ✅ | ✅ | Admin-only RLS |
