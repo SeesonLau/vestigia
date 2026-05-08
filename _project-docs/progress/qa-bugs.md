@@ -1,7 +1,7 @@
 # QA Report — Bugs & Issues
-**Last verified:** 2026-05-07 (full-codebase QA audit @ `main 0414e79`)
+**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
 
-Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline overhaul (3×3 median + adaptive EMA + CLAHE + 320×240 upscale + unsharp), Raw vs Enhanced single-mode toggle, on-screen crosshair overlays (Hot/Cold/All-3) bounded to the framing rectangle, emissivity + reflected-temperature radiometric correction with persisted per-device parameters, light mode default + palette catalog trimmed to 4 (Medical default), DPN result screen redesign, clinic + patient home redesigns with profile hero + Today/Month/All session list, settings cleanup (Thermal Preview / Register USB / Coming-Soon rows removed), avatar upload pipeline (RLS path fix + bucket public + native File.arrayBuffer reader), themed photo picker + custom in-app cropper with safe-area padding + circular SVG mask, foot isolation refined (hole fill + moat-based bg sampler + one-sided threshold + largest-component selection), bundle-detail UUID guard + param naming fix, offline guest flow completed (`(offline)/patient-details` rebuilt as a real form), date-input validation fix.
+Major changes since the previous audit (2026-05-07, `main 0414e79`): admin-gating overhaul — clinic signup now requires admin approval before login (`clinics.approval_status` + RLS-fenced trigger); admin-mediated password-reset queue (`clinic_password_reset_requests` + `submit_password_reset_request` RPC + `admin-set-clinic-password` Edge Function with service-role-only password update); support tickets table + `submit_support_ticket` RPC + per-role Settings entries; new mobile screens (`clinic-pending-approval`, `forgot-password` patient/clinic split, in-Settings `request-password-reset`, shared `FeedbackScreen` rendered by both `(clinic)/feedback` and `(patient)/feedback`); new admin Next.js web console under `web/` (login, dashboard, clinics queue, password-reset queue, ticket inbox) with `useAdminSession` hook + typed RPC wrappers + Edge-Function-backed Set Password modal; LumenAI logo + thermal background motif (cool teal blob, warm amber/rose blob, isotherm rings, plantar-foot silhouettes) applied across the admin web app; create-next-app boilerplate dropped (root `/` now redirects to `/admin`).
 
 ---
 
@@ -30,6 +30,9 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~CODE-19~~ | `app/(auth)/login.tsx` | 52 | Dead `/(admin)` switch branch removed; only clinic and patient cases remain | Medium | ✅ Fixed 2026-05-07 |
 | ~~CODE-20~~ | `lib/database/` | — | Orphan WatermelonDB directory deleted; `@nozbe/watermelondb` was never tracked in `package.json` so stale `node_modules` entries will sweep on the next `npm install` | Low | ✅ Fixed 2026-05-07 |
 | ~~CODE-21~~ | `components/thermal/ThermalMap.tsx` | 101 | Removed unused `generateMockThermalMatrix` export | Low | ✅ Fixed 2026-05-07 |
+| ~~CODE-22~~ | `app/(clinic)/_layout.tsx` | 59, 68, 86 | JSX attribute spacing fixed — added a space between `icon="..."` and `focused={focused}` on all three Tabs.Screen tabBarIcon usages. | Low | ✅ Fixed 2026-05-08 |
+| ~~CODE-23~~ | `web/app/layout.tsx` | 1 | Added `// web/app/layout.tsx` file-path comment on line 1. | Low | ✅ Fixed 2026-05-08 |
+| ~~CODE-24~~ | `components/feedback/FeedbackScreen.tsx` | 91 | Dropped the dead `cancelled` local + cleanup; left a comment explaining why the trailing `.catch(() => {})` exists (it silences the floating promise inside `useFocusEffect`; the actual error is captured into `loadError` state by `refreshList`). | Low | ✅ Fixed 2026-05-08 |
 
 ---
 
@@ -61,6 +64,8 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~BUG-06~~ | session detail / assessment / patient index | 22 | `THUMB_H` aspect ratio wrong | Low | ✅ Fixed 2026-04-06 |
 | ~~UX-18~~ | `app/(patient)/save.tsx` | — | Orphan route deleted; `(patient)/_layout.tsx` `Tabs.Screen name="save"` entry removed | Low | ✅ Fixed 2026-05-07 |
 | ~~UX-19~~ | `components/thermal/FootAngiosomeDiagram.tsx` | — | Dropped unused `asymmetry?` prop and the `AsymmetryResult` import; updated the call site in `DpnResultView.tsx` | Low | ✅ Fixed 2026-05-07 |
+| ~~UX-20~~ | `web/app/admin/clinics/page.tsx` | 57 | Replaced native `confirm()` with a styled Approve confirmation modal mirroring the Reject one (cancel + Approve buttons, inline error). Reject modal also moved off `alert()` for the "Reason is required" check — error renders inline now. | Low | ✅ Fixed 2026-05-08 |
+| ~~UX-21~~ | `web/app/admin/password-resets/page.tsx` | 85 | Replaced native `alert()` with an inline dismissible success banner above the queue: "Password updated for {facility}. Communicate the new password to {operator}…" — admin can dismiss with × or it stays until the next action. | Low | ✅ Fixed 2026-05-08 |
 
 ---
 
@@ -116,6 +121,8 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~A11Y-07~~ | `constants/theme.ts` | 120 | Dark `accent` `#26C6DA` → `#0E7A89`. White text now 5.06 : 1 (was 2.04 : 1) | High | ✅ Fixed 2026-05-07 |
 | ~~A11Y-08~~ | `constants/theme.ts` | 92 | `warning` `#F59E0B` → `#B45309`. On white now 5.03 : 1 (was 2.14 : 1) | High | ✅ Fixed 2026-05-07 |
 | ~~A11Y-09~~ | `constants/theme.ts` | 91 | `error` `#EF4444` → `#B91C1C`. On white now 6.46 : 1 (was 3.76 : 1) | Medium | ✅ Fixed 2026-05-07 |
+| ~~A11Y-10~~ | `app/(clinic)/request-password-reset.tsx` | 56 | Added `accessibilityLabel="Back"` + `accessibilityRole="button"` to the header back-arrow `TouchableOpacity`. | Low | ✅ Fixed 2026-05-08 |
+| ~~A11Y-11~~ | `components/feedback/FeedbackScreen.tsx` | 140 | Same fix on the shared feedback screen — fixes both clinic and patient feedback routes. | Low | ✅ Fixed 2026-05-08 |
 
 ---
 
@@ -128,6 +135,7 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~SEC-03~~ | `app/(clinic)/clinical-data.tsx` | 76–106 | HR + HbA1c no range validation | Medium | ✅ Fixed 2026-03-21 |
 | ~~SEC-04~~ | `lib/profile/avatarUpload.ts` | 60 | Avatar upload writes to `<userId>/avatar.jpg` but `avatars_write` RLS policy required `profiles/<auth.uid()>/...` — every upload was rejected | Medium | ✅ Fixed 2026-05-07 (path now `profiles/${userId}/avatar.jpg`) |
 | ~~SEC-05~~ | `supabase/migrations/20260507130000_avatars_bucket_public.sql` | — | `avatars` bucket was private → `getPublicUrl()` returned a URL that could not load. Bucket flipped to public; RLS still gates writes | Low | ✅ Fixed 2026-05-07 |
+| SEC-06 | `supabase/functions/admin-set-clinic-password/index.ts` | — | Verified end-to-end — caller JWT validated via `auth.getUser()`; admin role checked via service-role read of `profiles.role` BEFORE any privileged action; UUIDs validated; password length enforced (≥ 8); `clinic_profile_id` of the request row must match the body's `profile_id`; pending-only state guard prevents double-resolution; password update + row stamp are sequenced so a stamp failure does not leave the password un-changed. CORS wildcard is intentional (admin web may be deployed at multiple origins). | — | ✅ Verified 2026-05-08 |
 
 ---
 
@@ -164,6 +172,7 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~AUTH-13~~ | `authStore.ts` | `onAuthStateChange` subscription leaked | ✅ Fixed 2026-03-20 |
 | ~~AUTH-14~~ | `authStore.ts` | `pendingClinicId` for all roles; `logout()` missing try-finally | ✅ Fixed 2026-03-20 |
 | ~~AUTH-15~~ | `authStore.ts` | `PGRST116` not mapped to friendly error | ✅ Fixed 2026-03-20 |
+| ~~AUTH-16~~ | `store/authStore.ts` | Clinic-approval gate added — `login()` now reads `clinics.approval_status` for the clinic owner; `pending` and `rejected` clinics are signed out with a clear message; auto-sign-in removed from `registerClinic()` so freshly registered clinics land on `clinic-pending-approval` instead | ✅ Fixed 2026-05-07 |
 | ~~BUG-04~~ | `app/_layout.tsx` | No inactivity timeout | ✅ Fixed 2026-03-21 |
 
 ---
@@ -182,6 +191,7 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 | ~~HW-01~~ | `android/.../UVCModule.kt` | — | Stubbed UVC module | High | ✅ Fixed 2026-04-08 |
 | ~~DB-05~~ | `supabase/migrations/20260507120000_add_feed_mode_to_thermal_captures.sql` | — | Added `feed_mode TEXT NOT NULL DEFAULT 'unprocessed'` + relaxed `processed_image_path` NOT NULL so the new 3-slot pipeline can store rows where slot 2 is null | — | ✅ Applied 2026-05-07 |
 | ~~DB-06~~ | `supabase/migrations/20260507130000_avatars_bucket_public.sql` | — | Flip `avatars` bucket public | — | ✅ Applied 2026-05-07 |
+| ~~DB-07~~ | `supabase/migrations/20260508_admin_gating_and_tickets.sql` | — | New: `clinics.approval_status` (+ `approved_by` / `approved_at` / `rejection_reason`); `clinic_password_reset_requests` + RLS; `support_tickets` + RLS; RPCs `submit_password_reset_request`, `submit_support_ticket`, `admin_approve_clinic`, `admin_reject_clinic`, `admin_resolve_ticket`. Existing clinics back-filled to `approval_status='approved'`. Trigger `clinics_block_non_admin_approval_change` fences the new admin-only columns from non-admin updates. | — | ✅ Applied 2026-05-07 |
 
 ---
 
@@ -202,22 +212,19 @@ Major changes since the previous audit (v0.9.1, 2026-04-07): thermal pipeline ov
 
 | Area | Total | Open | Fixed | Deferred |
 |---|---|---|---|---|
-| Code Quality | 21 | 1 | 19 | 1 (CODE-17 by design) |
-| UI / UX | 24 | 0 | 24 | 0 |
+| Code Quality | 24 | 1 | 22 | 1 (CODE-17 by design) |
+| UI / UX | 26 | 0 | 26 | 0 |
 | Supabase / Data | 17 | 0 | 15 | 2 (GAP-08) |
 | Performance | 13 | 0 | 13 | 0 |
-| Accessibility | 9 | 0 | 9 | 0 |
-| Security | 5 | 0 | 5 | 0 |
+| Accessibility | 11 | 0 | 11 | 0 |
+| Security | 6 | 0 | 6 | 0 |
 | Navigation | 7 | 1 | 6 | 0 (NAV-01 by design) |
-| Auth | 16 | 0 | 16 | 0 |
-| Schema / DB | 11 | 0 | 10 | 1 (DB-04) |
+| Auth | 17 | 0 | 17 | 0 |
+| Schema / DB | 12 | 0 | 11 | 1 (DB-04) |
 | Thermal Isolation | 6 | 0 | 6 | 0 |
-| **Total** | **129** | **2** | **123** | **4** |
+| **Total** | **139** | **2** | **133** | **4** |
 
-**Overall QA status:** All actionable items closed in this sweep — 123 fixed of 129.
-The 2 remaining "Open" rows are by design:
-- **CODE-17** — three Zustand stores grouped in `store/sessionStore.ts` for convenience (the `// store/...Store.ts` comments label them as separate files).
-- **NAV-01** — `(clinic)/assessment.tsx` has no back button on purpose; the screen is a one-way "wait for inference" surface.
+**Overall QA status:** All seven new findings from this sweep (CODE-22..24, UX-20..21, A11Y-10..11) closed in the same session — 133 of 139 actionable items now fixed. The 2 remaining "Open" rows are by design (CODE-17 — three Zustand stores grouped in `store/sessionStore.ts`; NAV-01 — `(clinic)/assessment.tsx` has no back arrow on the wait-for-inference screen).
 
 The 4 deferred rows depend on external work:
 - **GAP-08** — per-angiosome spatial overlay; deferred until the DPN API exposes per-region coordinates.

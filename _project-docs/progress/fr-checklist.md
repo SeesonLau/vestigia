@@ -1,5 +1,5 @@
 # Functional Requirements Checklist
-**Last verified:** 2026-05-07 (full-codebase QA audit @ `main 0414e79`)
+**Last verified:** 2026-05-08 (full-codebase QA audit @ `main eac6ed3`)
 
 Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
@@ -9,10 +9,12 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 | ID | Title | Priority | Status | Notes |
 |---|---|---|---|---|
-| FR-101 | User Registration | High | ✅ | Supabase signUp; patient + clinic flows; email confirm |
-| FR-102 | User Login | High | ✅ | signInWithPassword; AsyncStorage session; lockout after 5 fails. CODE-19: dead `/(admin)` branch in switch |
-| FR-103 | Password Recovery | Medium | ✅ | resetPasswordForEmail + deep-link handler in `app/_layout.tsx:20-25` |
+| FR-101 | User Registration | High | ✅ | Supabase signUp; patient + clinic flows; clinic flow now lands on `clinic-pending-approval` (auto-sign-in removed) |
+| FR-102 | User Login | High | ✅ | signInWithPassword; AsyncStorage session; lockout after 5 fails. Clinic-approval gate added — `pending` and `rejected` clinics are signed out with a clear message |
+| FR-103 | Password Recovery — Patient | Medium | ✅ | resetPasswordForEmail + deep-link handler in `app/_layout.tsx:20-25` |
 | FR-104 | Session Management (30 min timeout) | Medium | ✅ | `useInactivityTimeout` mounted at `app/_layout.tsx:14`; resets on touch |
+| FR-105 | Clinic Approval Gate | High | ✅ | New: `clinics.approval_status` + RLS-fenced trigger; `lib/admin/clinicApproval.ts:fetchClinicApproval()`; admin web Approves / Rejects via `admin_approve_clinic` / `admin_reject_clinic` SECURITY DEFINER RPCs |
+| FR-106 | Password Recovery — Clinic | Medium | ✅ | Admin-mediated. Logged-in clinics file via `(clinic)/request-password-reset.tsx` + `submit_password_reset_request` RPC. Locked-out clinics contact the admin out-of-band; admin verifies by phone and sets a temp password via the `admin-set-clinic-password` Edge Function |
 
 ---
 
@@ -62,7 +64,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-502 | Secure Cloud Upload (HTTPS) | High | ✅ | All inserts via Supabase HTTPS client |
 | FR-503 | Processing Status / Server Waking | High | ✅ | `store/dpnStore.ts` polls health every 5 s up to 60 s |
 | FR-504 | DPN API Integration | High | ✅ | `lib/dpnApi.ts` typed client → HuggingFace Spaces YOLOv11 + sklearn fusion. Per-foot threshold 45%, asymmetry 2.2 °C |
-| FR-505 | Offline Graceful Degradation | Medium | ✅ | `mode-select → (offline)/live-feed → (offline)/patient-details → bundleStorage`. Real form (no longer placeholder) |
+| FR-505 | Offline Graceful Degradation | Medium | ✅ | `mode-select → (offline)/live-feed → (offline)/patient-details → bundleStorage`. Real form |
 | FR-506 | Thermal Preprocessing | High | ✅ | Native Kotlin pipeline at capture time |
 | FR-507 | File Import Substitute | Medium | ✅ | CSV + image import on clinic / patient / offline |
 | FR-508 | Preliminary Risk Scoring | High | ✅ | Asymmetry threshold 2.2 °C inter-foot + 1.0 °C pixel-level (matches Lavery/Hernandez-Contreras literature) |
@@ -80,7 +82,7 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 | FR-603 | Annotated Thermal Map Overlay | High | ❌ | Deferred — API returns `diagnosis_factors` text only, no per-angiosome spatial coords (GAP-08) |
 | FR-604 | Save / Discard Option | High | ✅ | Save writes to `classification_results`, updates session status to `completed` |
 | FR-605 | Clinical Disclaimer | High | ✅ | Used on home + assessment + bundle viewer |
-| FR-606 | Plantar Angiosome Diagram | High | ✅ | `components/thermal/FootAngiosomeDiagram.tsx` — left/right foot; 4 quadrants colour-pilled per region temperature; legend; UX-19 cosmetic — `asymmetry` prop is unused leftover |
+| FR-606 | Plantar Angiosome Diagram | High | ✅ | `components/thermal/FootAngiosomeDiagram.tsx` — left/right foot; 4 quadrants colour-pilled per region temperature; legend |
 
 ---
 
@@ -95,27 +97,49 @@ Legend: ✅ Done | 🔄 Partial | ❌ Not started | ⚠️ Stub/mock
 
 ---
 
+## FR-800 — Support & Feedback
+
+| ID | Title | Priority | Status | Notes |
+|---|---|---|---|---|
+| FR-801 | Submit Support Ticket (clinic + patient) | Medium | ✅ | Settings → Feedback / Tickets → shared `FeedbackScreen` (Category / Subject / Body) → `submit_support_ticket` RPC |
+| FR-802 | Echo Status + Admin Response Back to Submitter | Medium | ✅ | `listMyTickets()` on focus; tap-to-expand body + admin response; status pill (Open / In Progress / Resolved) |
+| FR-803 | Admin Inbox (web) | Medium | ✅ | `web/app/admin/tickets/page.tsx` — list + detail two-pane; Mark in progress / Resolve with response (`admin_resolve_ticket` RPC) |
+
+---
+
+## FR-900 — Admin Web Console
+
+| ID | Title | Priority | Status | Notes |
+|---|---|---|---|---|
+| FR-901 | Admin Sign-in | High | ✅ | `web/app/admin/login/page.tsx` — Supabase signInWithPassword + role gate (non-admin sign-ins are signed back out) |
+| FR-902 | Dashboard Counts | Medium | ✅ | `web/app/admin/page.tsx` — pending clinics / password-reset requests / open + in-progress tickets, each linking to its filtered queue |
+| FR-903 | Clinics Approval Queue | High | ✅ | `web/app/admin/clinics/page.tsx` — Approve / Reject (with reason); calls `admin_approve_clinic` / `admin_reject_clinic` |
+| FR-904 | Password-Reset Queue | High | ✅ | `web/app/admin/password-resets/page.tsx` — Set Password modal invokes the `admin-set-clinic-password` Edge Function (service-role; verifies caller JWT + admin role; writes `clinic_password_reset_requests.status='approved'` after `auth.admin.updateUserById`) |
+| FR-905 | Ticket Inbox | Medium | ✅ | `web/app/admin/tickets/page.tsx` |
+| FR-906 | Brand Identity (logo + thermal motif) | Low | ✅ | LumenAI mark in sidebar / login / favicon (`web/app/icon.svg`); `web/components/ThermalBackground.tsx` paints a cool teal blob, a warm amber/rose blob, isotherm contour rings, plantar-foot silhouettes, and a dot-grid texture across all admin pages |
+
+---
+
 ## Summary
 
 | Category | ✅ Done | 🔄 Partial | ❌ Not started |
 |---|---|---|---|
-| FR-100 Auth (4) | 4 | 0 | 0 |
+| FR-100 Auth (6) | 6 | 0 | 0 |
 | FR-200 Device (5) | 1 | 4 | 0 |
 | FR-300 Thermal (7) | 7 | 0 | 0 |
 | FR-400 Patient Data (5) | 5 | 0 | 0 |
 | FR-500 Cloud / AI (10) | 9 | 1 | 0 |
 | FR-600 Results (6) | 5 | 0 | 1 |
 | FR-700 Home (4) | 4 | 0 | 0 |
-| **Total (41)** | **35** | **5** | **1** |
+| FR-800 Support (3) | 3 | 0 | 0 |
+| FR-900 Admin Web (6) | 6 | 0 | 0 |
+| **Total (52)** | **46** | **5** | **1** |
 
-**Status: 85 % fully done, 12 % partial (hardware-dependent or domain-shift mitigation), 3 % deferred (FR-603 — API limitation).**
+**Status: 88 % fully done, 10 % partial (hardware-dependent or domain-shift mitigation), 2 % deferred (FR-603 — API limitation).**
 
-Notable additions since v0.9.1:
-- FR-205 (UVC live with full pipeline) graduated from 🔄 → ✅
-- FR-306 (radiometric correction) added and ✅
-- FR-307 (foot isolation hardened with hole fill + moat sampler) added and ✅
-- FR-404 / FR-405 (avatar upload + custom crop UI) added and ✅
-- FR-509 (Raw / Enhanced single toggle) added and ✅
-- FR-510 (domain-shift awareness) added and 🔄 — domain shift between FLIR E60 training data and Lepton 3.5 inference data is the leading cause of false positives in DPN verdicts; mitigations documented but unimplemented
-- FR-606 (angiosome diagram) added and ✅
-- FR-700 series (home redesigns) added and all ✅
+Notable additions since the previous audit:
+- FR-101 / FR-102 reframed — clinic registration no longer auto-signs in; login enforces `approval_status === 'approved'`
+- FR-105 (clinic approval gate) added and ✅
+- FR-106 (admin-mediated clinic password reset) added and ✅
+- FR-800 series (support tickets) added end-to-end and all ✅
+- FR-900 series (admin web console: sign-in, dashboard, three queues, brand identity) added and all ✅

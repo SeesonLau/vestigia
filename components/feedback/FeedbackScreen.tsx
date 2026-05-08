@@ -82,13 +82,13 @@ export default function FeedbackScreen() {
   }, []);
 
   // Refetch on focus so the list reflects admin-side resolutions when
-  // the user returns to the screen.
+  // the user returns to the screen. refreshList writes any error into
+  // loadError state so the trailing .catch is just to silence the
+  // floating promise (useFocusEffect doesn't await its body).
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
       setLoading(true);
       refreshList().catch(() => {});
-      return () => { cancelled = true; void cancelled; };
     }, [refreshList]),
   );
 
@@ -137,7 +137,11 @@ export default function FeedbackScreen() {
       <Header
         title="Feedback / Support"
         leftIcon={
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+          >
             <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }

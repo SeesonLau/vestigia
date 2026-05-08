@@ -56,7 +56,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Home",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="home-outline"focused={focused} />
+            <TabIcon icon="home-outline" focused={focused} />
           ),
         }}
       />
@@ -65,7 +65,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Thermal Scan",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="camera-outline"focused={focused} />
+            <TabIcon icon="camera-outline" focused={focused} />
           ),
         }}
       />
@@ -83,7 +83,7 @@ export default function ClinicLayout() {
         options={{
           tabBarAccessibilityLabel: "Settings",
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="settings-outline"focused={focused} />
+            <TabIcon icon="settings-outline" focused={focused} />
           ),
         }}
       />

@@ -53,7 +53,11 @@ export default function RequestPasswordResetScreen() {
       <Header
         title="Request Password Reset"
         leftIcon={
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+          >
             <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }

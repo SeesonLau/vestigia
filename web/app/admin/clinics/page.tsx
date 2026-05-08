@@ -34,9 +34,12 @@ export default function AdminClinicsPage() {
   const [rejectFor,    setRejectFor]    = useState<ClinicAdminRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [rejecting,    setRejecting]    = useState(false);
+  const [rejectErr,    setRejectErr]    = useState<string | null>(null);
 
-  // Approving busy state, keyed by clinic id.
-  const [busyId, setBusyId] = useState<string | null>(null);
+  // Approve-confirmation modal state.
+  const [approveFor, setApproveFor] = useState<ClinicAdminRow | null>(null);
+  const [approving,  setApproving]  = useState(false);
+  const [approveErr, setApproveErr] = useState<string | null>(null);
 
   const load = async (f: Filter) => {
     try {
@@ -53,16 +56,18 @@ export default function AdminClinicsPage() {
 
   useEffect(() => { void load(filter); }, [filter]);
 
-  const onApprove = async (row: ClinicAdminRow) => {
-    if (!confirm(`Approve "${row.facility_name}" (${row.clinic_code})?`)) return;
+  const onConfirmApprove = async () => {
+    if (!approveFor) return;
     try {
-      setBusyId(row.id);
-      await approveClinic(row.id);
+      setApproving(true);
+      setApproveErr(null);
+      await approveClinic(approveFor.id);
+      setApproveFor(null);
       await load(filter);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Approve failed.");
+      setApproveErr(e instanceof Error ? e.message : "Approve failed.");
     } finally {
-      setBusyId(null);
+      setApproving(false);
     }
   };
 
@@ -70,17 +75,18 @@ export default function AdminClinicsPage() {
     if (!rejectFor) return;
     const trimmed = rejectReason.trim();
     if (trimmed.length < 3) {
-      alert("Reason is required (at least 3 characters).");
+      setRejectErr("Reason is required (at least 3 characters).");
       return;
     }
     try {
       setRejecting(true);
+      setRejectErr(null);
       await rejectClinic(rejectFor.id, trimmed);
       setRejectFor(null);
       setRejectReason("");
       await load(filter);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Reject failed.");
+      setRejectErr(e instanceof Error ? e.message : "Reject failed.");
     } finally {
       setRejecting(false);
     }
@@ -166,16 +172,14 @@ export default function AdminClinicsPage() {
                   {r.approval_status === "pending" ? (
                     <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => onApprove(r)}
-                        disabled={busyId === r.id}
-                        className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60 dark:bg-teal-500 dark:hover:bg-teal-400"
+                        onClick={() => { setApproveFor(r); setApproveErr(null); }}
+                        className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 dark:bg-teal-500 dark:hover:bg-teal-400"
                       >
-                        {busyId === r.id ? "…" : "Approve"}
+                        Approve
                       </button>
                       <button
                         onClick={() => { setRejectFor(r); setRejectReason(""); }}
-                        disabled={busyId === r.id}
-                        className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
+                        className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
                       >
                         Reject
                       </button>
@@ -206,9 +210,14 @@ export default function AdminClinicsPage() {
               placeholder="e.g. DOH LTO number could not be verified."
               className="mt-4 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:ring-teal-900/40"
             />
+            {rejectErr && (
+              <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                {rejectErr}
+              </p>
+            )}
             <div className="mt-4 flex justify-end gap-2">
               <button
-                onClick={() => { setRejectFor(null); setRejectReason(""); }}
+                onClick={() => { setRejectFor(null); setRejectReason(""); setRejectErr(null); }}
                 disabled={rejecting}
                 className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
@@ -220,6 +229,46 @@ export default function AdminClinicsPage() {
                 className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
               >
                 {rejecting ? "Rejecting…" : "Reject"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {approveFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
+            <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+              Approve {approveFor.facility_name}?
+            </h3>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {approveFor.clinic_code} · {approveFor.facility_type} · DOH LTO {approveFor.doh_lto_number}
+            </p>
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+              Confirm DOH LTO and facility credentials are verified. The clinic will be able to sign in
+              immediately after approval.
+            </p>
+
+            {approveErr && (
+              <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                {approveErr}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => { setApproveFor(null); setApproveErr(null); }}
+                disabled={approving}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirmApprove}
+                disabled={approving}
+                className="rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60 dark:bg-teal-500 dark:hover:bg-teal-400"
+              >
+                {approving ? "Approving…" : "Approve"}
               </button>
             </div>
           </div>

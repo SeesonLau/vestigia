@@ -39,6 +39,12 @@ export default function AdminPasswordResetsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [modalErr,   setModalErr]   = useState<string | null>(null);
 
+  // Inline success banner after a Set Password completes.
+  const [successFor, setSuccessFor] = useState<{
+    facility: string;
+    operator: string;
+  } | null>(null);
+
   const load = async (f: Filter) => {
     try {
       setLoading(true);
@@ -80,9 +86,12 @@ export default function AdminPasswordResetsPage() {
         profileId:   setFor.clinic_profile_id,
         newPassword: pw1,
       });
+      setSuccessFor({
+        facility: setFor.clinic?.facility_name ?? setFor.clinic?.clinic_code ?? "Clinic",
+        operator: setFor.clinic_profile?.full_name ?? setFor.clinic_profile?.email ?? "the requester",
+      });
       setSetFor(null);
       await load(filter);
-      alert("Password updated. Communicate it to the clinic over the same call.");
     } catch (e) {
       setModalErr(e instanceof Error ? e.message : "Set password failed.");
     } finally {
@@ -100,6 +109,28 @@ export default function AdminPasswordResetsPage() {
           Verify the requester by phone before issuing a temporary password.
         </p>
       </header>
+
+      {successFor && (
+        <div
+          role="status"
+          className="mb-4 flex items-start justify-between gap-3 rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800 dark:border-teal-900/50 dark:bg-teal-950/40 dark:text-teal-200"
+        >
+          <div>
+            <p className="font-semibold">Password updated for {successFor.facility}.</p>
+            <p className="mt-0.5 text-xs">
+              Communicate the new password to {successFor.operator} over the same call you just used
+              to verify their identity.
+            </p>
+          </div>
+          <button
+            onClick={() => setSuccessFor(null)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded-md px-2 py-0.5 text-teal-700 hover:bg-teal-100 dark:text-teal-300 dark:hover:bg-teal-900/50"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
