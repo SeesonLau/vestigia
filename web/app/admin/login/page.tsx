@@ -9,6 +9,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { getSupabase } from "../../../lib/supabase";
+import { LumenLogo } from "../../../components/LumenLogo";
+import { ThermalBackground } from "../../../components/ThermalBackground";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -62,9 +64,12 @@ export default function AdminLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-6 py-12 dark:bg-zinc-950">
+    <>
+      <ThermalBackground />
+      <div className="flex min-h-screen items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
-        <header className="mb-6 text-center">
+        <header className="mb-6 flex flex-col items-center text-center">
+          <LumenLogo size={64} className="mb-4 shadow-lg shadow-teal-500/20" />
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
             Lumen <span className="text-teal-600 dark:text-teal-400">AI</span>
           </h1>
@@ -75,7 +80,7 @@ export default function AdminLoginPage() {
 
         <form
           onSubmit={onSubmit}
-          className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+          className="space-y-4 rounded-2xl border border-zinc-200/80 bg-white/85 p-6 shadow-xl shadow-zinc-900/5 backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-900/85 dark:shadow-black/30"
         >
           <div>
             <label htmlFor="email" className="block text-xs font-medium text-zinc-700 dark:text-zinc-300">
@@ -126,6 +131,7 @@ export default function AdminLoginPage() {
           Diabetic Peripheral Neuropathy thermal screening
         </p>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
