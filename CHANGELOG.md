@@ -3,6 +3,34 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.2.0] — 2026-05-12
+
+Customer Support reflow + dashboard graphs.
+
+### Mobile — Customer Support
+- Screen now leads with a **segmented Submit / My Tickets toggle** at the
+  top.
+- **Submit tab** opens on a 4-up stats strip (Total · Open · In progress ·
+  Resolved over the user's own tickets) and a compact submission card
+  (category picker + body field + auto QA-code hint + tighter button).
+- **My Tickets tab** carries a search box, status pills, category /
+  sort dropdowns, an "X of Y" count and a Clear shortcut — same affordances
+  as the web admin inbox.
+- Ticket card row trimmed (6 px vertical padding) so more tickets fit
+  on screen.
+
+### Web admin
+- Dashboard now renders four bar-chart graphs (status, severity,
+  submitter role, category) fed by `admin_ticket_dashboard_stats()`;
+  each row is a deep link into the filtered inbox.
+- Flattened bar palette: every analytics bar uses the same teal fill.
+  Per-bucket emphasis is carried by the *label text colour* only —
+  Critical reads red, Open reads amber, etc., but the bars no longer
+  fight each other.
+
+### Other
+- Version bumped to v1.2.0 / build 1200 (Android versionCode 3).
+
 ## [1.1.0] — 2026-05-12
 
 Post-1.0 polish + the soft-discard workflow.
