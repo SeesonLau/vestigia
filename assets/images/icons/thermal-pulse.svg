@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 1 — Thermal Pulse
+       Simpler, more legible variant of the brand mark. ECG-style pulse line
+       with a single warm thermal accent at the peak. Suitable as a compact UI
+       icon or favicon. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Decorative inner ring -->
+  <circle cx="512" cy="512" r="380" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="4" />
+
+  <!-- Cleaner ECG line: flat baseline → small dip → tall QRS spike → flat tail -->
+  <path
+    d="M 140 540
+       L 360 540
+       L 420 596
+       L 488 460
+       L 552 720
+       L 624 252
+       L 696 540
+       L 884 540"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="56"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Warm thermal accent at the spike peak -->
+  <circle cx="624" cy="252" r="42" fill="#FFD06B" />
+  <circle cx="624" cy="252" r="20" fill="#FFFFFF" />
+</svg>

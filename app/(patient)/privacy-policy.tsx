@@ -56,11 +56,11 @@ export default function PrivacyPolicyScreen() {
         </View>
 
         <Section title="1. Overview">
-          <Body text="Vestigia (operated by the development team under the SD3 research project) is a clinical screening application designed to assist licensed healthcare professionals in the early detection of Diabetic Peripheral Neuropathy (DPN) through thermal foot imaging. We are committed to protecting the privacy and confidentiality of all data processed within this platform." />
+          <Body text="LumenAI (operated by the development team under the SD3 research project) is a clinical screening application designed to assist licensed healthcare professionals in the early detection of Diabetic Peripheral Neuropathy (DPN) through thermal foot imaging. We are committed to protecting the privacy and confidentiality of all data processed within this platform." />
         </Section>
 
         <Section title="2. Data We Collect">
-          <Body text="When you use Vestigia, we collect the following categories of data:" />
+          <Body text="When you use LumenAI, we collect the following categories of data:" />
           <Bullet text="Account information: full name, email address, and role (clinic operator)." />
           <Bullet text="Clinic information: the name and identifier of your registered clinic." />
           <Bullet text="Patient records: patient codes, date of birth, diabetes type, and related clinical metadata (not personally identifying beyond the patient code)." />
@@ -71,7 +71,7 @@ export default function PrivacyPolicyScreen() {
         </Section>
 
         <Section title="3. How We Use Your Data">
-          <Body text="Data collected through Vestigia is used solely for the following purposes:" />
+          <Body text="Data collected through LumenAI is used solely for the following purposes:" />
           <Bullet text="Providing and operating the DPN screening service." />
           <Bullet text="Generating AI-assisted classification results for individual screening sessions." />
           <Bullet text="Enabling authorized clinic personnel to review historical session records." />
@@ -114,7 +114,7 @@ export default function PrivacyPolicyScreen() {
         <View style={[styles.footer, { borderColor: colors.border }]}>
           <Text style={[styles.footerText, { color: colors.textSec }]}>
             For privacy-related concerns, contact{"\n"}
-            <Text style={{ color: colors.accent }}>support@vestigia.app</Text>
+            <Text style={{ color: colors.accent }}>support@lumenai.app</Text>
           </Text>
         </View>
       </ScrollView>

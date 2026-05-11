@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 5 — AI Network
+       A three-layer neural network silhouette. The output layer carries one
+       warm node (the positive verdict) and one white node (the negative
+       verdict) hinting at the binary DPN classifier. Use this for the
+       inference / AI assessment surface. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Connection lines between layers -->
+  <g stroke="#FFFFFF" stroke-width="4" opacity="0.45" stroke-linecap="round">
+    <!-- Input → hidden -->
+    <line x1="260" y1="320" x2="500" y2="320" />
+    <line x1="260" y1="320" x2="500" y2="512" />
+    <line x1="260" y1="320" x2="500" y2="704" />
+    <line x1="260" y1="512" x2="500" y2="320" />
+    <line x1="260" y1="512" x2="500" y2="512" />
+    <line x1="260" y1="512" x2="500" y2="704" />
+    <line x1="260" y1="704" x2="500" y2="320" />
+    <line x1="260" y1="704" x2="500" y2="512" />
+    <line x1="260" y1="704" x2="500" y2="704" />
+    <!-- Hidden → output -->
+    <line x1="500" y1="320" x2="740" y2="416" />
+    <line x1="500" y1="320" x2="740" y2="608" />
+    <line x1="500" y1="512" x2="740" y2="416" />
+    <line x1="500" y1="512" x2="740" y2="608" />
+    <line x1="500" y1="704" x2="740" y2="416" />
+    <line x1="500" y1="704" x2="740" y2="608" />
+  </g>
+
+  <!-- Input layer (3 white nodes) -->
+  <g fill="#FFFFFF">
+    <circle cx="260" cy="320" r="34" />
+    <circle cx="260" cy="512" r="34" />
+    <circle cx="260" cy="704" r="34" />
+  </g>
+
+  <!-- Hidden layer (3 white nodes) -->
+  <g fill="#FFFFFF">
+    <circle cx="500" cy="320" r="34" />
+    <circle cx="500" cy="512" r="34" />
+    <circle cx="500" cy="704" r="34" />
+  </g>
+
+  <!-- Output layer (warm positive verdict on top, white negative below) -->
+  <circle cx="740" cy="416" r="46" fill="#FFD06B" />
+  <circle cx="740" cy="416" r="22" fill="#FFFFFF" />
+  <circle cx="740" cy="608" r="38" fill="#FFFFFF" />
+</svg>

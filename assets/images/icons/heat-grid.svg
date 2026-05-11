@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 6 — Heat Grid
+       A 5 × 5 stylised thermal matrix using a compact iron palette
+       (deep navy = cold, teal = ambient, amber = warm, red = hot). The
+       hot centre cell hints at a clinical hotspot in the bilateral
+       capture. Use this for the CSV viewer / temperature grid surface. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Soft white frame behind the grid -->
+  <rect x="200" y="200" width="624" height="624" rx="28" ry="28" fill="#FFFFFF" opacity="0.18" />
+
+  <!-- 5 × 5 grid, 112 px cells with 4 px gutters, anchored at (224, 224) -->
+  <g shape-rendering="crispEdges">
+    <!-- Row 1 (coolest) -->
+    <rect x="224" y="224" width="112" height="112" fill="#1E3A8A" />
+    <rect x="340" y="224" width="112" height="112" fill="#1E3A8A" />
+    <rect x="456" y="224" width="112" height="112" fill="#2563EB" />
+    <rect x="572" y="224" width="112" height="112" fill="#2563EB" />
+    <rect x="688" y="224" width="112" height="112" fill="#1E3A8A" />
+    <!-- Row 2 -->
+    <rect x="224" y="340" width="112" height="112" fill="#2563EB" />
+    <rect x="340" y="340" width="112" height="112" fill="#0E7490" />
+    <rect x="456" y="340" width="112" height="112" fill="#14B8A6" />
+    <rect x="572" y="340" width="112" height="112" fill="#0E7490" />
+    <rect x="688" y="340" width="112" height="112" fill="#2563EB" />
+    <!-- Row 3 (hot centre) -->
+    <rect x="224" y="456" width="112" height="112" fill="#0E7490" />
+    <rect x="340" y="456" width="112" height="112" fill="#14B8A6" />
+    <rect x="456" y="456" width="112" height="112" fill="#FFD06B" />
+    <rect x="572" y="456" width="112" height="112" fill="#14B8A6" />
+    <rect x="688" y="456" width="112" height="112" fill="#0E7490" />
+    <!-- Row 4 -->
+    <rect x="224" y="572" width="112" height="112" fill="#2563EB" />
+    <rect x="340" y="572" width="112" height="112" fill="#0E7490" />
+    <rect x="456" y="572" width="112" height="112" fill="#14B8A6" />
+    <rect x="572" y="572" width="112" height="112" fill="#0E7490" />
+    <rect x="688" y="572" width="112" height="112" fill="#2563EB" />
+    <!-- Row 5 (coolest) -->
+    <rect x="224" y="688" width="112" height="112" fill="#1E3A8A" />
+    <rect x="340" y="688" width="112" height="112" fill="#1E3A8A" />
+    <rect x="456" y="688" width="112" height="112" fill="#2563EB" />
+    <rect x="572" y="688" width="112" height="112" fill="#2563EB" />
+    <rect x="688" y="688" width="112" height="112" fill="#1E3A8A" />
+  </g>
+</svg>

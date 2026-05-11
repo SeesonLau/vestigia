@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 4 — Bilateral Feet
+       Two plantar foot silhouettes side by side with a dashed axis of symmetry
+       between them, terminated by a warm Δ marker that hints at the
+       inter-foot asymmetry analysis. Use this for the bilateral capture
+       result / asymmetry surface. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Vertical axis of symmetry (dashed) -->
+  <line x1="512" y1="240" x2="512" y2="784" stroke="#FFFFFF" stroke-width="6" stroke-dasharray="22 14" opacity="0.65" />
+
+  <!-- LEFT foot (faces the centre line) -->
+  <g transform="translate(380, 540)">
+    <path
+      d="M -88 -220
+         C -110 -180, -118 -120, -118 -50
+         C -118 30, -110 110, -90 170
+         C -72 222, -42 248, -10 248
+         C 22 248, 52 222, 70 170
+         C 90 110, 98 30, 98 -50
+         C 98 -120, 90 -180, 68 -220
+         C 50 -250, 24 -260, -10 -260
+         C -44 -260, -70 -250, -88 -220
+         Z"
+      fill="#FFFFFF" opacity="0.94"
+    />
+    <ellipse cx="-92" cy="-260" rx="28" ry="38" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="-50" cy="-282" rx="20" ry="30" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="-14" cy="-292" rx="16" ry="26" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="22"  cy="-284" rx="14" ry="22" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="54"  cy="-264" rx="12" ry="20" fill="#FFFFFF" opacity="0.94" />
+  </g>
+
+  <!-- RIGHT foot (mirrored) -->
+  <g transform="translate(644, 540) scale(-1, 1)">
+    <path
+      d="M -88 -220
+         C -110 -180, -118 -120, -118 -50
+         C -118 30, -110 110, -90 170
+         C -72 222, -42 248, -10 248
+         C 22 248, 52 222, 70 170
+         C 90 110, 98 30, 98 -50
+         C 98 -120, 90 -180, 68 -220
+         C 50 -250, 24 -260, -10 -260
+         C -44 -260, -70 -250, -88 -220
+         Z"
+      fill="#FFFFFF" opacity="0.94"
+    />
+    <ellipse cx="-92" cy="-260" rx="28" ry="38" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="-50" cy="-282" rx="20" ry="30" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="-14" cy="-292" rx="16" ry="26" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="22"  cy="-284" rx="14" ry="22" fill="#FFFFFF" opacity="0.94" />
+    <ellipse cx="54"  cy="-264" rx="12" ry="20" fill="#FFFFFF" opacity="0.94" />
+  </g>
+
+  <!-- Centre asymmetry marker — warm Δ above the feet -->
+  <circle cx="512" cy="540" r="58" fill="#FFD06B" />
+  <text x="512" y="560" text-anchor="middle" fill="#0E7490" font-family="'Nunito',sans-serif" font-size="64" font-weight="800">Δ</text>
+</svg>

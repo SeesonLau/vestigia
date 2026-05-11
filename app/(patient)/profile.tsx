@@ -343,8 +343,8 @@ export default function PatientProfileScreen() {
             <InfoRow label="Account Status" value={user?.is_active ? "Active" : "Inactive"} />
           </View>
 
-          {/* Danger Zone */}
-          <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Danger Zone</Text>
+          {/* Account exit */}
+          <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Leave</Text>
           <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <TouchableOpacity style={styles.dangerRow} onPress={handleDeactivate} activeOpacity={0.7}>
               <View style={styles.dangerIcon}>

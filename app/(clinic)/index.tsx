@@ -115,41 +115,46 @@ export default function ClinicHomeScreen() {
     { total: 0, positive: 0, negative: 0 },
   );
 
-  const operatorName = user?.first_name
-    ? `${user.first_name}${user.last_name ? " " + user.last_name : ""}`
-    : "Operator";
+  // Initials fall back to the operator's name (used only as the avatar
+  // placeholder). The operator's name itself does not render in the hero
+  // — that lives in Settings now. The hero is facility-focused.
   const initials = (user?.first_name?.[0] ?? "?") + (user?.last_name?.[0] ?? "");
 
   return (
     <ScreenWrapper scrollable>
-      {/* Profile + greeting hero. Read-only — editing lives in Settings. */}
+      {/* Facility-focused hero. Filled teal so the clinic side reads as
+          institutional at a glance, immediately distinct from the patient
+          side's white hero. Tap to open Profile/Settings. */}
       <View style={styles.hero}>
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => router.push("/(clinic)/profile" as any)}
-          style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.heroCard, { backgroundColor: colors.accent }]}
         >
-          <View style={[styles.avatar, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+          <View style={[styles.avatar, styles.avatarOnAccent]}>
             {user?.avatar_url ? (
               <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
             ) : (
-              <Text style={[styles.avatarInitials, { color: colors.accent }]}>{initials.toUpperCase()}</Text>
+              <Text style={styles.avatarInitialsOnAccent}>{initials.toUpperCase()}</Text>
             )}
           </View>
           <View style={styles.heroText}>
-            <Text style={[styles.greeting, { color: colors.textSec }]}>{timeGreeting},</Text>
-            <Text style={[styles.heroName,  { color: colors.text }]} numberOfLines={1}>{operatorName}</Text>
-            <Text style={[styles.heroSub,   { color: colors.textSec }]} numberOfLines={1}>{clinicName}</Text>
+            <Text style={styles.greetingOnAccent}>{timeGreeting},</Text>
+            <Text style={styles.heroFacilityName} numberOfLines={2}>{clinicName}</Text>
+            <View style={styles.rolePillOnAccent}>
+              <Ionicons name="business" size={11} color="#FFFFFF" />
+              <Text style={styles.rolePillTextOnAccent}>Clinic</Text>
+            </View>
             {user?.email ? (
               <View style={styles.contactRow}>
-                <Ionicons name="mail-outline" size={11} color={colors.textSec} />
-                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.email}</Text>
+                <Ionicons name="mail-outline" size={11} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.contactTextOnAccent} numberOfLines={1}>{user.email}</Text>
               </View>
             ) : null}
             {user?.contact_number ? (
               <View style={styles.contactRow}>
-                <Ionicons name="call-outline" size={11} color={colors.textSec} />
-                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.contact_number}</Text>
+                <Ionicons name="call-outline" size={11} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.contactTextOnAccent} numberOfLines={1}>{user.contact_number}</Text>
               </View>
             ) : null}
           </View>
@@ -158,7 +163,7 @@ export default function ClinicHomeScreen() {
             style={styles.logoutBtn}
             hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
           >
-            <Ionicons name="log-out-outline" size={20} color={colors.textSec} />
+            <Ionicons name="log-out-outline" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </TouchableOpacity>
       </View>
@@ -298,21 +303,49 @@ const styles = StyleSheet.create({
   hero: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, paddingBottom: Spacing.md },
   heroCard: {
     flexDirection: "row", alignItems: "center",
-    borderWidth: 1, borderRadius: Radius.xl,
+    borderRadius: Radius.xl,
     padding: Spacing.md, gap: Spacing.md,
   },
   avatar: {
     width: 56, height: 56, borderRadius: 28, borderWidth: 1,
     alignItems: "center", justifyContent: "center", overflow: "hidden",
   },
+  avatarOnAccent: {
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderColor: "rgba(255,255,255,0.45)",
+  },
   avatarImg: { width: "100%", height: "100%" },
-  avatarInitials: { fontSize: 18, fontFamily: Typography.fonts.heading, letterSpacing: 1 },
+  avatarInitialsOnAccent: {
+    fontSize: 18, fontFamily: Typography.fonts.heading, letterSpacing: 1,
+    color: "#FFFFFF",
+  },
   heroText: { flex: 1, gap: 2 },
-  greeting: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, letterSpacing: 0.3 },
-  heroName: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading },
-  heroSub:  { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
+  greetingOnAccent: {
+    fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body,
+    letterSpacing: 0.3, color: "rgba(255,255,255,0.85)",
+  },
+  heroFacilityName: {
+    fontSize: Typography.sizes.xl, fontFamily: Typography.fonts.heading,
+    color: "#FFFFFF", lineHeight: 24,
+  },
+  rolePillOnAccent: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.20)",
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8, paddingVertical: 2,
+    marginTop: 4, marginBottom: 4,
+  },
+  rolePillTextOnAccent: {
+    fontSize: 9, fontFamily: Typography.fonts.heading,
+    letterSpacing: 1, textTransform: "uppercase",
+    color: "#FFFFFF",
+  },
   contactRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 },
-  contactText: { fontSize: 10, fontFamily: Typography.fonts.mono },
+  contactTextOnAccent: {
+    fontSize: 10, fontFamily: Typography.fonts.mono,
+    color: "rgba(255,255,255,0.85)",
+  },
   logoutBtn: { padding: 4, alignSelf: "flex-start" },
 
   container: {

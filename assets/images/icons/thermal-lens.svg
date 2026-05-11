@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 3 — Thermal Lens
+       Concentric isotherm rings on a teal field with a warm focal point. Reads
+       as a thermal camera lens (or a heat map seen from above). Use this for
+       the camera connect / live preview surface. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+    <radialGradient id="warm-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFD06B" stop-opacity="0.85" />
+      <stop offset="55%"  stop-color="#FFD06B" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#FFD06B" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Outer isotherm rings -->
+  <circle cx="512" cy="512" r="360" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.45" />
+  <circle cx="512" cy="512" r="288" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.6" />
+  <circle cx="512" cy="512" r="216" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.75" />
+  <circle cx="512" cy="512" r="148" fill="none" stroke="#FFFFFF" stroke-width="10" opacity="0.9" />
+
+  <!-- Warm focal blob -->
+  <circle cx="512" cy="512" r="148" fill="url(#warm-glow)" />
+  <circle cx="512" cy="512" r="72" fill="#FFD06B" />
+  <circle cx="512" cy="512" r="32" fill="#FFFFFF" />
+</svg>

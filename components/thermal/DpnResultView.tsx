@@ -125,8 +125,14 @@ function FootCard({ label, foot, colors }: { label: string; foot: FootResult; co
         {foot.prediction} <Text style={{ color: colors.textSec }}>· {foot.confidence.toFixed(1)}% confidence</Text>
       </Text>
 
-      {/* Probability bar */}
-      <ProbBar control={foot.probabilities.Control} diabetic={foot.probabilities.Diabetic} colors={colors} />
+      {/* Probability bar — fills with the winning class's percentage and
+          its verdict colour (red when positive, green when negative). */}
+      <ProbBar
+        control={foot.probabilities.Control}
+        diabetic={foot.probabilities.Diabetic}
+        isPositive={isPositive}
+        colors={colors}
+      />
 
       {/* YOLO / sklearn breakdown */}
       {(foot.yolo_probabilities || foot.sklearn_probabilities) ? (
@@ -146,13 +152,22 @@ function FootCard({ label, foot, colors }: { label: string; foot: FootResult; co
   );
 }
 
-function ProbBar({ control, diabetic, colors }: { control: number; diabetic: number; colors: ThemeColors }) {
+function ProbBar({
+  control, diabetic, isPositive, colors,
+}: {
+  control: number;
+  diabetic: number;
+  isPositive: boolean;
+  colors: ThemeColors;
+}) {
   const total = Math.max(control + diabetic, 1);
-  const dPct = (diabetic / total) * 100;
+  // Fill the bar with the WINNING class's percentage, coloured by the verdict.
+  const winningPct = (isPositive ? diabetic : control) / total * 100;
+  const fillColor  = isPositive ? colors.error : colors.success;
   return (
     <View style={{ gap: 4 }}>
       <View style={[styles.barTrack, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <View style={[styles.barFill, { backgroundColor: colors.error, width: `${dPct}%` }]} />
+        <View style={[styles.barFill, { backgroundColor: fillColor, width: `${winningPct}%` }]} />
       </View>
       <View style={styles.headerRow}>
         <Text style={[styles.metaLine, { color: colors.success }]}>Control {control.toFixed(1)}%</Text>

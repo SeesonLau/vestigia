@@ -14,12 +14,18 @@ interface ContactCardProps {
   title: string;
   detail: string;
   note?: string;
+  onPress?: () => void;
 }
 
-function ContactCard({ icon, title, detail, note }: ContactCardProps) {
+function ContactCard({ icon, title, detail, note, onPress }: ContactCardProps) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={onPress ? 0.7 : 1}
+      disabled={!onPress}
+      style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+    >
       <View style={[styles.contactIcon, { backgroundColor: colors.accentSoft }]}>
         <Ionicons name={icon} size={22} color={colors.accent} />
       </View>
@@ -28,7 +34,8 @@ function ContactCard({ icon, title, detail, note }: ContactCardProps) {
         <Text style={[styles.contactDetail, { color: colors.accent }]}>{detail}</Text>
         {note && <Text style={[styles.contactNote, { color: colors.textSec }]}>{note}</Text>}
       </View>
-    </View>
+      {onPress ? <Ionicons name="chevron-forward" size={18} color={colors.textSec} /> : null}
+    </TouchableOpacity>
   );
 }
 
@@ -91,22 +98,25 @@ export default function ContactSupportScreen() {
         <Text style={[styles.sectionHeader, { color: colors.textSec }]}>Contact Channels</Text>
 
         <ContactCard
-          icon="mail-outline"
-          title="Email Support"
-          detail="support@vestigia.app"
-          note="Response within 1 business day"
+          icon="chatbox-ellipses-outline"
+          title="In-App Support"
+          detail="Open Feedback / Tickets"
+          note="Fastest path — your message reaches the admin directly"
+          onPress={() => router.push("/(clinic)/feedback" as any)}
         />
         <ContactCard
-          icon="document-text-outline"
-          title="Bug Reports"
-          detail="bugs@vestigia.app"
-          note="Include your device model and app version"
+          icon="bug-outline"
+          title="Report a Bug"
+          detail="Open Feedback / Tickets"
+          note="Describe what happened — include your device model and app version"
+          onPress={() => router.push("/(clinic)/feedback" as any)}
         />
         <ContactCard
           icon="school-outline"
           title="Academic Inquiries"
-          detail="research@vestigia.app"
+          detail="Open Feedback / Tickets"
           note="For thesis collaboration, data access requests, or institutional use"
+          onPress={() => router.push("/(clinic)/feedback" as any)}
         />
 
         {/* App Info */}
@@ -134,7 +144,7 @@ export default function ContactSupportScreen() {
         <View style={[styles.faqCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <FaqItem
             question="Why is the camera not connecting?"
-            answer="For FLIR Lepton: ensure the PureThermal Mini Pro is plugged in via USB-C before tapping Connect on the Live Feed screen. For ESP32 Wi-Fi: check that the device IP is correct and both your phone and the ESP32 are on the same network. Use the Test Connection button in Device Pairing to verify reachability."
+            answer="Plug the PureThermal Mini Pro into your phone via USB-C before opening the Live Feed screen. Grant the USB permission dialog when it appears. If the camera still does not show, unplug and re-plug it, or try a different USB-C cable."
           />
           <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
           <FaqItem
@@ -149,7 +159,7 @@ export default function ContactSupportScreen() {
           <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
           <FaqItem
             question="Why does my account show as deactivated?"
-            answer="Accounts can be deactivated by the clinic operator themselves (via Profile > Deactivate Account) or by the platform administrator. Contact your administrator to restore access. If you are the administrator, reach out to support@vestigia.app."
+            answer="Accounts can be deactivated by the clinic operator themselves (via Profile > Deactivate Account) or by the platform administrator. Contact your administrator to restore access. If you are the administrator, open Feedback / Tickets and submit a request to support."
           />
           <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
           <FaqItem

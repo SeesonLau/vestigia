@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- LumenAI icon variant 2 — Foot Thermal
+       Single plantar foot silhouette in white with a warm thermal hotspot
+       centred on the metatarsal region (a clinically common DPN hotspot).
+       Use this for the capture / screening surface. -->
+  <defs>
+    <linearGradient id="lumen-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"  stop-color="#22D3CC" />
+      <stop offset="55%" stop-color="#14B8A6" />
+      <stop offset="100%" stop-color="#0E7490" />
+    </linearGradient>
+    <radialGradient id="hotspot" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#FFD06B" stop-opacity="0.95" />
+      <stop offset="55%"  stop-color="#FFD06B" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="#FFD06B" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="220" ry="220" fill="url(#lumen-bg)" />
+
+  <!-- Foot silhouette: sole + heel as an organic blob -->
+  <path
+    d="M 420 250
+       C 380 290, 360 360, 360 440
+       C 360 530, 370 620, 400 700
+       C 425 768, 470 800, 512 800
+       C 554 800, 599 768, 624 700
+       C 654 620, 664 530, 664 440
+       C 664 360, 644 290, 604 250
+       C 580 226, 548 218, 512 218
+       C 476 218, 444 226, 420 250
+       Z"
+    fill="#FFFFFF" opacity="0.96"
+  />
+
+  <!-- Five toe pads above the sole -->
+  <ellipse cx="412" cy="208" rx="36" ry="50" fill="#FFFFFF" opacity="0.96" />
+  <ellipse cx="468" cy="178" rx="26" ry="38" fill="#FFFFFF" opacity="0.96" />
+  <ellipse cx="514" cy="166" rx="22" ry="34" fill="#FFFFFF" opacity="0.96" />
+  <ellipse cx="558" cy="174" rx="20" ry="30" fill="#FFFFFF" opacity="0.96" />
+  <ellipse cx="598" cy="200" rx="18" ry="26" fill="#FFFFFF" opacity="0.96" />
+
+  <!-- Warm thermal hotspot over the metatarsal area -->
+  <circle cx="488" cy="440" r="160" fill="url(#hotspot)" />
+  <circle cx="488" cy="440" r="36" fill="#FFD06B" />
+  <circle cx="488" cy="440" r="16" fill="#FFFFFF" />
+</svg>

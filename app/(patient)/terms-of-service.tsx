@@ -58,16 +58,16 @@ export default function TermsOfServiceScreen() {
         <View style={[styles.disclaimer, { backgroundColor: `${colors.warning}1A`, borderColor: `${colors.warning}4D` }]}>
           <Ionicons name="warning-outline" size={18} color={colors.warning} style={{ marginBottom: 4 }} />
           <Text style={[styles.disclaimerText, { color: colors.warning }]}>
-            Vestigia is a screening tool only. It does not replace clinical diagnosis or the judgment of a qualified healthcare professional.
+            LumenAI is a screening tool only. It does not replace clinical diagnosis or the judgment of a qualified healthcare professional.
           </Text>
         </View>
 
         <Section title="1. Acceptance of Terms">
-          <Body text="By accessing or using the Vestigia application, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use the application. These terms apply to all users, including clinic operators, administrators, and any personnel granted access by an authorized institution." />
+          <Body text="By accessing or using the LumenAI application, you agree to be bound by these Terms of Service. If you do not agree to these terms, you must not use the application. These terms apply to all users, including clinic operators, administrators, and any personnel granted access by an authorized institution." />
         </Section>
 
         <Section title="2. Authorized Use">
-          <Body text="Vestigia is intended exclusively for use by licensed healthcare professionals and authorized clinic personnel involved in the screening and monitoring of patients with diabetes-related conditions. By using this application, you represent that:" />
+          <Body text="LumenAI is intended exclusively for use by licensed healthcare professionals and authorized clinic personnel involved in the screening and monitoring of patients with diabetes-related conditions. By using this application, you represent that:" />
           <Bullet text="You are a qualified healthcare professional or authorized operator acting on behalf of a registered clinic." />
           <Bullet text="You have obtained all necessary patient consents prior to performing any thermal screening." />
           <Bullet text="You will use the application solely for its intended clinical screening purposes." />
@@ -75,12 +75,12 @@ export default function TermsOfServiceScreen() {
         </Section>
 
         <Section title="3. Clinical Disclaimer">
-          <Body text="The AI-generated classification results provided by Vestigia are intended as decision-support tools only. They are derived from a thermal imaging model trained on limited datasets and are subject to the following limitations:" />
+          <Body text="The AI-generated classification results provided by LumenAI are intended as decision-support tools only. They are derived from a thermal imaging model trained on limited datasets and are subject to the following limitations:" />
           <Bullet text="Results must always be interpreted in the context of a full clinical assessment by a qualified physician or specialist." />
           <Bullet text="A NEGATIVE result does not rule out the presence of Diabetic Peripheral Neuropathy." />
           <Bullet text="A POSITIVE result is not a confirmed diagnosis and must be followed up with appropriate clinical evaluation." />
           <Bullet text="Confidence scores reflect model certainty under controlled imaging conditions and may be reduced by poor imaging quality, patient movement, or environmental interference." />
-          <Body text="The development team and affiliated institutions accept no liability for clinical decisions made solely on the basis of Vestigia's output." />
+          <Body text="The development team and affiliated institutions accept no liability for clinical decisions made solely on the basis of LumenAI's output." />
         </Section>
 
         <Section title="4. Account Responsibilities">
@@ -93,18 +93,18 @@ export default function TermsOfServiceScreen() {
         </Section>
 
         <Section title="5. Data Handling Obligations">
-          <Body text="All patient data entered or captured through Vestigia must be handled in accordance with applicable Philippine data privacy laws, including the Data Privacy Act of 2012 (Republic Act No. 10173) and its Implementing Rules and Regulations. You agree to:" />
+          <Body text="All patient data entered or captured through LumenAI must be handled in accordance with applicable Philippine data privacy laws, including the Data Privacy Act of 2012 (Republic Act No. 10173) and its Implementing Rules and Regulations. You agree to:" />
           <Bullet text="Obtain proper informed consent from patients before capturing thermal images." />
           <Bullet text="Use patient data only for legitimate clinical screening purposes." />
           <Bullet text="Not export or share patient data outside of the platform without appropriate authorization." />
         </Section>
 
         <Section title="6. Intellectual Property">
-          <Body text="All content, interfaces, algorithms, and AI models within Vestigia remain the intellectual property of the development team and the affiliated academic institution. No license to the underlying technology is granted beyond the right to use the application as intended under these terms." />
+          <Body text="All content, interfaces, algorithms, and AI models within LumenAI remain the intellectual property of the development team and the affiliated academic institution. No license to the underlying technology is granted beyond the right to use the application as intended under these terms." />
         </Section>
 
         <Section title="7. Limitation of Liability">
-          <Body text="To the fullest extent permitted by applicable law, the Vestigia development team and affiliated institutions shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of — or inability to use — this application, including but not limited to data loss, clinical misinterpretation, or device malfunction." />
+          <Body text="To the fullest extent permitted by applicable law, the LumenAI development team and affiliated institutions shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of — or inability to use — this application, including but not limited to data loss, clinical misinterpretation, or device malfunction." />
         </Section>
 
         <Section title="8. Termination">
@@ -122,7 +122,7 @@ export default function TermsOfServiceScreen() {
         <View style={[styles.footer, { borderColor: colors.border }]}>
           <Text style={[styles.footerText, { color: colors.textSec }]}>
             Questions about these terms?{"\n"}
-            <Text style={{ color: colors.accent }}>support@vestigia.app</Text>
+            <Text style={{ color: colors.accent }}>support@lumenai.app</Text>
           </Text>
         </View>
       </ScrollView>

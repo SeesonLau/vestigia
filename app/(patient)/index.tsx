@@ -124,38 +124,32 @@ export default function PatientHomeScreen() {
 
   return (
     <ScreenWrapper scrollable>
-      {/* Profile + greeting hero. Read-only — editing lives in Settings. */}
+      {/* Profile + greeting hero. Soft mint-tinted to read as personal /
+          patient-side, visually distinct from the clinic side's filled-teal
+          institutional hero. Read-only — editing lives in Settings. */}
       <View style={styles.hero}>
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={() => router.push("/(patient)/profile" as any)}
-          style={[styles.heroCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+          style={[styles.heroCard, { backgroundColor: colors.cardAlt, borderColor: colors.accentSoft }]}
         >
-          <View style={[styles.avatar, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+          <View style={[styles.avatar, { backgroundColor: colors.accent, borderColor: colors.accent }]}>
             {user?.avatar_url ? (
               <Image source={{ uri: user.avatar_url }} style={styles.avatarImg} />
             ) : (
-              <Text style={[styles.avatarInitials, { color: colors.accent }]}>{initials.toUpperCase()}</Text>
+              <Text style={[styles.avatarInitials, { color: "#FFFFFF" }]}>{initials.toUpperCase()}</Text>
             )}
           </View>
           <View style={styles.heroText}>
             <Text style={[styles.greeting, { color: colors.textSec }]}>{timeGreeting},</Text>
             <Text style={[styles.heroName,  { color: colors.text }]} numberOfLines={1}>{fullName}</Text>
+            <View style={[styles.rolePill, { backgroundColor: colors.accent }]}>
+              <Ionicons name="person" size={11} color="#FFFFFF" />
+              <Text style={[styles.rolePillText, { color: "#FFFFFF" }]}>Patient</Text>
+            </View>
             <Text style={[styles.heroSub,   { color: colors.textSec }]} numberOfLines={1}>
               Patient ID: {user?.patient_code ?? "—"}
             </Text>
-            {user?.email ? (
-              <View style={styles.contactRow}>
-                <Ionicons name="mail-outline" size={11} color={colors.textSec} />
-                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.email}</Text>
-              </View>
-            ) : null}
-            {user?.contact_number ? (
-              <View style={styles.contactRow}>
-                <Ionicons name="call-outline" size={11} color={colors.textSec} />
-                <Text style={[styles.contactText, { color: colors.textSec }]} numberOfLines={1}>{user.contact_number}</Text>
-              </View>
-            ) : null}
           </View>
           <TouchableOpacity
             onPress={handleLogout}
@@ -322,8 +316,17 @@ const styles = StyleSheet.create({
   greeting: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body, letterSpacing: 0.3 },
   heroName: { fontSize: Typography.sizes.lg, fontFamily: Typography.fonts.heading },
   heroSub:  { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono },
-  contactRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 },
-  contactText: { fontSize: 10, fontFamily: Typography.fonts.mono },
+  rolePill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8, paddingVertical: 2,
+    marginTop: 4, marginBottom: 4,
+  },
+  rolePillText: {
+    fontSize: 9, fontFamily: Typography.fonts.heading,
+    letterSpacing: 1, textTransform: "uppercase",
+  },
   logoutBtn: { padding: 4, alignSelf: "flex-start" },
 
   container: {

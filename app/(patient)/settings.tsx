@@ -172,7 +172,7 @@ export default function PatientSettingsScreen() {
           />
         </View>
 
-        {/* Danger Zone */}
+        {/* Exit */}
         <SectionHeader label={S.settings.sectionDanger} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow

@@ -83,12 +83,28 @@ export default function OfflinePatientDetailsScreen() {
     if (!form.lastName.trim())   next.lastName  = "Last name is required.";
     if (!form.sex)               next.sex       = "Select a sex.";
     if (!/^\d{8}$/.test(form.birthdate)) {
-      next.birthdate = "Enter date as YYYYMMDD.";
+      next.birthdate = "Enter date as YYYY-MM-DD.";
     } else {
-      const iso = formatBirthdate(form.birthdate);
-      const parsed = new Date(iso + "T00:00:00");
-      if (Number.isNaN(parsed.getTime()) || iso !== parsed.toISOString().slice(0, 10)) {
+      // Parse the digits as local-time components and round-trip via the
+      // Date object's own getters. Avoids the timezone shift bug where
+      // `new Date("YYYY-MM-DDT00:00:00").toISOString()` rolls back to the
+      // previous day on UTC+ offsets.
+      const yyyy = parseInt(form.birthdate.slice(0, 4), 10);
+      const mm   = parseInt(form.birthdate.slice(4, 6), 10);
+      const dd   = parseInt(form.birthdate.slice(6, 8), 10);
+      const d = new Date(yyyy, mm - 1, dd);
+      const validCalendarDate =
+        d.getFullYear() === yyyy &&
+        d.getMonth() + 1 === mm &&
+        d.getDate() === dd;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (!validCalendarDate) {
         next.birthdate = "Date is not valid.";
+      } else if (yyyy < 1900) {
+        next.birthdate = "Year must be 1900 or later.";
+      } else if (d > today) {
+        next.birthdate = "Date of birth cannot be in the future.";
       }
     }
     const w = parseFloat(form.weightKg);

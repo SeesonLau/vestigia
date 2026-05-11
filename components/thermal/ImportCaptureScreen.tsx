@@ -213,10 +213,7 @@ export default function ImportCaptureScreen() {
       />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.intro, { color: colors.textSec }]}>
-          For each foot, provide the ORIGINAL thermal PNG and its temperature CSV
-          (comma-separated, no header). Re-compressed downloads (Messenger,
-          screenshots) and Excel/Sheets `.xlsx` exports won&apos;t work — convert
-          to `.csv` first and transfer the PNG without recompression.
+          Pick the thermal PNG and the matching temperature CSV for each foot. Use the original files straight from the capture — not screenshots, chat downloads, or spreadsheet exports.
         </Text>
 
         <FootGroup

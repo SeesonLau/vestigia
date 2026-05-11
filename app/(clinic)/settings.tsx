@@ -125,7 +125,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="key-outline"
             label="Request Password Reset"
-            subtitle="Admin-mediated reset (clinics use fabricated emails)"
+            subtitle="Admin-mediated reset"
             onPress={() => router.push("/(clinic)/request-password-reset" as any)}
           />
           <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
@@ -135,17 +135,6 @@ export default function SettingsScreen() {
             toggle
             toggleValue={isDark}
             onToggle={() => toggleTheme()}
-          />
-        </View>
-
-        {/* Device */}
-        <SectionHeader label={S.settings.sectionDevice} />
-        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow
-            icon="hardware-chip-outline"
-            label="Camera"
-            subtitle="FLIR Lepton 3.5 via USB-C"
-            onPress={() => router.push("/(clinic)/pairing")}
           />
         </View>
 
@@ -208,7 +197,7 @@ export default function SettingsScreen() {
           />
         </View>
 
-        {/* Danger Zone */}
+        {/* Exit */}
         <SectionHeader label={S.settings.sectionDanger} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow
