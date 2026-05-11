@@ -23,7 +23,7 @@ import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { LocalCapture, ScreeningSession } from "../../types";
 
-type Filter = "all" | "analyzed" | "pending";
+type Filter = "all" | "analyzed" | "pending" | "discarded";
 type SortOrder = "newest" | "oldest";
 type DataView = "cloud" | "local";
 
@@ -50,7 +50,9 @@ export default function HistoryScreen() {
   const [drillLabel, setDrillLabel] = useState<string | null>(null);
 
   //Refetch on focus so the Analyzed pill updates as soon as the user comes
-  //back from the assessment screen.
+  //back from the assessment screen. The clinic_discarded_at filter happens
+  //client-side so the same fetch can power both the active and discarded
+  //views without a second round trip.
   const fetchSessions = useCallback(() => {
     if (!user?.clinic_id) return;
     setCloudLoading(true);
@@ -58,7 +60,7 @@ export default function HistoryScreen() {
     //clinic_access; filtering client-side by clinic_id would hide them.
     let q = supabase
       .from("screening_sessions")
-      .select("*, classification: classification_results(*)");
+      .select("*, classification: classification_results(*), clinic_discarded_at, patient_discarded_at");
     if (patient_id) q = q.eq("patient_id", patient_id);
     q.order("started_at", { ascending: false })
       .then(({ data, error: err }) => {
@@ -108,8 +110,16 @@ export default function HistoryScreen() {
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     let arr = sessions.filter((s) => {
-      if (filter === "analyzed" && !getClassification(s)) return false;
-      if (filter === "pending"  &&  getClassification(s)) return false;
+      const discarded = !!s.clinic_discarded_at;
+      // Active filters hide discarded rows entirely; only the explicit
+      // "Discarded" filter surfaces them.
+      if (filter === "discarded") {
+        if (!discarded) return false;
+      } else {
+        if (discarded) return false;
+        if (filter === "analyzed" && !getClassification(s)) return false;
+        if (filter === "pending"  &&  getClassification(s)) return false;
+      }
       if (needle) {
         const name = sessionPatientName(s).toLowerCase();
         const code = (s.bundle_code ?? "").toLowerCase();
@@ -190,8 +200,12 @@ export default function HistoryScreen() {
     </View>
   ), [router, colors]);
 
-  const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
-  const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
+  // Stats are computed over the active (non-discarded) set so the totals
+  // reflect what the clinic chooses to keep.
+  const activeSessions = sessions.filter((s) => !s.clinic_discarded_at);
+  const positiveCount = activeSessions.filter((s) => getClassification(s) === "POSITIVE").length;
+  const negativeCount = activeSessions.filter((s) => getClassification(s) === "NEGATIVE").length;
+  const discardedCount = sessions.length - activeSessions.length;
   const unsyncedCount = localCaptures.filter((c) => !c.synced).length;
 
   return (
@@ -255,7 +269,7 @@ export default function HistoryScreen() {
           <>
             <View style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {[
-                { label: "Total", value: String(sessions.length), color: colors.text },
+                { label: "Total", value: String(activeSessions.length), color: colors.text },
                 { label: "Positive", value: String(positiveCount), color: colors.error },
                 { label: "Negative", value: String(negativeCount), color: colors.success },
                 {
@@ -299,24 +313,31 @@ export default function HistoryScreen() {
 
             {/* Filter chips */}
             <View style={styles.filterRow}>
-              {(["all", "analyzed", "pending"] as Filter[]).map((f) => (
-                <TouchableOpacity
-                  key={f}
-                  onPress={() => setFilter(f)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      borderColor: filter === f ? colors.accent : colors.border,
-                      backgroundColor: filter === f ? `${colors.accent}1F` : "transparent",
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
-                    {f === "all" ? "All" : f === "analyzed" ? "Analyzed" : "Pending"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(["all", "analyzed", "pending", "discarded"] as Filter[]).map((f) => {
+                const label =
+                  f === "all" ? "All"
+                  : f === "analyzed" ? "Analyzed"
+                  : f === "pending" ? "Pending"
+                  : `Discarded${discardedCount > 0 ? ` (${discardedCount})` : ""}`;
+                return (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setFilter(f)}
+                    style={[
+                      styles.filterChip,
+                      {
+                        borderColor: filter === f ? colors.accent : colors.border,
+                        backgroundColor: filter === f ? `${colors.accent}1F` : "transparent",
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {/* Sort + group toggles */}

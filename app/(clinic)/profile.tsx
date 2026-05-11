@@ -71,6 +71,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuthStore();
 
   const [clinicName, setClinicName] = useState<string>("—");
+  const [clinicCode, setClinicCode] = useState<string>("—");
   const [editingName, setEditingName] = useState(false);
   const [firstName, setFirstName]   = useState(user?.first_name ?? "");
   const [middleName, setMiddleName] = useState(user?.middle_name ?? "");
@@ -91,11 +92,12 @@ export default function ProfileScreen() {
     if (!user?.clinic_id) return;
     supabase
       .from("clinics")
-      .select("facility_name")
+      .select("facility_name, clinic_code")
       .eq("id", user.clinic_id)
       .single()
       .then(({ data }) => {
         if (data?.facility_name) setClinicName(data.facility_name);
+        if (data?.clinic_code)   setClinicCode(data.clinic_code);
       });
   }, [user?.clinic_id]);
 
@@ -360,6 +362,8 @@ export default function ProfileScreen() {
             <InfoRow label="Email" value={user?.email ?? "—"} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <InfoRow label="Clinic" value={clinicName} />
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <InfoRow label="Clinic ID" value={clinicCode} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
             <InfoRow label="Member Since" value={formatDate(user?.created_at)} />
             <View style={[styles.divider, { backgroundColor: colors.border }]} />

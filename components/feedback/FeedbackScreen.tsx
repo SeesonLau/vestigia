@@ -257,11 +257,9 @@ function TicketCard({
       style={[styles.ticketCard, { backgroundColor: colors.card, borderColor: colors.border }]}
     >
       <View style={styles.ticketHead}>
-        <View style={[styles.categoryPill, { backgroundColor: `${colors.accent}1A` }]}>
-          <Text style={[styles.categoryText, { color: colors.accent }]}>
-            {TICKET_CATEGORY_LABELS[ticket.category]}
-          </Text>
-        </View>
+        <Text style={[styles.ticketSubject, { color: colors.text }]} numberOfLines={1}>
+          {ticket.subject}
+        </Text>
         <View style={[styles.statusPill, { backgroundColor: `${statusColor}1A` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>
@@ -270,12 +268,14 @@ function TicketCard({
         </View>
       </View>
 
-      <Text style={[styles.ticketSubject, { color: colors.text }]} numberOfLines={expanded ? 0 : 2}>
-        {ticket.subject}
-      </Text>
-      <Text style={[styles.ticketDate, { color: colors.textSec }]}>
-        {new Date(ticket.created_at).toLocaleString()}
-      </Text>
+      <View style={styles.ticketMeta}>
+        <Text style={[styles.categoryText, { color: colors.accent }]} numberOfLines={1}>
+          {TICKET_CATEGORY_LABELS[ticket.category]}
+        </Text>
+        <Text style={[styles.ticketDate, { color: colors.textSec }]}>
+          {new Date(ticket.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+        </Text>
+      </View>
 
       {expanded ? (
         <>
@@ -329,16 +329,17 @@ const styles = StyleSheet.create({
   errorText: { fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.body, textAlign: "center", paddingVertical: Spacing.lg },
 
   ticketCard: {
-    borderWidth: 1, borderRadius: Radius.lg,
-    padding: Spacing.md, gap: 6, marginBottom: Spacing.sm,
+    borderWidth: 1, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    gap: 2, marginBottom: 6,
   },
-  ticketHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  categoryPill: { borderRadius: Radius.full, paddingHorizontal: 10, paddingVertical: 3 },
-  categoryText: { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 0.5 },
-  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 3 },
-  statusDot:  { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 0.4 },
-  ticketSubject: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.subheading },
+  ticketHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: Spacing.sm },
+  ticketMeta: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: Spacing.sm },
+  categoryText: { flex: 1, fontSize: 10, fontFamily: Typography.fonts.label, letterSpacing: 0.5 },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, borderRadius: Radius.full, paddingHorizontal: 6, paddingVertical: 1 },
+  statusDot:  { width: 5, height: 5, borderRadius: 3 },
+  statusText: { fontSize: 9, fontFamily: Typography.fonts.label, letterSpacing: 0.3 },
+  ticketSubject: { flex: 1, fontSize: Typography.sizes.sm, fontFamily: Typography.fonts.subheading },
   hint: { fontSize: 11, fontFamily: Typography.fonts.body, lineHeight: 16, marginTop: -Spacing.xs },
   ticketDate:    { fontSize: 10, fontFamily: Typography.fonts.mono },
 

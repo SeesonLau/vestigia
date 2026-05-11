@@ -50,9 +50,6 @@ export default function PatientHomeScreen() {
     router.replace("/(auth)/login");
   };
 
-  const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
@@ -71,6 +68,7 @@ export default function PatientHomeScreen() {
             .from("screening_sessions")
             .select("*, classification:classification_results(*)")
             .eq("subject_profile_id", profileId)
+            .is("patient_discarded_at", null)
             .order("started_at", { ascending: false });
           if (after) q = q.gte("started_at", after.toISOString());
 
@@ -141,7 +139,6 @@ export default function PatientHomeScreen() {
             )}
           </View>
           <View style={styles.heroText}>
-            <Text style={[styles.greeting, { color: colors.textSec }]}>{timeGreeting},</Text>
             <Text style={[styles.heroName,  { color: colors.text }]} numberOfLines={1}>{fullName}</Text>
             <View style={[styles.rolePill, { backgroundColor: colors.accent }]}>
               <Ionicons name="person" size={11} color="#FFFFFF" />

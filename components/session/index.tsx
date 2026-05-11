@@ -61,46 +61,27 @@ export function SessionCard({ session, onPress, style }: SessionCardProps) {
       <View style={[cardStyles.accentBar, { backgroundColor: accentBarColor }]} />
 
       <View style={cardStyles.content}>
-        <View style={cardStyles.topRow}>
-          <Text style={[cardStyles.sessionId, { color: colors.textSec }]}>Session</Text>
-          <View style={cardStyles.pillGroup}>
-            <View style={[
-              cardStyles.statusPill,
-              {
-                backgroundColor: analyzed ? `${colors.success}26` : `${colors.warning}26`,
-              },
+        <View style={cardStyles.headRow}>
+          <Text style={[cardStyles.date, { color: colors.text }]} numberOfLines={1}>
+            {date.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+            <Text style={[cardStyles.time, { color: colors.textSec }]}>
+              {"  "}{date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
+            </Text>
+          </Text>
+          <View style={[
+            cardStyles.statusPill,
+            { backgroundColor: analyzed ? `${colors.success}26` : `${colors.warning}26` },
+          ]}>
+            <Text style={[
+              cardStyles.statusText,
+              { color: analyzed ? colors.success : colors.warning },
             ]}>
-              <Text style={[
-                cardStyles.statusText,
-                { color: analyzed ? colors.success : colors.warning },
-              ]}>
-                {analyzed ? "Analyzed" : "Not Analyzed"}
-              </Text>
-            </View>
-            <View style={[cardStyles.statusPill, { backgroundColor: cfg.bg(colors) }]}>
-              <Text style={[cardStyles.statusText, { color: cfg.color(colors) }]}>
-                {cfg.label}
-              </Text>
-            </View>
+              {analyzed ? "Analyzed" : "Pending"}
+            </Text>
           </View>
         </View>
 
-        <Text style={[cardStyles.date, { color: colors.text }]}>
-          {date.toLocaleDateString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })}
-          {"  "}
-          <Text style={[cardStyles.time, { color: colors.textSec }]}>
-            {date.toLocaleTimeString("en-PH", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </Text>
-        </Text>
-
-        {classification && (
+        {classification ? (
           <View style={cardStyles.resultRow}>
             <Text style={[cardStyles.resultText, { color: classification === "POSITIVE" ? colors.error : colors.success }]}>
               DPN {classification}
@@ -110,7 +91,16 @@ export function SessionCard({ session, onPress, style }: SessionCardProps) {
                 {Number(session.classification.confidence_score).toFixed(1)}%
               </Text>
             )}
+            {session.status !== "completed" ? (
+              <Text style={[cardStyles.statusInline, { color: cfg.color(colors) }]}>
+                · {cfg.label}
+              </Text>
+            ) : null}
           </View>
+        ) : (
+          <Text style={[cardStyles.statusInline, { color: cfg.color(colors) }]}>
+            {cfg.label}
+          </Text>
         )}
       </View>
 
@@ -125,63 +115,58 @@ const cardStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: Radius.lg,
+    borderRadius: Radius.md,
     overflow: "hidden",
-    marginBottom: Spacing.sm,
+    marginBottom: 6,
   },
-  accentBar: { width: 4, alignSelf: "stretch" },
-  content: { flex: 1, padding: Spacing.md },
-  topRow: {
+  accentBar: { width: 3, alignSelf: "stretch" },
+  content: { flex: 1, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, gap: 2 },
+  headRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
-  },
-  pillGroup: {
-    flexDirection: "row",
-    gap: 4,
-  },
-  sessionId: {
-    fontSize: Typography.sizes.xs,
-    fontFamily: Typography.fonts.label,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
+    justifyContent: "space-between",
+    gap: Spacing.sm,
   },
   statusPill: {
     borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: Typography.fonts.label,
     letterSpacing: 0.5,
   },
   date: {
-    fontSize: Typography.sizes.base,
+    flex: 1,
+    fontSize: Typography.sizes.sm,
     fontFamily: Typography.fonts.subheading,
   },
   time: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.body,
   },
   resultRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
-    gap: Spacing.sm,
+    gap: 6,
   },
   resultText: {
-    fontSize: Typography.sizes.sm,
+    fontSize: Typography.sizes.xs,
     fontFamily: Typography.fonts.subheading,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   confidence: {
-    fontSize: Typography.sizes.xs,
+    fontSize: 10,
     fontFamily: Typography.fonts.mono,
   },
+  statusInline: {
+    fontSize: 10,
+    fontFamily: Typography.fonts.label,
+    letterSpacing: 0.3,
+  },
   chevron: {
-    fontSize: 22,
+    fontSize: 18,
     paddingRight: Spacing.md,
   },
 });

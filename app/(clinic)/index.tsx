@@ -49,9 +49,6 @@ export default function ClinicHomeScreen() {
     router.replace("/(auth)/login");
   };
 
-  const hour = new Date().getHours();
-  const timeGreeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-
   // Refetch on mount, on filter change, and whenever this screen regains
   // focus (so a new capture saved elsewhere shows up immediately).
   useFocusEffect(
@@ -72,6 +69,7 @@ export default function ClinicHomeScreen() {
             .from("screening_sessions")
             .select("*, classification:classification_results(*)")
             .eq("clinic_id", clinicId)
+            .is("clinic_discarded_at", null)
             .order("started_at", { ascending: false });
           if (after) q = q.gte("started_at", after.toISOString());
 
@@ -141,7 +139,6 @@ export default function ClinicHomeScreen() {
             )}
           </View>
           <View style={styles.heroText}>
-            <Text style={styles.greetingOnAccent}>{timeGreeting},</Text>
             <Text style={styles.heroFacilityName} numberOfLines={2}>{clinicName}</Text>
             <View style={styles.rolePillOnAccent}>
               <Ionicons name="business" size={11} color="#FFFFFF" />

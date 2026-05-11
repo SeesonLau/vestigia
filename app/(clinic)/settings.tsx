@@ -1,7 +1,7 @@
 // app/(clinic)/settings.tsx
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   Alert,
   StyleSheet,
@@ -15,7 +15,6 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { useTheme } from "../../constants/ThemeContext";
 import { Spacing, Typography } from "../../constants/theme";
 import { S } from "../../constants/strings";
-import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 
 interface SettingRowProps {
@@ -89,24 +88,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, toggleTheme } = useTheme();
   const { logout } = useAuthStore();
-  const user = useAuthStore((s) => s.user);
   const [autoUpload, setAutoUpload] = useState(true);
-  const [clinicCode, setClinicCode] = useState<string | null>(null);
-
-  useEffect(() => {
-    const clinicId = user?.clinic_id;
-    if (!clinicId) return;
-    let cancelled = false;
-    supabase
-      .from("clinics")
-      .select("clinic_code")
-      .eq("id", clinicId)
-      .single()
-      .then(({ data }) => {
-        if (!cancelled && data?.clinic_code) setClinicCode(data.clinic_code);
-      });
-    return () => { cancelled = true; };
-  }, [user?.clinic_id]);
 
   const handleSignOut = () => {
     Alert.alert(S.settings.signOutConfirmTitle, S.auth.signOutConfirm, [
@@ -127,12 +109,6 @@ export default function SettingsScreen() {
         {/* Account */}
         <SectionHeader label={S.settings.sectionAccount} />
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <SettingRow
-            icon="id-card-outline"
-            label="Clinic ID"
-            value={clinicCode ?? "—"}
-          />
-          <View style={[styles.rowDivider, { backgroundColor: colors.border }]} />
           <SettingRow
             icon="person-outline"
             label={S.settings.profile}

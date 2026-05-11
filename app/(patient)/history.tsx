@@ -22,7 +22,7 @@ import { useAuthStore } from "../../store/authStore";
 import { LocalCapture, ScreeningSession } from "../../types";
 
 type DataView = "cloud" | "local";
-type Filter = "all" | "analyzed" | "pending";
+type Filter = "all" | "analyzed" | "pending" | "discarded";
 
 export default function PatientHistoryScreen() {
   const router = useRouter();
@@ -48,7 +48,7 @@ export default function PatientHistoryScreen() {
     try {
       const { data, error } = await supabase
         .from("screening_sessions")
-        .select("*, classification:classification_results(*)")
+        .select("*, classification:classification_results(*), clinic_discarded_at, patient_discarded_at")
         .eq("subject_profile_id", user.id)
         .order("started_at", { ascending: false });
 
@@ -85,12 +85,19 @@ export default function PatientHistoryScreen() {
   };
 
   const filtered = sessions.filter((s) => {
+    const discarded = !!s.patient_discarded_at;
+    if (filter === "discarded") {
+      return discarded;
+    }
+    if (discarded) return false;
     if (filter === "analyzed" && !getClassification(s)) return false;
     if (filter === "pending"  &&  getClassification(s)) return false;
     return true;
   });
-  const positiveCount = sessions.filter((s) => getClassification(s) === "POSITIVE").length;
-  const negativeCount = sessions.filter((s) => getClassification(s) === "NEGATIVE").length;
+  const activeSessions = sessions.filter((s) => !s.patient_discarded_at);
+  const positiveCount = activeSessions.filter((s) => getClassification(s) === "POSITIVE").length;
+  const negativeCount = activeSessions.filter((s) => getClassification(s) === "NEGATIVE").length;
+  const discardedCount = sessions.length - activeSessions.length;
 
   const renderSession = useCallback(({ item }: { item: ScreeningSession }) => (
     <SessionCard
@@ -167,7 +174,7 @@ export default function PatientHistoryScreen() {
           <>
             <View style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
               {[
-                { label: "Total", value: String(sessions.length), color: colors.text },
+                { label: "Total", value: String(activeSessions.length), color: colors.text },
                 { label: "Positive", value: String(positiveCount), color: colors.error },
                 { label: "Negative", value: String(negativeCount), color: colors.success },
                 {
@@ -191,24 +198,31 @@ export default function PatientHistoryScreen() {
             </View>
 
             <View style={styles.filterRow}>
-              {(["all", "analyzed", "pending"] as Filter[]).map((f) => (
-                <TouchableOpacity
-                  key={f}
-                  onPress={() => setFilter(f)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      borderColor: filter === f ? colors.accent : colors.border,
-                      backgroundColor: filter === f ? `${colors.accent}1F` : "transparent",
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
-                    {f === "all" ? "All" : f === "analyzed" ? "Analyzed" : "Pending"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {(["all", "analyzed", "pending", "discarded"] as Filter[]).map((f) => {
+                const label =
+                  f === "all" ? "All"
+                  : f === "analyzed" ? "Analyzed"
+                  : f === "pending" ? "Pending"
+                  : `Discarded${discardedCount > 0 ? ` (${discardedCount})` : ""}`;
+                return (
+                  <TouchableOpacity
+                    key={f}
+                    onPress={() => setFilter(f)}
+                    style={[
+                      styles.filterChip,
+                      {
+                        borderColor: filter === f ? colors.accent : colors.border,
+                        backgroundColor: filter === f ? `${colors.accent}1F` : "transparent",
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterText, { color: filter === f ? colors.accent : colors.textSec }]}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {cloudLoading ? (

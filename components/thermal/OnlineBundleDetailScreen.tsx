@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator, Image as RNImage, ScrollView,
+  ActivityIndicator, Alert, Image as RNImage, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from "react-native";
 import DpnResultView from "./DpnResultView";
@@ -26,6 +26,7 @@ import {
 } from "../../lib/dpnHydrate";
 import { calculateAge, calculateBMI, bmiCategory } from "../../lib/thermal/bundleUtils";
 import { supabase } from "../../lib/supabase";
+import { useAuthStore } from "../../store/authStore";
 
 const SIGN_EXPIRY = 3600; //1h is plenty for a viewing session
 
@@ -57,6 +58,8 @@ interface SessionRow {
   } | null;
   started_at: string;
   completed_at: string | null;
+  clinic_discarded_at: string | null;
+  patient_discarded_at: string | null;
   clinic: { facility_name: string } | null;
   classification?: {
     classification: "POSITIVE" | "NEGATIVE" | "INCONCLUSIVE";
@@ -88,12 +91,14 @@ interface Props {
 export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmitToClinic, onAssess }: Props) {
   const router   = useRouter();
   const { colors } = useTheme();
+  const userRole = useAuthStore((s) => s.user?.role);
 
   const [session, setSession] = useState<SessionRow | null>(null);
   const [left,    setLeft]    = useState<FootSigned | null>(null);
   const [right,   setRight]   = useState<FootSigned | null>(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState<string | null>(null);
+  const [discardBusy, setDiscardBusy] = useState(false);
   //Full DPN result hydrated from classification_results so we can render
   //the same detailed verdict / per-foot / asymmetry UI as the assessment
   //screen, inline below the bundle status pill.
@@ -118,6 +123,7 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             .select(`
               id, bundle_code, capture_mode, status,
               patient_snapshot, started_at, completed_at,
+              clinic_discarded_at, patient_discarded_at,
               clinic:clinics ( facility_name ),
               classification:classification_results ( classification, confidence_score, classified_at )
             `)
@@ -220,6 +226,51 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
     }, [sessionId]),
   );
 
+  // Per-role discard state. The user's own copy is hidden when their
+  // role-specific column is non-null; the other party's copy is unaffected.
+  const isClinicView = userRole === "clinic";
+  const isPatientView = userRole === "patient";
+  const discardedForMe = isClinicView
+    ? !!session?.clinic_discarded_at
+    : isPatientView ? !!session?.patient_discarded_at : false;
+  const canDiscard = (isClinicView || isPatientView);
+
+  const handleDiscardOrRestore = useCallback(() => {
+    if (!session || !canDiscard) return;
+    const restoring = discardedForMe;
+    const title = restoring ? "Restore bundle?" : "Discard bundle?";
+    const body  = restoring
+      ? "This bundle will appear in your history and stats again."
+      : "This hides the bundle from your history and stats. The data stays in the database — the other side keeps their copy and you can restore it any time.";
+    Alert.alert(title, body, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: restoring ? "Restore" : "Discard",
+        style: restoring ? "default" : "destructive",
+        onPress: async () => {
+          setDiscardBusy(true);
+          const { error: rpcErr } = await supabase.rpc(
+            restoring ? "restore_session" : "discard_session",
+            { p_session_id: session.id },
+          );
+          setDiscardBusy(false);
+          if (rpcErr) {
+            Alert.alert("Could not update", rpcErr.message);
+            return;
+          }
+          if (restoring) {
+            setSession((prev) => prev ? { ...prev,
+              clinic_discarded_at: isClinicView ? null : prev.clinic_discarded_at,
+              patient_discarded_at: isPatientView ? null : prev.patient_discarded_at,
+            } : prev);
+          } else {
+            router.back();
+          }
+        },
+      },
+    ]);
+  }, [session, canDiscard, discardedForMe, isClinicView, isPatientView, router]);
+
   const patient = session?.patient_snapshot;
   const fullName = useMemo(() => {
     if (!patient) return "";
@@ -257,7 +308,34 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
         title={session.bundle_code ?? "Bundle"}
         subtitle={session.clinic?.facility_name ?? (session.capture_mode === "patient_self" ? "Self capture" : undefined)}
         leftIcon={<BackBtn router={router} colors={colors} />}
+        rightIcon={canDiscard ? (
+          <TouchableOpacity
+            onPress={handleDiscardOrRestore}
+            disabled={discardBusy}
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+            accessibilityLabel={discardedForMe ? "Restore bundle" : "Discard bundle"}
+            accessibilityRole="button"
+          >
+            {discardBusy ? (
+              <ActivityIndicator size="small" color={colors.textSec} />
+            ) : (
+              <Ionicons
+                name={discardedForMe ? "arrow-undo-outline" : "archive-outline"}
+                size={22}
+                color={discardedForMe ? colors.accent : colors.textSec}
+              />
+            )}
+          </TouchableOpacity>
+        ) : undefined}
       />
+      {discardedForMe ? (
+        <View style={[styles.discardedBanner, { backgroundColor: `${colors.warning}1A`, borderColor: `${colors.warning}66` }]}>
+          <Ionicons name="archive-outline" size={14} color={colors.warning} />
+          <Text style={[styles.discardedBannerText, { color: colors.warning }]}>
+            Discarded — hidden from your history. Tap the restore icon to bring it back.
+          </Text>
+        </View>
+      ) : null}
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
@@ -516,6 +594,19 @@ const styles = StyleSheet.create({
   scroll:   { padding: Spacing.lg, paddingBottom: Spacing["3xl"], gap: Spacing.lg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText:{ fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
+
+  discardedBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    marginHorizontal: Spacing.lg, marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    borderRadius: Radius.md, borderWidth: 1,
+  },
+  discardedBannerText: {
+    flex: 1,
+    fontSize: Typography.sizes.xs,
+    fontFamily: Typography.fonts.body,
+    lineHeight: 16,
+  },
 
   metaRow:   {
     flexDirection: "row", justifyContent: "space-between", alignItems: "center",

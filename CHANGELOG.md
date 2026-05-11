@@ -3,6 +3,36 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.1.0] — 2026-05-12
+
+Post-1.0 polish + the soft-discard workflow.
+
+### Added
+- **Per-role soft-discard for screening sessions.** New migration
+  `supabase/migrations/20260512_session_discard.sql` adds
+  `clinic_discarded_at` / `patient_discarded_at` to
+  `screening_sessions` plus SECURITY DEFINER RPCs `discard_session(uuid)`
+  and `restore_session(uuid)`. Each role's discard is independent — a
+  patient hiding their copy doesn't wipe the clinic's, and vice versa.
+- Bundle detail screen shows a header **archive / restore** icon (per
+  role) with a confirmation alert; a `Discarded — hidden from your
+  history` banner is shown when viewing a row the current role has
+  discarded.
+- History (clinic + patient) filters out discarded rows by default and
+  exposes a new **Discarded** filter chip (with count) to surface them
+  for restore. Home-page session lists and stats also exclude discarded.
+- Customer Support (mobile) ticket cards and history session cards are
+  now half the vertical space (tighter padding, smaller fonts, single-
+  row meta — same data, less screen real estate).
+
+### Changed
+- Clinic ID moved from Settings → Profile (Account Information row).
+  The Settings Account section is now back to its profile / password
+  rows only.
+- Clinic + patient home heroes drop the "Good morning, " greeting; the
+  facility name / patient name reads as the headline on its own.
+- App version bumped to `v1.1.0` / build `1100` (Android `versionCode 2`).
+
 ## [1.0.0] — 2026-05-08
 
 First production-ready release. All three roles (clinic, patient, admin) are

@@ -94,6 +94,10 @@ export interface ScreeningSession {
   notes?: string | null;
   started_at: string;
   completed_at?: string | null;
+  // Per-role soft-discard (clinic / patient each independent). NULL means
+  // visible; a timestamp hides the row from that role's history + stats.
+  clinic_discarded_at?: string | null;
+  patient_discarded_at?: string | null;
   // joined
   classification?: ClassificationResult;
   captures?: ThermalCapture[];
