@@ -38,6 +38,7 @@ export default function ClinicHomeScreen() {
   const logout = useAuthStore((s) => s.logout);
 
   const [clinicName,    setClinicName]    = useState<string>("My Clinic");
+  const [clinicCode,    setClinicCode]    = useState<string | null>(null);
   const [filter,        setFilter]        = useState<DateFilter>("today");
   const [sessions,      setSessions]      = useState<ScreeningSession[]>([]);
   const [loading,       setLoading]       = useState(true);
@@ -75,12 +76,13 @@ export default function ClinicHomeScreen() {
           if (after) q = q.gte("started_at", after.toISOString());
 
           const [clinicRes, sessionsRes] = await Promise.all([
-            supabase.from("clinics").select("facility_name").eq("id", clinicId).single(),
+            supabase.from("clinics").select("facility_name, clinic_code").eq("id", clinicId).single(),
             q,
           ]);
           if (cancelled) return;
 
           if (clinicRes.data?.facility_name) setClinicName(clinicRes.data.facility_name);
+          if (clinicRes.data?.clinic_code)   setClinicCode(clinicRes.data.clinic_code);
           if (sessionsRes.error) throw sessionsRes.error;
 
           const rows = (sessionsRes.data ?? []) as DbSession[];
@@ -145,18 +147,12 @@ export default function ClinicHomeScreen() {
               <Ionicons name="business" size={11} color="#FFFFFF" />
               <Text style={styles.rolePillTextOnAccent}>Clinic</Text>
             </View>
-            {user?.email ? (
-              <View style={styles.contactRow}>
-                <Ionicons name="mail-outline" size={11} color="rgba(255,255,255,0.85)" />
-                <Text style={styles.contactTextOnAccent} numberOfLines={1}>{user.email}</Text>
-              </View>
-            ) : null}
-            {user?.contact_number ? (
-              <View style={styles.contactRow}>
-                <Ionicons name="call-outline" size={11} color="rgba(255,255,255,0.85)" />
-                <Text style={styles.contactTextOnAccent} numberOfLines={1}>{user.contact_number}</Text>
-              </View>
-            ) : null}
+            <View style={styles.contactRow}>
+              <Ionicons name="id-card-outline" size={11} color="rgba(255,255,255,0.85)" />
+              <Text style={styles.contactTextOnAccent} numberOfLines={1}>
+                Clinic ID: {clinicCode ?? "—"}
+              </Text>
+            </View>
           </View>
           <TouchableOpacity
             onPress={handleLogout}
