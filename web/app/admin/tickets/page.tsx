@@ -10,9 +10,11 @@ import { useEffect, useState } from "react";
 import {
   listTickets,
   resolveTicket,
+  setTicketSeverity,
   type TicketAdminRow,
   type TicketStatus,
   type TicketCategory,
+  type TicketSeverity,
 } from "../../../lib/admin-rpc";
 
 type Filter = TicketStatus | "all";
@@ -30,6 +32,13 @@ const CAT_LABEL: Record<TicketCategory, string> = {
   question:        "Question",
   billing:         "Billing",
 };
+
+const SEVERITY_OPTIONS: { value: TicketSeverity; label: string }[] = [
+  { value: "low",      label: "Low"      },
+  { value: "medium",   label: "Medium"   },
+  { value: "high",     label: "High"     },
+  { value: "critical", label: "Critical" },
+];
 
 export default function AdminTicketsPage() {
   const [filter, setFilter] = useState<Filter>("open");
@@ -96,6 +105,20 @@ export default function AdminTicketsPage() {
       await load(filter);
     } catch (e) {
       setModalErr(e instanceof Error ? e.message : "Resolve failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onSeverityChange = async (next: TicketSeverity | "") => {
+    if (!active) return;
+    try {
+      setSubmitting(true);
+      setModalErr(null);
+      await setTicketSeverity(active.id, next === "" ? null : next);
+      await load(filter);
+    } catch (e) {
+      setModalErr(e instanceof Error ? e.message : "Could not set severity.");
     } finally {
       setSubmitting(false);
     }
@@ -168,7 +191,10 @@ export default function AdminTicketsPage() {
                       <span className="truncate">
                         {r.submitter?.full_name ?? "—"} · {r.submitter_role}
                       </span>
-                      <span className="ml-2 shrink-0">{CAT_LABEL[r.category]}</span>
+                      <span className="ml-2 flex shrink-0 items-center gap-1.5">
+                        <TicketSeverityPill severity={r.severity} />
+                        <span>{CAT_LABEL[r.category]}</span>
+                      </span>
                     </div>
                     <div className="text-xs text-zinc-400 dark:text-zinc-500">{formatDate(r.created_at)}</div>
                   </button>
@@ -202,6 +228,24 @@ export default function AdminTicketsPage() {
                     <span><span className="font-medium">Resolved:</span> {formatDate(active.resolved_at)}</span>
                   )}
                 </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Severity
+                </label>
+                <select
+                  value={active.severity ?? ""}
+                  onChange={(e) => onSeverityChange(e.target.value as TicketSeverity | "")}
+                  disabled={submitting}
+                  className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs text-zinc-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:focus:ring-teal-900/40"
+                >
+                  <option value="">Unassigned</option>
+                  {SEVERITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <TicketSeverityPill severity={active.severity} />
               </div>
 
               <div className="rounded-md bg-zinc-50 p-4 text-sm text-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
@@ -275,6 +319,27 @@ function TicketStatusPill({ status }: { status: TicketStatus }) {
   return (
     <span className={"inline-block shrink-0 rounded-full px-2 py-0.5 text-xs font-medium " + map[status]}>
       {label[status]}
+    </span>
+  );
+}
+
+function TicketSeverityPill({ severity }: { severity: TicketSeverity | null }) {
+  if (!severity) {
+    return (
+      <span className="inline-block shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+        Unassigned
+      </span>
+    );
+  }
+  const map: Record<TicketSeverity, string> = {
+    low:      "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
+    medium:   "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+    high:     "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+    critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  };
+  return (
+    <span className={"inline-block shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide " + map[severity]}>
+      {severity}
     </span>
   );
 }

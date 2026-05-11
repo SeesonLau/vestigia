@@ -138,6 +138,7 @@ export async function adminSetClinicPassword(params: {
 
 export type TicketCategory = "bug" | "feature_request" | "question" | "billing";
 export type TicketStatus   = "open" | "in_progress" | "resolved";
+export type TicketSeverity = "low" | "medium" | "high" | "critical";
 
 export interface TicketAdminRow {
   id: string;
@@ -147,6 +148,7 @@ export interface TicketAdminRow {
   subject: string;
   body: string;
   status: TicketStatus;
+  severity: TicketSeverity | null;
   admin_response: string | null;
   resolved_at: string | null;
   created_at: string;
@@ -162,7 +164,7 @@ export async function listTickets(filter: TicketStatus | "all" = "open"): Promis
   let q = getSupabase()
     .from("support_tickets")
     .select(
-      "id, submitter_profile_id, submitter_role, category, subject, body, status, " +
+      "id, submitter_profile_id, submitter_role, category, subject, body, status, severity, " +
       "admin_response, resolved_at, created_at, updated_at, " +
       "submitter:profiles!support_tickets_submitter_profile_id_fkey ( full_name, email )",
     )
@@ -178,6 +180,14 @@ export async function resolveTicket(ticketId: string, status: TicketStatus, resp
     p_ticket_id: ticketId,
     p_status:    status,
     p_response:  response ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function setTicketSeverity(ticketId: string, severity: TicketSeverity | null): Promise<void> {
+  const { error } = await getSupabase().rpc("admin_set_ticket_severity", {
+    p_ticket_id: ticketId,
+    p_severity:  severity,
   });
   if (error) throw new Error(error.message);
 }
