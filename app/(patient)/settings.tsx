@@ -138,8 +138,8 @@ export default function PatientSettingsScreen() {
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <SettingRow
             icon="chatbox-ellipses-outline"
-            label="Feedback / Tickets"
-            subtitle="Report a bug, request a feature, or contact the admin"
+            label="Customer Support"
+            subtitle="Report a bug, ask a question, or contact the admin"
             onPress={() => router.push("/(patient)/feedback" as any)}
           />
         </View>

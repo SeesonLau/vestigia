@@ -136,7 +136,42 @@ export async function adminSetClinicPassword(params: {
 
 // ── Support tickets ─────────────────────────────────────────────
 
-export type TicketCategory = "bug" | "feature_request" | "question" | "billing";
+export type TicketCategory =
+  | "ui_ux"
+  | "bug"
+  | "performance"
+  | "accessibility"
+  | "security"
+  | "navigation"
+  | "auth"
+  | "data_sync"
+  | "hardware"
+  | "question"
+  | "code"
+  | "database"
+  | "thermal";
+
+export const TICKET_CATEGORY_LABELS: Record<TicketCategory, string> = {
+  ui_ux:         "UI / UX",
+  bug:           "Critical bug",
+  performance:   "Performance",
+  accessibility: "Accessibility",
+  security:      "Security",
+  navigation:    "Navigation",
+  auth:          "Login / Authentication",
+  data_sync:     "Data / Sync",
+  hardware:      "Camera / Hardware",
+  question:      "General question",
+  code:          "Code quality",
+  database:      "Database",
+  thermal:       "Thermal pipeline",
+};
+
+export const ALL_TICKET_CATEGORIES: TicketCategory[] = [
+  "ui_ux","bug","performance","accessibility","security","navigation",
+  "auth","data_sync","hardware","question","code","database","thermal",
+];
+
 export type TicketStatus   = "open" | "in_progress" | "resolved";
 export type TicketSeverity = "low" | "medium" | "high" | "critical";
 
@@ -199,6 +234,23 @@ export interface AdminCounts {
   pendingPasswordResets: number;
   openTickets:           number;
   inProgressTickets:     number;
+}
+
+export interface TicketDashboardStats {
+  total:              number;
+  unassigned_severity: number;
+  resolved_last_7d:   number;
+  opened_last_7d:     number;
+  by_status:    Partial<Record<TicketStatus | "unknown", number>>;
+  by_severity:  Partial<Record<TicketSeverity | "unassigned", number>>;
+  by_category:  Partial<Record<TicketCategory | "unknown", number>>;
+  by_role:      Partial<Record<"clinic" | "patient" | "unknown", number>>;
+}
+
+export async function fetchTicketDashboardStats(): Promise<TicketDashboardStats> {
+  const { data, error } = await getSupabase().rpc("admin_ticket_dashboard_stats");
+  if (error) throw new Error(error.message);
+  return data as TicketDashboardStats;
 }
 
 export async function fetchAdminCounts(): Promise<AdminCounts> {

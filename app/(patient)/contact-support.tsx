@@ -100,21 +100,21 @@ export default function ContactSupportScreen() {
         <ContactCard
           icon="chatbox-ellipses-outline"
           title="In-App Support"
-          detail="Open Feedback / Tickets"
+          detail="Open Customer Support"
           note="Fastest path — your message reaches the admin directly"
           onPress={() => router.push("/(patient)/feedback" as any)}
         />
         <ContactCard
           icon="bug-outline"
           title="Report a Bug"
-          detail="Open Feedback / Tickets"
+          detail="Open Customer Support"
           note="Describe what happened — include your device model and app version"
           onPress={() => router.push("/(patient)/feedback" as any)}
         />
         <ContactCard
           icon="school-outline"
           title="Academic Inquiries"
-          detail="Open Feedback / Tickets"
+          detail="Open Customer Support"
           note="For thesis collaboration, data access requests, or institutional use"
           onPress={() => router.push("/(patient)/feedback" as any)}
         />
@@ -159,7 +159,7 @@ export default function ContactSupportScreen() {
           <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
           <FaqItem
             question="Why does my account show as deactivated?"
-            answer="Accounts can be deactivated by the user themselves (via Profile > Deactivate Account) or by the platform administrator. Open Feedback / Tickets to request reactivation."
+            answer="Accounts can be deactivated by the user themselves (via Profile > Deactivate Account) or by the platform administrator. Open Customer Support to request reactivation."
           />
           <View style={[styles.faqDivider, { backgroundColor: colors.border }]} />
           <FaqItem

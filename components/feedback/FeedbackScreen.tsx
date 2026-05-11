@@ -32,6 +32,7 @@ import { Radius, Spacing, Typography } from "../../constants/theme";
 import {
   TICKET_CATEGORY_LABELS,
   TICKET_STATUS_LABELS,
+  USER_FACING_CATEGORIES,
   type SupportTicket,
   type TicketCategory,
   type TicketStatus,
@@ -39,8 +40,10 @@ import {
   submitSupportTicket,
 } from "../../lib/admin/supportTickets";
 
-const CATEGORY_OPTIONS: PickerOption[] = (Object.entries(TICKET_CATEGORY_LABELS) as [TicketCategory, string][])
-  .map(([value, label]) => ({ value, label }));
+const CATEGORY_OPTIONS: PickerOption[] = USER_FACING_CATEGORIES.map((value) => ({
+  value,
+  label: TICKET_CATEGORY_LABELS[value],
+}));
 
 const STATUS_FILTERS: { value: TicketStatus | "all"; label: string }[] = [
   { value: "all",         label: "All"          },
@@ -53,12 +56,12 @@ export default function FeedbackScreen() {
   const router = useRouter();
   const { colors } = useTheme();
 
-  // Form
+  // Form — subject is no longer entered; the server auto-assigns a
+  // QA-code subject (UX-22, BUG-23, …) based on the picked category.
   const [category, setCategory] = useState<TicketCategory | null>(null);
-  const [subject, setSubject]   = useState("");
   const [body, setBody]         = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<{ category?: string; subject?: string; body?: string }>({});
+  const [errors, setErrors] = useState<{ category?: string; body?: string }>({});
 
   // List
   const [tickets, setTickets]     = useState<SupportTicket[]>([]);
@@ -95,12 +98,9 @@ export default function FeedbackScreen() {
   const validate = () => {
     const next: typeof errors = {};
     if (!category) next.category = "Pick a category.";
-    const trimmedSubject = subject.trim();
-    if (trimmedSubject.length < 3 || trimmedSubject.length > 120)
-      next.subject = "Subject must be 3–120 characters.";
     const trimmedBody = body.trim();
     if (trimmedBody.length < 3 || trimmedBody.length > 4000)
-      next.body = "Body must be 3–4000 characters.";
+      next.body = "Describe your concern in 3–4000 characters.";
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -109,17 +109,17 @@ export default function FeedbackScreen() {
     if (!validate()) return;
     setSubmitting(true);
     try {
-      await submitSupportTicket({
+      const { subject: assigned } = await submitSupportTicket({
         category: category!,
-        subject:  subject.trim(),
         body:     body.trim(),
       });
-      // Reset form, refresh list.
       setCategory(null);
-      setSubject("");
       setBody("");
       setErrors({});
-      Alert.alert("Ticket submitted", "An admin will respond as soon as possible.");
+      Alert.alert(
+        "Ticket submitted",
+        `Your ticket ${assigned} has been filed. An admin will respond as soon as possible.`,
+      );
       await refreshList();
     } catch (e) {
       Alert.alert("Could not submit", e instanceof Error ? e.message : "Please try again.");
@@ -135,7 +135,7 @@ export default function FeedbackScreen() {
   return (
     <ScreenWrapper>
       <Header
-        title="Feedback / Support"
+        title="Customer Support"
         leftIcon={
           <TouchableOpacity
             onPress={() => router.back()}
@@ -166,13 +166,6 @@ export default function FeedbackScreen() {
               error={errors.category}
             />
             <Input
-              label="Subject"
-              value={subject}
-              onChangeText={(v) => { setSubject(v); if (errors.subject) setErrors({ ...errors, subject: undefined }); }}
-              error={errors.subject}
-              autoCapitalize="sentences"
-            />
-            <Input
               label="Describe your concern"
               value={body}
               onChangeText={(v) => { setBody(v); if (errors.body) setErrors({ ...errors, body: undefined }); }}
@@ -181,6 +174,9 @@ export default function FeedbackScreen() {
               numberOfLines={6}
               autoCapitalize="sentences"
             />
+            <Text style={[styles.hint, { color: colors.textSec }]}>
+              A ticket code (e.g. UX-22, BUG-23) is assigned automatically when you submit.
+            </Text>
             <Button
               label="Submit Ticket"
               onPress={handleSubmit}
@@ -343,6 +339,7 @@ const styles = StyleSheet.create({
   statusDot:  { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 10, fontFamily: Typography.fonts.heading, letterSpacing: 0.4 },
   ticketSubject: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.subheading },
+  hint: { fontSize: 11, fontFamily: Typography.fonts.body, lineHeight: 16, marginTop: -Spacing.xs },
   ticketDate:    { fontSize: 10, fontFamily: Typography.fonts.mono },
 
   divider: { height: 1, marginVertical: Spacing.xs },
