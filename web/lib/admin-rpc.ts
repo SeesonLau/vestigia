@@ -253,6 +253,18 @@ export async function fetchTicketDashboardStats(): Promise<TicketDashboardStats>
   return data as TicketDashboardStats;
 }
 
+export interface TicketActivityPoint {
+  day:      string; // ISO date or timestamp the server returned for that day
+  opened:   number;
+  resolved: number;
+}
+
+export async function fetchTicketActivityTimeseries(days: number = 30): Promise<TicketActivityPoint[]> {
+  const { data, error } = await getSupabase().rpc("admin_ticket_activity_timeseries", { p_days: days });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as TicketActivityPoint[];
+}
+
 export async function fetchAdminCounts(): Promise<AdminCounts> {
   const sb = getSupabase();
   const [c1, c2, c3, c4] = await Promise.all([
