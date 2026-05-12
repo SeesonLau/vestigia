@@ -803,11 +803,13 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("Slot 1 PNG encoded · raw, full frame (mode=$displayMode palette=$palette)")
 
         // ── Slot 2 — Post-processed + cropped ───────────────────────────
-        // 3×3 median at native sensor resolution (kills dead pixels before
-        // upscale smears them), then CLAHE at native res (more meaningful
-        // on real sensor values than on the interpolated ones), then
-        // bilinear upscale to 320×240. Crop to ROI if one was drawn;
-        // otherwise the full frame.
+        // The post-processing chain is intentionally minimal: a single
+        // 3×3 median filter at native sensor resolution, then bilinear
+        // upscale to 320×240, then the same percentile-clip + palette
+        // renderer slot 1 uses. The median kills the dead-pixel spikes
+        // and warm-pixel speckle that slot 1 leaves intact; everything
+        // else (CLAHE, EMA, unsharp, emissivity-as-visual) was removed
+        // because it was masking the real sensor response.
         val medianNative = FloatArray(rows * cols)
         val medBuf       = FloatArray(9)
         for (r in 0 until rows) {
@@ -822,26 +824,27 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         log.add("Slot 2 — 3×3 median applied (native res)")
 
-        val claheNative  = claheNormalise(medianNative, rows, cols)  // returns [0..1] floats
-        log.add("Slot 2 — CLAHE normalised (8×8 grid, clip=2.0)")
+        val medianUp = upscaleBilinear(medianNative, rows, cols, OUT_ROWS, OUT_COLS)
+        log.add("Slot 2 — upscaled median matrix to $OUT_ROWS×$OUT_COLS")
 
-        val claheUp = upscaleBilinear(claheNative, rows, cols, OUT_ROWS, OUT_COLS)
-        log.add("Slot 2 — upscaled CLAHE matrix to $OUT_ROWS×$OUT_COLS")
+        val medSorted   = medianUp.copyOf().also { it.sort() }
+        val medP1       = medSorted[(medSorted.size * 0.01f).toInt()]
+        val medP99      = medSorted[(medSorted.size * 0.99f).toInt()]
+        val medRangeP   = (medP99 - medP1).takeIf { it > 0f } ?: 1f
+        val medMinVal   = medSorted[0]
+        val medRawSpan  = (medSorted[medSorted.size - 1] - medMinVal).takeIf { it > 0f } ?: 1f
 
-        val slot2ImageB64 = buildClahePng(claheUp, OUT_ROWS, OUT_COLS, crop)
-        log.add("Slot 2 PNG encoded · post-processed" + (if (crop != null) " · cropped to ROI" else " · full frame (no ROI)"))
+        val slot2ImageB64 = buildProcessedPng(
+            medianUp, OUT_ROWS, OUT_COLS, medP1, medRangeP, medMinVal, medRawSpan, crop,
+        )
+        log.add("Slot 2 PNG encoded · median + palette" + (if (crop != null) " · cropped to ROI" else " · full frame (no ROI)"))
 
         // ── Slot 3 — Isolated foot ──────────────────────────────────────
-        // Uses the median-filtered temperatures so the mask is built off the
-        // same cleaner matrix slot 2 was rendered from. Crops to ROI too.
-        val medianUp = upscaleBilinear(medianNative, rows, cols, OUT_ROWS, OUT_COLS)
-        val sortedM  = medianUp.copyOf().also { it.sort() }
-        val mP1      = sortedM[(sortedM.size * 0.01f).toInt()]
-        val mP99     = sortedM[(sortedM.size * 0.99f).toInt()]
-        val mRange   = (mP99 - mP1).takeIf { it > 0f } ?: 1f
-
+        // Reuses the same median-filtered temperature matrix used by slot
+        // 2 so the foot mask is built off the cleaner data. Crops to ROI
+        // when one was drawn, otherwise spans the full 320×240 frame.
         val mask          = isolateFootMask(medianUp, OUT_ROWS, OUT_COLS, crop)
-        val slot3ImageB64 = buildIsolatedPng(medianUp, mask, OUT_ROWS, OUT_COLS, mP1, mRange, crop, isolatedBgBlack)
+        val slot3ImageB64 = buildIsolatedPng(medianUp, mask, OUT_ROWS, OUT_COLS, medP1, medRangeP, crop, isolatedBgBlack)
         val maskedCsv     = buildMaskedCsv(medianUp, mask, OUT_ROWS, OUT_COLS)
         log.add("Slot 3 — foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
             + (if (isolatedBgBlack) " · black bg" else ""))
@@ -877,31 +880,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         )
     }
 
-    // Build a palette-mapped PNG from a CLAHE-normalised [0..1] matrix.
-    // Used exclusively by slot 2 (post-processed). The matrix is already
-    // contrast-stretched so we skip the percentile clip step.
-    private fun buildClahePng(
-        normalised: FloatArray, rows: Int, cols: Int, crop: CropRoi?,
-    ): String {
-        val pixels = IntArray(rows * cols)
-        when (displayMode) {
-            "raw", "agc" -> for (i in 0 until rows * cols) {
-                val v = (normalised[i].coerceIn(0f, 1f) * 255).toInt()
-                pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-            }
-            else -> for (i in 0 until rows * cols) {
-                val (r, g, b) = paletteRgb(normalised[i].coerceIn(0f, 1f), palette)
-                pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-            }
-        }
-        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
-        val outBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
-        val out = ByteArrayOutputStream()
-        outBmp.compress(Bitmap.CompressFormat.PNG, 100, out)
-        outBmp.recycle()
-        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-    }
 
     // Build a palette-mapped PNG honouring the current displayMode. Mirrors
     // the previous inline display-PNG logic; factored out so processThermal

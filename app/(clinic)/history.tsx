@@ -161,8 +161,9 @@ export default function HistoryScreen() {
   ), [router]);
 
   // Local bundles persist via lib/thermal/bundleStorage (AsyncStorage),
-  // not the SQLite local_captures path. Tapping a card routes into the
-  // shared offline bundle-detail viewer which reads the same store.
+  // not the SQLite local_captures path. Tapping the row routes into the
+  // shared offline bundle-detail viewer; tapping the explicit Sync button
+  // on an unsynced bundle launches the patient-picker sync flow.
   const renderLocalBundle = useCallback(({ item }: { item: ThermalBundle }) => {
     const p = item.patient;
     const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ").trim() || "Local capture";
@@ -199,6 +200,19 @@ export default function HistoryScreen() {
           </Text>
         </View>
         <Text style={[styles.localDate, { color: colors.textSec }]}>{captured.toLocaleString()}</Text>
+        {!item.synced && (
+          <TouchableOpacity
+            style={[styles.syncBtn, { borderColor: colors.border, backgroundColor: `${colors.accent}14` }]}
+            activeOpacity={0.8}
+            onPress={(e) => {
+              e.stopPropagation();
+              router.push({ pathname: "/(clinic)/sync-local-bundle" as any, params: { code: item.bundle_code } });
+            }}
+          >
+            <Ionicons name="cloud-upload-outline" size={14} color={colors.accent} />
+            <Text style={[styles.syncBtnText, { color: colors.accent }]}>Sync to Clinic</Text>
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
   }, [router, colors]);

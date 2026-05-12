@@ -10,6 +10,10 @@ export default function OfflineBundleDetailScreen() {
     <BundleDetailScreen
       bundleCode={code ?? ""}
       onViewCsv={(side) => router.push(`/(offline)/csv-viewer?code=${code}&side=${side}` as any)}
+      // Always land back on Saved Bundles, regardless of whether the user
+      // arrived from there, from a clinic/patient Local tab, or from the
+      // post-save Alert that replaced the navigation stack.
+      onBack={() => router.replace("/(offline)/history" as any)}
     />
   )
 }

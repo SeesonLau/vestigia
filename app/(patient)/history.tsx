@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -17,6 +18,7 @@ import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
 import { getAllBundles, type ThermalBundle } from "../../lib/thermal/bundleStorage";
 import { dbg } from "../../lib/debug";
+import { syncLocalBundle, type SyncPatientSnapshot } from "../../lib/thermal/localBundleSync";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
 import { ScreeningSession } from "../../types";
@@ -40,6 +42,7 @@ export default function PatientHistoryScreen() {
   //Local state — bundles persisted by lib/thermal/bundleStorage (AsyncStorage).
   const [localBundles, setLocalBundles] = useState<ThermalBundle[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
+  const [syncingCode, setSyncingCode] = useState<string | null>(null);
 
   //Refetch on focus so the Analyzed pill updates after running an assessment.
   const fetchSessions = useCallback(async () => {
@@ -106,10 +109,93 @@ export default function PatientHistoryScreen() {
     />
   ), [router]);
 
+  // Sync a single local bundle into the signed-in patient's own cloud
+  // history. The local snapshot's first/middle/last name + birthdate +
+  // sex + weight + height are overwritten with the patient's profile
+  // before upload, so the cloud copy reflects the authenticated account
+  // rather than whatever was typed in offline.
+  const handleSyncBundle = useCallback((bundle: ThermalBundle) => {
+    if (!user?.id) return;
+    Alert.alert(
+      "Sync to my account?",
+      `Bundle ${bundle.bundle_code} will be uploaded to your account. The name, birthdate, sex, weight, and height will be replaced by your profile values.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Sync",
+          style: "default",
+          onPress: async () => {
+            setSyncingCode(bundle.bundle_code);
+            try {
+              const { data: profile, error: profErr } = await supabase
+                .from("profiles")
+                .select("first_name, middle_name, last_name, sex, date_of_birth")
+                .eq("id", user.id)
+                .maybeSingle();
+              if (profErr) throw new Error(profErr.message);
+              if (!profile) throw new Error("Your profile is missing.");
+
+              const snapshot: SyncPatientSnapshot = {
+                first_name:    profile.first_name,
+                middle_name:   profile.middle_name ?? null,
+                last_name:     profile.last_name,
+                sex:           profile.sex ?? null,
+                date_of_birth: profile.date_of_birth ?? null,
+                // Weight + height live on the patients table, not on profiles.
+                // For self-sync we keep whatever was entered offline; the user
+                // can re-capture if those numbers go stale.
+                weight_kg:     bundle.patient.weight_kg ?? null,
+                height_cm:     bundle.patient.height_cm ?? null,
+              };
+
+              const result = await syncLocalBundle(bundle, {
+                capture_mode:       "patient_self",
+                subject_profile_id: user.id,
+                patient_id:         null,
+                clinic_id:          null,
+                operator_id:        null,
+                patient_snapshot:   snapshot,
+              });
+              await refreshLocal();
+              Alert.alert(
+                "Synced",
+                `Bundle ${bundle.bundle_code} is now in your cloud history.`,
+                [
+                  {
+                    text: "View Session",
+                    onPress: () => router.push(`/(patient)/bundle-detail?session_id=${result.session_id}` as any),
+                  },
+                  { text: "OK" },
+                ],
+              );
+            } catch (e) {
+              Alert.alert("Sync Failed", e instanceof Error ? e.message : "Please try again.");
+            } finally {
+              setSyncingCode(null);
+            }
+          },
+        },
+      ],
+    );
+  }, [user?.id, router]);
+
+  // Reload the AsyncStorage list (used after a successful sync so the
+  // freshly-synced row shows the green badge without leaving the screen).
+  const refreshLocal = useCallback(async () => {
+    setLocalLoading(true);
+    try {
+      const all = await getAllBundles();
+      setLocalBundles(all);
+    } finally {
+      setLocalLoading(false);
+    }
+  }, []);
+
   const renderLocalBundle = useCallback(({ item }: { item: ThermalBundle }) => {
     const p = item.patient;
     const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ").trim() || "Local capture";
     const captured = new Date(item.captured_at);
+    const isSyncing = syncingCode === item.bundle_code;
     return (
       <TouchableOpacity
         onPress={() => router.push({ pathname: "/(offline)/bundle-detail" as any, params: { code: item.bundle_code } })}
@@ -142,9 +228,26 @@ export default function PatientHistoryScreen() {
           </Text>
         </View>
         <Text style={[styles.dateText, { color: colors.textSec }]}>{captured.toLocaleString()}</Text>
+        {!item.synced && (
+          <TouchableOpacity
+            style={[styles.syncBtn, { borderColor: colors.border, backgroundColor: `${colors.accent}14` }]}
+            activeOpacity={0.8}
+            onPress={(e) => { e.stopPropagation(); handleSyncBundle(item); }}
+            disabled={isSyncing}
+          >
+            {isSyncing ? (
+              <ActivityIndicator size="small" color={colors.accent} />
+            ) : (
+              <>
+                <Ionicons name="cloud-upload-outline" size={14} color={colors.accent} />
+                <Text style={[styles.syncBtnText, { color: colors.accent }]}>Sync to my account</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     );
-  }, [router, colors]);
+  }, [router, colors, handleSyncBundle, syncingCode]);
 
   return (
     <ScreenWrapper>
@@ -349,6 +452,18 @@ const styles = StyleSheet.create({
   metaText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   metaDivider: { marginHorizontal: 2 },
   dateText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
+  syncBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: Spacing.sm,
+    alignSelf: "flex-start",
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+  },
+  syncBtnText: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.label },
   emptyText: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.body },
   emptyHint: {
     fontSize: Typography.sizes.sm,

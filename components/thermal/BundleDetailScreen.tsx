@@ -19,9 +19,12 @@ import { calculateAge, calculateBMI, bmiCategory } from "../../lib/thermal/bundl
 interface Props {
   bundleCode:  string
   onViewCsv?:  (side: "left" | "right") => void
+  /** Called when the user taps the header back arrow. Defaults to router.back()
+   *  but the offline wrapper overrides this to always land on Saved Bundles. */
+  onBack?:     () => void
 }
 
-export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
+export default function BundleDetailScreen({ bundleCode, onViewCsv, onBack }: Props) {
   const router = useRouter()
   const { colors } = useTheme()
   const [bundle,  setBundle]  = useState<ThermalBundle | null>(null)
@@ -31,10 +34,12 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
     getBundleByCode(bundleCode).then(setBundle).finally(() => setLoading(false))
   }, [bundleCode])
 
+  const back = onBack ?? (() => router.back())
+
   if (loading) {
     return (
       <ScreenWrapper>
-        <Header title="Bundle Detail" leftIcon={<BackBtn router={router} colors={colors} />} />
+        <Header title="Bundle Detail" leftIcon={<BackBtn onPress={back} colors={colors} />} />
         <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
       </ScreenWrapper>
     )
@@ -43,7 +48,7 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
   if (!bundle) {
     return (
       <ScreenWrapper>
-        <Header title="Bundle Detail" leftIcon={<BackBtn router={router} colors={colors} />} />
+        <Header title="Bundle Detail" leftIcon={<BackBtn onPress={back} colors={colors} />} />
         <View style={styles.centered}>
           <Text style={[styles.emptyText, { color: colors.textSec }]}>Bundle not found.</Text>
         </View>
@@ -61,7 +66,7 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
     <ScreenWrapper>
       <Header
         title={bundle.bundle_code}
-        leftIcon={<BackBtn router={router} colors={colors} />}
+        leftIcon={<BackBtn onPress={back} colors={colors} />}
       />
 
       <ScrollView
@@ -132,9 +137,9 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
   )
 }
 
-function BackBtn({ router, colors }: { router: ReturnType<typeof useRouter>; colors: ThemeColors }) {
+function BackBtn({ onPress, colors }: { onPress: () => void; colors: ThemeColors }) {
   return (
-    <TouchableOpacity onPress={() => router.back()}>
+    <TouchableOpacity onPress={onPress}>
       <Ionicons name="arrow-back-outline" size={22} color={colors.text} />
     </TouchableOpacity>
   )

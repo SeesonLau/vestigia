@@ -3,6 +3,47 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.5.0] — 2026-05-12
+
+Offline → cloud sync for both roles + pipeline trim + offline back fix.
+
+### Fixed
+- Tap-back from `(offline)/bundle-detail` now always lands on Saved
+  Bundles (`(offline)/history`), regardless of whether the user arrived
+  via the offline-history list, a Local-tab tap from clinic/patient
+  history, or the post-save Alert that previously left the back stack
+  pointing at nothing usable.
+
+### Changed
+- Post-processing trimmed to the minimum that matters: slot 2 is now
+  **3×3 median → bilinear upscale → percentile-clip palette → crop**.
+  CLAHE is gone from the capture path; the `buildClahePng` helper is
+  removed. Slot 2 still differs visibly from slot 1 on noisy frames
+  (the median kills dead-pixel speckle) but no longer redistributes
+  contrast against the operator's intent.
+
+### Added
+- New `lib/thermal/localBundleSync.ts` — single helper that uploads a
+  locally-stored bundle to Supabase: creates `screening_sessions`,
+  uploads all three slots + the CSV to Storage, inserts both
+  `thermal_captures` rows, and marks the AsyncStorage bundle synced.
+- New `(clinic)/sync-local-bundle` screen. Operator searches the
+  clinic roster by `patient_code` (e.g. `JGS-20260502-2347-00`),
+  picks a match, and confirms. The cloud-side `patient_snapshot` is
+  sourced from the picked patient's record — the offline-typed name,
+  birthdate, sex, weight, height are all discarded.
+- New "Sync to Clinic" button on every unsynced row in the clinic
+  Local tab; routes to the sync screen with the bundle code.
+- New patient self-sync — every unsynced row in the patient Local tab
+  gets a "Sync to my account" button. No patient picker; the bundle
+  attaches to `auth.uid()`. The cloud snapshot's first / middle /
+  last name + birthdate + sex are pulled from the patient's profile
+  and overwrite the offline-typed values; weight + height are kept
+  from the offline capture (the profiles table doesn't store them).
+
+### Other
+- Version bumped to v1.5.0 / build 1500 (Android versionCode 6).
+
 ## [1.4.0] — 2026-05-12
 
 Thermal capture pipeline rebuilt with a single fixed three-stage flow.
