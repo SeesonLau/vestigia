@@ -17,10 +17,10 @@ export default function PatientLiveFeedScreen() {
     const slot2 = stripDataUri(result.slot2ImageUri)
     const slot3 = stripDataUri(result.slot3ImageUri) ?? ""
     if (step === "left") {
-      thermalStore.captureLeft([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats, result.feedMode)
+      thermalStore.captureLeft([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     } else {
-      thermalStore.captureRight([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats, result.feedMode)
+      thermalStore.captureRight([] as number[][], slot1, slot2, slot3, result.maskedCsvContent, result.stats)
       thermalStore.setLiveFrame([] as number[][], result.stats.min, result.stats.max, result.stats.mean)
     }
   }

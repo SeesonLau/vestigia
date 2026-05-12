@@ -112,29 +112,28 @@ export default function AssessBundleScreen() {
       }
 
       // 1. Captures. Pull both raw and processed paths so we can fall back to
-      //    the slot-1 path when slot 2 is null (processed feed without ROI).
+      //    Slot 2 (processed_image_path) is the canonical input for the DPN
+      //    classifier; it's now always present. Historical rows from before
+      //    the symmetric pipeline may still have a null slot 2 — for those
+      //    we fall back to the raw_image_path (which on those rows was the
+      //    enhanced full frame).
       type CapRow = {
         foot: string;
         raw_image_path: string | null;
         processed_image_path: string | null;
         csv_path: string;
-        feed_mode: "unprocessed" | "processed" | null;
       };
       const caps = await supabase
         .from("thermal_captures")
-        .select("foot, raw_image_path, processed_image_path, csv_path, feed_mode")
+        .select("foot, raw_image_path, processed_image_path, csv_path")
         .eq("session_id", session_id);
       if (caps.error) throw caps.error;
       const left  = caps.data?.find((c: { foot: string }) => c.foot === "left")  as CapRow | undefined;
       const right = caps.data?.find((c: { foot: string }) => c.foot === "right") as CapRow | undefined;
       if (!left || !right) throw new Error("Both left and right captures are required.");
 
-      // The DPN scan wants the colorized processed image. In 'processed' feed
-      // mode without a ROI, the processed slot is null and slot 1 (raw_image_path)
-      // already holds the processed full-frame image, so fall back to it.
       const pickPng = (row: CapRow): string | null =>
-        row.processed_image_path
-          ?? (row.feed_mode === "processed" ? row.raw_image_path : null);
+        row.processed_image_path ?? row.raw_image_path;
       const leftPngPath  = pickPng(left);
       const rightPngPath = pickPng(right);
       if (!leftPngPath || !rightPngPath) {

@@ -25,7 +25,6 @@ import {
   onFrameStats,
   pauseCamera, resumeCamera,
   setDisplayMode as setDisplayModeNative,
-  setLiveProcessing as setLiveProcessingNative,
   setPalette as setPaletteNative,
   setStatsRoi as setStatsRoiNative,
 } from "../../lib/thermal/uvcCamera"
@@ -40,7 +39,9 @@ import ReadinessIndicator from "./ReadinessIndicator"
 
 const { width: SCREEN_W } = Dimensions.get("window")
 const MAP_W = SCREEN_W - Spacing.lg * 2
-const MAP_H = Math.round(MAP_W * (120 / 160))
+// 320×240 aspect ratio (4:3). The Lepton's native is 160×120 which is also
+// 4:3, so the ratio is identical — only the resolution doubled.
+const MAP_H = Math.round(MAP_W * (240 / 320))
 
 export { PALETTES }
 
@@ -82,11 +83,6 @@ export default function ThermalLiveFeedScreen({
   const [displayMode,  setDisplayMode]  = useState<DisplayMode>("rgb")
   const [palette,      setPalette]      = useState<PaletteType>("medical")
   const [cameraPaused, setCameraPaused] = useState(false)
-
-  //Single capture-mode toggle. false (default) = Raw: native 160×120 with
-  //zero processing; true = Enhanced: 320×240 bilinear upscale + median + EMA
-  //+ CLAHE + unsharp on both the live preview and the captured artifacts.
-  const [captureEnhanced, setCaptureEnhanced] = useState<boolean>(false)
 
   //Crosshair overlay mode (radio-style). "off" hides it; "hot" / "cold" show
   //one crosshair at the hottest / coldest pixel; "all" shows hot + cold +
@@ -257,20 +253,14 @@ export default function ThermalLiveFeedScreen({
     try { await setPaletteNative(p) } catch {}
   }
 
-  const handleSetCaptureEnhanced = async (enhanced: boolean) => {
-    setCaptureEnhanced(enhanced)
-    try { await setLiveProcessingNative(enhanced) } catch {}
-  }
-
-  //Re-sync native flags + measurement parameters whenever the camera
-  //reconnects (the volatiles reset on the native side, so non-default JS
-  //state needs to be re-applied after a reconnect).
+  //Re-sync measurement parameters whenever the camera reconnects (the
+  //volatiles reset on the native side, so non-default JS state needs to
+  //be re-applied after a reconnect).
   useEffect(() => {
     if (cameraStatus === "connected") {
-      setLiveProcessingNative(captureEnhanced).catch(() => {})
       saveMeasurementParams(measurement).catch(() => {})
     }
-  }, [cameraStatus, captureEnhanced, measurement])
+  }, [cameraStatus, measurement])
 
   // Constrain the on-screen crosshair scan to the framing rectangle when
   // it's visible, so hot/cold/mean markers stay inside the user's ROI.
@@ -310,17 +300,16 @@ export default function ThermalLiveFeedScreen({
     const footArg: Foot     = isBilateral ? (captureStep as Foot) : foot
 
     try {
-      //Pass ROI + isolated-bg + scale + feedMode to native. The native
-      //processor runs the configurable pipeline (average → median → optional
-      //bilinear upscale → palette → isolation) and returns the slot artifacts
-      //already cropped to the framing rect when one is supplied. CSVs come
-      //back full-frame at the working resolution; we crop them on the JS
-      //side so the cell coordinates stay aligned with the cropped images.
+      //Pass ROI + isolated-bg to native. The native processor always runs
+      //the same three-slot pipeline (raw upscale → median + CLAHE upscale
+      //+ crop → isolated foot + crop) and returns artifacts already
+      //cropped to the framing rect when one is supplied. CSVs come back
+      //full-frame at 320×240; we crop them on the JS side so the cell
+      //coordinates stay aligned with the cropped images.
       const cropArg = roiVisible ? roiRect : null
       const result = await processFrames({
         crop: cropArg,
         isolatedBg,
-        enhanced: captureEnhanced,
       })
       const finalResult: ProcessedCapture = cropArg
         ? {
@@ -362,10 +351,8 @@ export default function ThermalLiveFeedScreen({
     onDiscard()
   }
 
-  const liveResLabel = captureEnhanced ? "320×240" : "160×120"
-  const enhancementChain = captureEnhanced ? "median · EMA · CLAHE · unsharp" : "raw"
   const frameDebug = displayUri
-    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · ${liveResLabel} · ${enhancementChain}`
+    ? `Y16→${displayMode.toUpperCase()}${displayMode === "rgb" ? ` · ${palette}` : ""} · 320×240`
     : ""
 
   //Disable capture when the framing rectangle is collapsed below the
@@ -636,37 +623,11 @@ export default function ThermalLiveFeedScreen({
           </View>
         )}
 
-        {/* Capture options — single Raw/Enhanced toggle + crosshair selector.
-            Hidden once both feet are captured (allDone). */}
+        {/* Capture options — crosshair selector only (the Raw/Enhanced
+            toggle is gone; the pipeline is fixed). Hidden once both feet
+            are captured (allDone). */}
         {!allDone && (
           <View style={[styles.captureOptsCard, { backgroundColor: colors.surface }]}>
-            <View style={styles.captureOptsRow}>
-              <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>MODE</Text>
-              <View style={styles.captureOptsSeg}>
-                {([
-                  [false, "Raw"],
-                  [true,  "Enhanced"],
-                ] as const).map(([val, label]) => {
-                  const active = captureEnhanced === val
-                  return (
-                    <TouchableOpacity
-                      key={String(val)}
-                      onPress={() => handleSetCaptureEnhanced(val)}
-                      style={[
-                        styles.captureOptsSegBtn,
-                        { backgroundColor: active ? colors.accent : "transparent" },
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.captureOptsSegText, { color: active ? "#fff" : colors.textSec }]}>
-                        {label}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
-            </View>
-
             <View style={styles.captureOptsRow}>
               <Text style={[styles.captureOptsLabel, { color: colors.textSec }]}>SPOTS</Text>
               <View style={styles.captureOptsSeg}>
@@ -697,9 +658,7 @@ export default function ThermalLiveFeedScreen({
             </View>
 
             <Text style={[styles.captureOptsHint, { color: colors.textSec }]}>
-              {captureEnhanced
-                ? "Enhanced · 320×240 + median · EMA · CLAHE · unsharp"
-                : "Raw · native 160×120, no processing"}
+              Capture saves three slots: raw, post-processed (median + CLAHE) cropped to the ROI, and isolated foot.
             </Text>
           </View>
         )}

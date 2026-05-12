@@ -60,7 +60,6 @@ export default function OfflinePatientDetailsScreen() {
     leftSlot3B64, rightSlot3B64,
     leftCsvContent, rightCsvContent,
     leftStats, rightStats,
-    feedMode,
     clearBilateral,
   } = useThermalStore();
 
@@ -149,7 +148,6 @@ export default function OfflinePatientDetailsScreen() {
           stats:               rightStats!,
         },
         capturedAt,
-        feedMode,
       );
       clearBilateral();
       Alert.alert(

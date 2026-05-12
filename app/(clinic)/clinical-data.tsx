@@ -99,7 +99,6 @@ export default function ClinicalDataScreen() {
     leftSlot2B64,  rightSlot2B64,
     leftSlot3B64,  rightSlot3B64,
     leftCsvContent, rightCsvContent,
-    feedMode,
   } = useThermalStore();
   // Mirror DB column naming: slot1 -> raw_image_path, slot2 -> processed_image_path
   // (nullable in 'processed' feed without ROI), slot3 -> isolated_image_path.
@@ -201,14 +200,11 @@ export default function ClinicalDataScreen() {
           uploadPng(entry.isolatedB64, session.id, entry.foot, "isolated"),
           uploadCsv(entry.csv, session.id, entry.foot),
         ]);
-        // Slot1 (raw_image_path) and slot3 (isolated_image_path) are always
-        // required. Slot2 (processed_image_path) is null when feedMode is
-        // 'processed' and no ROI was drawn -- accept null cleanly there.
-        if (!rawPath || !isolatedPath) {
+        // Every slot is required now — slot 1 raw, slot 2 post-processed
+        // (cropped to ROI when one was drawn; full frame otherwise),
+        // slot 3 isolated. Any null upload here is a real failure.
+        if (!rawPath || !processedPath || !isolatedPath) {
           throw new Error(`Failed to upload ${entry.foot} foot images.`);
-        }
-        if (entry.processedB64 && !processedPath) {
-          throw new Error(`Failed to upload ${entry.foot} processed image.`);
         }
 
         const { error: captureErr } = await supabase.from("thermal_captures").insert({
@@ -218,7 +214,7 @@ export default function ClinicalDataScreen() {
           min_temp_c: stats.min,
           max_temp_c: stats.max,
           mean_temp_c: stats.mean,
-          resolution_x: entry.matrix[0]?.length ?? 160,
+          resolution_x: entry.matrix[0]?.length ?? 320,
           resolution_y: entry.matrix.length,
           mpa_mean_c: entry.angiosomes?.mpa ?? null,
           lpa_mean_c: entry.angiosomes?.lpa ?? null,
@@ -228,7 +224,7 @@ export default function ClinicalDataScreen() {
           processed_image_path: processedPath,
           isolated_image_path:  isolatedPath,
           csv_path:             csvPath,
-          feed_mode:            feedMode,
+          feed_mode:            'processed',
           captured_at: new Date().toISOString(),
         });
         if (captureErr) throw new Error(`Failed to save ${entry.foot} thermal capture.`);

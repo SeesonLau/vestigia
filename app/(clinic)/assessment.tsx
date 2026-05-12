@@ -22,16 +22,10 @@ export default function AssessmentScreen() {
   const { clearSession } = useSessionStore();
   const leftMatrix    = useThermalStore((s) => s.leftMatrix);
   const rightMatrix   = useThermalStore((s) => s.rightMatrix);
-  // Prefer the cropped processed image (slot 2). Fall back to slot 1 in
-  // 'processed' feed mode without a ROI, where slot 2 is null and slot 1 is
-  // the processed full-frame.
-  const leftSlot1B64  = useThermalStore((s) => s.leftSlot1B64);
-  const rightSlot1B64 = useThermalStore((s) => s.rightSlot1B64);
-  const leftSlot2B64  = useThermalStore((s) => s.leftSlot2B64);
-  const rightSlot2B64 = useThermalStore((s) => s.rightSlot2B64);
-  const feedMode      = useThermalStore((s) => s.feedMode);
-  const leftProcessedB64  = leftSlot2B64  ?? (feedMode === "processed" ? leftSlot1B64  : null);
-  const rightProcessedB64 = rightSlot2B64 ?? (feedMode === "processed" ? rightSlot1B64 : null);
+  // Slot 2 is always populated — post-processed (+ cropped) image is the
+  // canonical input to the DPN classifier.
+  const leftProcessedB64  = useThermalStore((s) => s.leftSlot2B64);
+  const rightProcessedB64 = useThermalStore((s) => s.rightSlot2B64);
   const discardCapture  = useThermalStore((s) => s.discardCapture);
   const clearBilateral  = useThermalStore((s) => s.clearBilateral);
 

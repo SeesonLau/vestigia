@@ -3,6 +3,50 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.4.0] — 2026-05-12
+
+Thermal capture pipeline rebuilt with a single fixed three-stage flow.
+
+### Native
+- `UVCModule.kt`: live preview is now a single regime — emissivity →
+  bilinear upscale to 320×240 → palette → JPEG. The motion-adaptive
+  EMA, the in-place unsharp mask, and the live-preview CLAHE pass are
+  all gone. `setLiveProcessing` and the `displayEnhanced` volatile are
+  removed.
+- `processCapture` collapsed to a single path that always produces
+  three 320×240 slots:
+  1. **Raw** — upscale + palette only; identical to the live preview.
+  2. **Post-processed + Cropped** — 3×3 median + CLAHE at native res,
+     then bilinear upscale + palette, cropped to the operator's ROI
+     (or the full 320×240 frame when no ROI is drawn).
+  3. **Isolated** — foot mask over slot 2's temperatures, cropped.
+- The `enhanced` / `feedMode` arguments are dropped from the bridge,
+  the capture processor, the Zustand store, and the DB-write paths.
+- New `buildClahePng` helper renders slot 2 from a CLAHE-normalised
+  matrix. `unsharpMaskInPlace` + `boxBlur3x3` deleted (no remaining
+  consumers).
+
+### Mobile UI
+- `ThermalLiveFeedScreen`: the Raw / Enhanced mode toggle row is
+  gone. The "MODE" segmented control + the enhancement-chain hint
+  are removed; only the crosshair selector remains. Capture button
+  is unchanged.
+- Live preview surface aspect now anchors on the 320×240 output
+  (still 4:3, so visually unchanged).
+- Bundle viewers (`OnlineBundleDetailScreen` + `BundleDetailScreen`):
+  slot tab labels are fixed at **RAW**, **POST-PROCESSED · CROPPED**,
+  **ISOLATED** for every bundle (feed-mode-driven labels removed).
+
+### Database
+- `thermal_captures.feed_mode` stays in the schema for historical
+  rows. New writes hardcode `feed_mode = 'processed'`. The column is
+  no longer consumed by the bundle viewers or the AI scan path; it
+  can be dropped in a future cleanup migration without disturbing
+  any read code.
+
+### Other
+- Version bumped to v1.4.0 / build 1400 (Android versionCode 5).
+
 ## [1.3.0] — 2026-05-12
 
 Local-bundle visibility fix.

@@ -87,24 +87,20 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
     leftSlot3B64,  rightSlot3B64,
     leftCsvContent, rightCsvContent,
     leftStats, rightStats,
-    feedMode,
     clearBilateral,
   } = useThermalStore();
-  // Thumbnail / DB column mapping: slot1 -> raw_image_path,
-  // slot2 -> processed_image_path (nullable in 'processed' feed without ROI),
-  // slot3 -> isolated_image_path. The variable names below mirror the column
-  // names so the upload code stays readable; their *content* depends on
-  // feedMode (see store comments).
+  // DB column mapping: slot1 -> raw_image_path, slot2 -> processed_image_path
+  // (always present now — cropped to ROI or full frame), slot3 -> isolated_image_path.
   const leftRawB64       = leftSlot1B64;
   const rightRawB64      = rightSlot1B64;
   const leftProcessedB64 = leftSlot2B64;
   const rightProcessedB64= rightSlot2B64;
   const leftIsolatedB64  = leftSlot3B64;
   const rightIsolatedB64 = rightSlot3B64;
-  // For thumbnail display, prefer the processed slot (slot2). Fall back to
-  // slot1 in 'processed' feed mode without ROI where slot2 is null.
-  const leftThumbB64  = leftSlot2B64  ?? (feedMode === "processed" ? leftSlot1B64  : null);
-  const rightThumbB64 = rightSlot2B64 ?? (feedMode === "processed" ? rightSlot1B64 : null);
+  // Thumbnails show the post-processed slot (slot 2) since it carries the
+  // contrast-enhanced view the user will recognise from the live preview.
+  const leftThumbB64  = leftSlot2B64;
+  const rightThumbB64 = rightSlot2B64;
 
   const [form, setForm] = useState<FormState>({
     firstName: "", middleName: "", lastName: "",
@@ -373,14 +369,10 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           uploadPng(e.isolatedB64,  session.id, e.foot, "isolated"),
           uploadCsv(e.csv,          session.id, e.foot),
         ]);
-        // Slot1 (raw_image_path) and slot3 (isolated_image_path) are always
-        // required. Slot2 (processed_image_path) is null when feedMode is
-        // 'processed' and no ROI was drawn -- skip it cleanly in that case.
-        if (!rawPath || !isolatedPath) {
+        // All three slots are required now — slot 1 raw, slot 2 post-
+        // processed (cropped to ROI or full frame), slot 3 isolated.
+        if (!rawPath || !processedPath || !isolatedPath) {
           throw new Error(`Failed to upload ${e.foot} foot images.`);
-        }
-        if (e.processedB64 && !processedPath) {
-          throw new Error(`Failed to upload ${e.foot} processed image.`);
         }
 
         const { error: capErr } = await supabase.from("thermal_captures").insert({
@@ -390,13 +382,13 @@ export default function PatientDetailsScreen({ mode, headerLeft }: Props) {
           min_temp_c:           e.stats?.min ?? 0,
           max_temp_c:           e.stats?.max ?? 0,
           mean_temp_c:          e.stats?.mean ?? 0,
-          resolution_x:         e.matrix[0]?.length ?? 160,
-          resolution_y:         e.matrix.length || 120,
+          resolution_x:         e.matrix[0]?.length ?? 320,
+          resolution_y:         e.matrix.length || 240,
           raw_image_path:       rawPath,
           processed_image_path: processedPath,
           isolated_image_path:  isolatedPath,
           csv_path:             csvPath,
-          feed_mode:            feedMode,
+          feed_mode:            'processed',
           captured_at:          startedAt,
         });
         if (capErr) throw new Error(`Failed to save ${e.foot} thermal capture.`);

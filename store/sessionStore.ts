@@ -37,8 +37,6 @@ export const useDeviceStore = create<DeviceState>(() => ({
 // store/thermalStore.ts
 
 type FootStats = { min: number; max: number; mean: number }
-export type ThermalFeedMode = 'unprocessed' | 'processed'
-
 interface ThermalState {
   liveMatrix: number[][] | null
   capturedMatrix: number[][] | null
@@ -49,11 +47,11 @@ interface ThermalState {
   fps: number
   leftMatrix: number[][] | null
   rightMatrix: number[][] | null
-  // Slot-keyed base64 PNGs. Symmetric across feedMode — only the underlying
-  // matrix differs (unenhanced 160x120 vs enhanced 320x240):
-  //   *Slot1B64  = palette full frame (always present)
-  //   *Slot2B64  = palette cropped to ROI (null when no ROI was drawn)
-  //   *Slot3B64  = isolated foot, cropped to ROI when one is set
+  // Slot-keyed base64 PNGs. Every bundle ships three slots at 320×240:
+  //   *Slot1B64 = raw — upscale + palette (matches the live preview)
+  //   *Slot2B64 = post-processed — 3×3 median + CLAHE + upscale + palette
+  //               cropped to ROI when one was drawn, otherwise full frame
+  //   *Slot3B64 = isolated foot, cropped to ROI when one was drawn
   leftSlot1B64: string | null
   rightSlot1B64: string | null
   leftSlot2B64: string | null
@@ -64,14 +62,13 @@ interface ThermalState {
   rightCsvContent: string | null
   leftStats: FootStats | null
   rightStats: FootStats | null
-  feedMode: ThermalFeedMode
   capturedAt: string | null
   setLiveFrame: (matrix: number[][], min: number, max: number, mean: number) => void
   capture: (foot: FootSide) => void
   discardCapture: () => void
   setFps: (fps: number) => void
-  captureLeft:  (matrix: number[][], slot1: string, slot2: string | null, slot3: string, csvContent: string, stats: FootStats, feedMode: ThermalFeedMode) => void
-  captureRight: (matrix: number[][], slot1: string, slot2: string | null, slot3: string, csvContent: string, stats: FootStats, feedMode: ThermalFeedMode) => void
+  captureLeft:  (matrix: number[][], slot1: string, slot2: string | null, slot3: string, csvContent: string, stats: FootStats) => void
+  captureRight: (matrix: number[][], slot1: string, slot2: string | null, slot3: string, csvContent: string, stats: FootStats) => void
   clearBilateral: () => void
 }
 
@@ -95,27 +92,24 @@ export const useThermalStore = create<ThermalState>((set) => ({
   rightCsvContent: null,
   leftStats: null,
   rightStats: null,
-  feedMode: 'unprocessed',
   capturedAt: null,
   setLiveFrame: (matrix, min, max, mean) =>
     set({ liveMatrix: matrix, minTemp: min, maxTemp: max, meanTemp: mean }),
   capture: (foot) => set((s) => ({ capturedMatrix: s.liveMatrix, capturedFoot: foot })),
   discardCapture: () => set({ capturedMatrix: null, capturedFoot: null }),
   setFps: (fps) => set({ fps }),
-  captureLeft: (matrix, slot1, slot2, slot3, csvContent, stats, feedMode) =>
+  captureLeft: (matrix, slot1, slot2, slot3, csvContent, stats) =>
     set((s) => ({
       leftMatrix: matrix,
       leftSlot1B64: slot1, leftSlot2B64: slot2, leftSlot3B64: slot3,
       leftCsvContent: csvContent, leftStats: stats,
-      feedMode,
       capturedAt: s.capturedAt ?? new Date().toISOString(),
     })),
-  captureRight: (matrix, slot1, slot2, slot3, csvContent, stats, feedMode) =>
+  captureRight: (matrix, slot1, slot2, slot3, csvContent, stats) =>
     set({
       rightMatrix: matrix,
       rightSlot1B64: slot1, rightSlot2B64: slot2, rightSlot3B64: slot3,
       rightCsvContent: csvContent, rightStats: stats,
-      feedMode,
     }),
   clearBilateral: () => set({
     leftMatrix: null, rightMatrix: null,
@@ -124,7 +118,6 @@ export const useThermalStore = create<ThermalState>((set) => ({
     leftSlot3B64: null, rightSlot3B64: null,
     leftCsvContent: null, rightCsvContent: null,
     leftStats: null, rightStats: null,
-    feedMode: 'unprocessed',
     capturedAt: null,
   }),
 }));

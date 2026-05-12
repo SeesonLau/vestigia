@@ -39,7 +39,6 @@ interface ThermalCaptureRow {
   processed_image_path: string | null;
   isolated_image_path: string;
   csv_path: string | null;
-  feed_mode: "unprocessed" | "processed" | null;
 }
 
 interface SessionRow {
@@ -73,7 +72,6 @@ interface FootSigned {
   processedUri: string | null;
   isolatedUri:  string | null;
   csvPath:      string | null;
-  feedMode:     "unprocessed" | "processed";
   stats: { min: number; max: number; mean: number };
 }
 
@@ -131,7 +129,7 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             .maybeSingle(),
           supabase
             .from("thermal_captures")
-            .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path, feed_mode")
+            .select("foot, min_temp_c, max_temp_c, mean_temp_c, raw_image_path, processed_image_path, isolated_image_path, csv_path")
             .eq("session_id", sessionId),
         ]);
 
@@ -171,7 +169,6 @@ export default function OnlineBundleDetailScreen({ sessionId, onViewCsv, onSubmi
             processedUri: signed(row.processed_image_path),
             isolatedUri:  signed(row.isolated_image_path),
             csvPath:      row.csv_path,
-            feedMode:     row.feed_mode ?? "unprocessed",
             stats: {
               min:  Number(row.min_temp_c),
               max:  Number(row.max_temp_c),
@@ -502,16 +499,10 @@ function FootImageCard({
     return () => { cancelled = true; };
   }, [aspectSourceUri]);
 
-  // Slot 1 / 2 labels follow the Raw / Enhanced toggle that produced the
-  // bundle. feed_mode='unprocessed' (= Raw) and 'processed' (= Enhanced)
-  // share the same (full, cropped, isolated) shape; only the underlying
-  // matrix differs.
-  const feedMode = foot?.feedMode ?? "unprocessed";
-  const slot1Label = feedMode === "processed" ? "ENHANCED" : "RAW";
-  const slot1Icon  = feedMode === "processed" ? "sparkles-outline" : "image-outline";
-  const slot2Label = feedMode === "processed" ? "ENHANCED · CROPPED" : "RAW · CROPPED";
-  // Slot 2 is null whenever no ROI was drawn — hide the middle cell.
-  const showSlot2 = !!foot?.processedUri;
+  // Fixed slot labels — every bundle ships three slots in this order:
+  //   1. Raw 320×240 (matches the live preview)
+  //   2. Post-processed (median + CLAHE) cropped to ROI
+  //   3. Isolated foot, cropped to ROI
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
       <View style={styles.footCardHeader}>
@@ -529,11 +520,9 @@ function FootImageCard({
       </View>
 
       <View style={styles.imageRow}>
-        <ImageCell label={slot1Label}    uri={foot?.rawUri ?? null}      icon={slot1Icon as keyof typeof Ionicons.glyphMap} aspect={rowAspect} colors={colors} />
-        {showSlot2 ? (
-          <ImageCell label={slot2Label}  uri={foot?.processedUri ?? null} icon="image-outline" aspect={rowAspect} colors={colors} />
-        ) : null}
-        <ImageCell label="ISOLATED"      uri={foot?.isolatedUri ?? null}  icon="scan-outline"  aspect={rowAspect} colors={colors} />
+        <ImageCell label="RAW"                       uri={foot?.rawUri ?? null}       icon="image-outline"    aspect={rowAspect} colors={colors} />
+        <ImageCell label="POST-PROCESSED · CROPPED"  uri={foot?.processedUri ?? null} icon="sparkles-outline" aspect={rowAspect} colors={colors} />
+        <ImageCell label="ISOLATED"                  uri={foot?.isolatedUri ?? null}  icon="scan-outline"     aspect={rowAspect} colors={colors} />
       </View>
 
       {foot ? (

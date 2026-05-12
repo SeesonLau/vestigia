@@ -81,19 +81,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
     @Volatile private var streamPaused  = false
     @Volatile private var displayMode   = "rgb"    // raw | agc | rgb
     @Volatile private var palette       = "medical" // medical | ironbow | rainbow | white_hot
-    // displayEnhanced flips the live preview between two regimes:
-    //   true  -> 3x3 median + motion-adaptive EMA + CLAHE + palette + bilinear
-    //            upscale to OUT_COLS x OUT_ROWS (320x240) + unsharp mask.
-    //   false -> raw Y16 -> palette -> JPEG at native 160x120 with no
-    //            spatial / temporal filtering.
-    // Toggled from JS via setLiveProcessing. Takes effect on the next frame.
-    @Volatile private var displayEnhanced = false
-
-    // Temporal EMA state for the live preview pipeline. Holds the last
-    // smoothed FloatArray so each new frame blends with the running average,
-    // dampening per-frame microbolometer flicker without softening edges
-    // (the spatial median already suppresses speckle).
-    @Volatile private var prevDisplayFiltered: FloatArray? = null
 
     // Optional rectangular bound (normalized [0..1]) for the hot/cold/mean
     // crosshair scan in emitFrameStats. When non-null, the scan is limited
@@ -205,18 +192,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         promise.resolve(palette)
     }
 
-    // Toggle live preview processing mode -- safe to call mid-stream.
-    //   true  = Enhanced: median + EMA + CLAHE + bilinear upscale + unsharp.
-    //   false = Raw: Y16 -> palette -> JPEG at native 160x120 only.
-    @ReactMethod
-    fun setLiveProcessing(enhanced: Boolean, promise: Promise) {
-        displayEnhanced = enhanced
-        // Drop the EMA history when switching modes so the next Enhanced
-        // frame doesn't blend with stale Raw-mode data.
-        if (!enhanced) prevDisplayFiltered = null
-        promise.resolve(displayEnhanced)
-    }
-
     // Constrain the hot/cold/mean crosshair scan to a rectangle (normalized
     // [0..1] over the sensor matrix). Any field outside [0..1] is treated as
     // "no ROI" and the scan reverts to the full frame.
@@ -243,12 +218,10 @@ class UVCModule(reactContext: ReactApplicationContext) :
 
     // Set radiometric correction parameters. Safe to call mid-stream.
     // emissivity is clamped to [0.10, 1.00]; reflectedTempC to [-50, 150] °C.
-    // Drop the EMA history so the next frame doesn't blend across regimes.
     @ReactMethod
     fun setMeasurementParams(emissivityIn: Double, reflectedTempCIn: Double, promise: Promise) {
         emissivity     = emissivityIn.toFloat().coerceIn(0.10f, 1.00f)
         reflectedTempC = reflectedTempCIn.toFloat().coerceIn(-50f, 150f)
-        prevDisplayFiltered = null
         val map = Arguments.createMap()
         map.putDouble("emissivity",     emissivity.toDouble())
         map.putDouble("reflectedTempC", reflectedTempC.toDouble())
@@ -279,15 +252,14 @@ class UVCModule(reactContext: ReactApplicationContext) :
         //Optional capture-time options:
         //  crop        ROI rect, normalized [0..1] over the sensor matrix
         //  isolatedBg  "transparent" (default) or "black" for the bg fill
-        //  enhanced    false (default) -> native 160x120, no enhancement.
-        //              true -> bilinear upscale to 320x240 + full processing.
-        //  Slot layout is symmetric across modes — only the input matrix differs:
-        //    [1] palette full frame   (always present)
-        //    [2] palette cropped      (null when no ROI)
-        //    [3] isolated foot, cropped to ROI when one is set
-        //  feedMode mirrors the toggle: enhanced=true -> "processed",
-        //  enhanced=false -> "unprocessed". The DB allows both values; the
-        //  bundle viewer uses feed_mode to pick "RAW" vs "ENHANCED" labels.
+        //
+        //The bundle is always three 320×240 slots:
+        //  [1] raw         — palette over the bilinear-upscaled temperatures.
+        //                    Identical pipeline to the live preview.
+        //  [2] processed   — 3×3 median + CLAHE on the native matrix, then
+        //                    upscale and palette. Cropped to the ROI when one
+        //                    is drawn; otherwise the full 320×240 frame.
+        //  [3] isolated    — foot mask over slot 2, cropped to the same ROI.
         val cropMap = opts?.takeIf { it.hasKey("crop") && !it.isNull("crop") }?.getMap("crop")
         val crop: CropRoi? = cropMap?.let {
             CropRoi(
@@ -299,18 +271,13 @@ class UVCModule(reactContext: ReactApplicationContext) :
         }
         val isolatedBgBlack = opts?.takeIf { it.hasKey("isolatedBg") }
             ?.getString("isolatedBg") == "black"
-        val enhanced = if (opts?.hasKey("enhanced") == true && !opts.isNull("enhanced")) opts.getBoolean("enhanced") else false
-        val upscale  = enhanced
-        val feedMode = if (enhanced) "processed" else "unprocessed"
         Thread {
             try {
-                val result = processThermalFrames(frames, crop, isolatedBgBlack, upscale, feedMode)
+                val result = processThermalFrames(frames, crop, isolatedBgBlack)
                 val map = Arguments.createMap()
                 map.putString("slot1ImageB64", result.slot1ImageB64)
-                if (result.slot2ImageB64 != null) map.putString("slot2ImageB64", result.slot2ImageB64)
-                else map.putNull("slot2ImageB64")
+                map.putString("slot2ImageB64", result.slot2ImageB64)
                 map.putString("slot3ImageB64", result.slot3ImageB64)
-                map.putString("feedMode",      result.feedMode)
                 map.putString("tiffB64",       result.tiffB64)
                 map.putString("csvContent",    result.csvContent)
                 map.putString("maskedCsvContent", result.maskedCsvContent)
@@ -364,7 +331,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
     private fun startDisplayLoop() {
         displayRunning = true
         prevFrameForDiff = null
-        prevDisplayFiltered = null
         frameIndex = 0
         Thread {
             while (displayRunning) {
@@ -465,14 +431,15 @@ class UVCModule(reactContext: ReactApplicationContext) :
         sendEvent("onFrameStats", map)
     }
 
-    // Y16 -> JPEG via the current displayMode and palette. Two regimes
-    // controlled by the displayEnhanced flag:
-    //   Raw      : Y16 -> palette -> JPEG at native 160x120. No spatial /
-    //              temporal filtering. Cheapest path; matches what the
-    //              sensor actually sees.
-    //   Enhanced : Y16 -> 3x3 median -> motion-adaptive EMA -> CLAHE ->
-    //              palette -> bilinear upscale to OUT_COLS x OUT_ROWS ->
-    //              unsharp mask -> JPEG.
+    // Y16 -> JPEG, single regime:
+    //   Y16 -> emissivity correct -> bilinear upscale 160x120 -> 320x240
+    //          -> percentile clip + palette -> JPEG.
+    //
+    // No median, no temporal EMA, no CLAHE, no unsharp. The live preview
+    // is what the Raw capture slot will look like; if the operator wants
+    // the median + CLAHE enhanced view, they look at slot 2 of the saved
+    // bundle. Keeping the live path light minimises latency and avoids the
+    // temporal-blur artefacts the EMA used to introduce.
     private fun y16ToDisplayJpeg(frame: ByteArray): String {
         val rows = frame.size / ROW_BYTES
         val cols = FRAME_COLS
@@ -488,129 +455,43 @@ class UVCModule(reactContext: ReactApplicationContext) :
             temps[i] = if (correct) emissivityCorrect(apparent, eps, refl4) else apparent
         }
 
-        val pixels = IntArray(rows * cols)
-        if (!displayEnhanced) {
-            // ── Raw path ─────────────────────────────────────────────────
-            // Single global percentile clip + palette, no spatial / temporal
-            // filtering, no upscale. Snappy switch with zero hysteresis.
-            val sorted = temps.copyOf().also { it.sort() }
-            val p1     = sorted[(sorted.size * 0.01f).toInt()]
-            val p99    = sorted[(sorted.size * 0.99f).toInt()]
-            val range  = (p99 - p1).takeIf { it > 0f } ?: 1f
-            when (displayMode) {
-                "raw" -> {
-                    val minT = sorted[0]
-                    val rawRange = (sorted[sorted.size - 1] - minT).takeIf { it > 0f } ?: 1f
-                    for (i in 0 until rows * cols) {
-                        val v = (((temps[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
-                        pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-                    }
-                }
-                "agc" -> for (i in 0 until rows * cols) {
-                    val v = (((temps[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
-                    pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-                }
-                else -> for (i in 0 until rows * cols) {
-                    val t = ((temps[i] - p1) / range).coerceIn(0f, 1f)
-                    val (r, g, b) = paletteRgb(t, palette)
-                    pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                }
-            }
-            val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
-            bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
-            val out = ByteArrayOutputStream()
-            bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
-            bmp.recycle()
-            return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-        }
+        // Bilinear upscale temperatures from native 160x120 to OUT 320x240
+        // BEFORE palette mapping. Upscaling on temperatures (rather than
+        // pixels) avoids palette-LUT discontinuities at sub-pixel offsets.
+        val upTemps = if (cols == OUT_COLS && rows == OUT_ROWS) temps
+            else upscaleBilinear(temps, rows, cols, OUT_ROWS, OUT_COLS)
 
-        // ── Enhanced path ────────────────────────────────────────────────
-        // 3x3 median filter -- removes salt-and-pepper microbolometer noise.
-        val median = FloatArray(rows * cols)
-        val medBuf = FloatArray(9)
-        for (r in 0 until rows) {
-            for (c in 0 until cols) {
-                var k = 0
-                for (dr in -1..1) for (dc in -1..1) {
-                    medBuf[k++] = temps[(r + dr).coerceIn(0, rows - 1) * cols + (c + dc).coerceIn(0, cols - 1)]
-                }
-                medBuf.sort()
-                median[r * cols + c] = medBuf[4]
-            }
-        }
-
-        // Motion-adaptive temporal EMA -- per-pixel alpha based on inter-frame
-        // delta. Stationary pixels get heavy smoothing, moving pixels bypass
-        // blending entirely. Tuned around Lepton 3.5 NETD (~50 mK).
-        val motionLow  = 0.15f
-        val motionHigh = 0.80f
-        val alphaStill  = 0.20f
-        val alphaMotion = 1.00f
-        val prev = prevDisplayFiltered
-        val filtered = if (prev != null && prev.size == median.size) {
-            FloatArray(median.size) { i ->
-                val delta = abs(median[i] - prev[i])
-                val a = when {
-                    delta <= motionLow  -> alphaStill
-                    delta >= motionHigh -> alphaMotion
-                    else -> {
-                        val t = (delta - motionLow) / (motionHigh - motionLow)
-                        alphaStill + t * (alphaMotion - alphaStill)
-                    }
-                }
-                a * median[i] + (1f - a) * prev[i]
-            }
-        } else median.copyOf()
-        prevDisplayFiltered = filtered
-
+        // Percentile clip + palette mapping at the final resolution.
+        val sorted = upTemps.copyOf().also { it.sort() }
+        val p1     = sorted[(sorted.size * 0.01f).toInt()]
+        val p99    = sorted[(sorted.size * 0.99f).toInt()]
+        val range  = (p99 - p1).takeIf { it > 0f } ?: 1f
+        val pixels = IntArray(OUT_COLS * OUT_ROWS)
         when (displayMode) {
             "raw" -> {
-                var minT = filtered[0]
-                var maxT = filtered[0]
-                for (v in filtered) {
-                    if (v < minT) minT = v
-                    if (v > maxT) maxT = v
-                }
-                val rawRange = (maxT - minT).takeIf { it > 0f } ?: 1f
-                for (i in 0 until rows * cols) {
-                    val v = (((filtered[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
+                val minT = sorted[0]
+                val rawRange = (sorted[sorted.size - 1] - minT).takeIf { it > 0f } ?: 1f
+                for (i in 0 until OUT_COLS * OUT_ROWS) {
+                    val v = (((upTemps[i] - minT) / rawRange).coerceIn(0f, 1f) * 255).toInt()
                     pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
                 }
             }
-            else -> {
-                val normalised = claheNormalise(filtered, rows, cols)
-                if (displayMode == "agc") {
-                    for (i in 0 until rows * cols) {
-                        val v = (normalised[i].coerceIn(0f, 1f) * 255).toInt()
-                        pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-                    }
-                } else {
-                    for (i in 0 until rows * cols) {
-                        val (r, g, b) = paletteRgb(normalised[i].coerceIn(0f, 1f), palette)
-                        pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                    }
-                }
+            "agc" -> for (i in 0 until OUT_COLS * OUT_ROWS) {
+                val v = (((upTemps[i] - p1) / range).coerceIn(0f, 1f) * 255).toInt()
+                pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+            }
+            else -> for (i in 0 until OUT_COLS * OUT_ROWS) {
+                val t = ((upTemps[i] - p1) / range).coerceIn(0f, 1f)
+                val (r, g, b) = paletteRgb(t, palette)
+                pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
             }
         }
 
-        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
-        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
-
-        // Bilinear upscale to OUT_COLS x OUT_ROWS, then unsharp mask to
-        // recover edges softened by the upscale.
-        val target = if (cols != OUT_COLS || rows != OUT_ROWS) {
-            Bitmap.createScaledBitmap(bmp, OUT_COLS, OUT_ROWS, true).also { bmp.recycle() }
-        } else bmp
-        val w = target.width
-        val h = target.height
-        val targetPixels = IntArray(w * h)
-        target.getPixels(targetPixels, 0, w, 0, 0, w, h)
-        unsharpMaskInPlace(targetPixels, w, h, 0.6f)
-        target.setPixels(targetPixels, 0, w, 0, 0, w, h)
-
+        val bmp = Bitmap.createBitmap(OUT_COLS, OUT_ROWS, Bitmap.Config.ARGB_8888)
+        bmp.setPixels(pixels, 0, OUT_COLS, 0, 0, OUT_COLS, OUT_ROWS)
         val out = ByteArrayOutputStream()
-        target.compress(Bitmap.CompressFormat.JPEG, 95, out)
-        target.recycle()
+        bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        bmp.recycle()
         return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 
@@ -739,50 +620,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         return rk * rk * rk * rk
     }
 
-    // Unsharp mask -- pixel = pixel + amount * (pixel - blurred). 3x3 box blur
-    // per channel gives a 1-pixel sharpening radius, which matches the level
-    // of softening introduced by bilinear upscaling. amount = 0.6 punches up
-    // edges noticeably without producing halos around hot regions.
-    private fun unsharpMaskInPlace(pixels: IntArray, w: Int, h: Int, amount: Float) {
-        val n = w * h
-        val rA = IntArray(n)
-        val gA = IntArray(n)
-        val bA = IntArray(n)
-        for (i in 0 until n) {
-            val p = pixels[i]
-            rA[i] = (p shr 16) and 0xFF
-            gA[i] = (p shr 8)  and 0xFF
-            bA[i] =  p         and 0xFF
-        }
-        val rB = boxBlur3x3(rA, w, h)
-        val gB = boxBlur3x3(gA, w, h)
-        val bB = boxBlur3x3(bA, w, h)
-        for (i in 0 until n) {
-            val r = (rA[i] + amount * (rA[i] - rB[i])).toInt().coerceIn(0, 255)
-            val g = (gA[i] + amount * (gA[i] - gB[i])).toInt().coerceIn(0, 255)
-            val b = (bA[i] + amount * (bA[i] - bB[i])).toInt().coerceIn(0, 255)
-            pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-        }
-    }
-
-    private fun boxBlur3x3(src: IntArray, w: Int, h: Int): IntArray {
-        val out = IntArray(w * h)
-        for (y in 0 until h) {
-            val y0 = (y - 1).coerceAtLeast(0)
-            val y2 = (y + 1).coerceAtMost(h - 1)
-            for (x in 0 until w) {
-                val x0 = (x - 1).coerceAtLeast(0)
-                val x2 = (x + 1).coerceAtMost(w - 1)
-                val sum =
-                    src[y0 * w + x0] + src[y0 * w + x] + src[y0 * w + x2] +
-                    src[y  * w + x0] + src[y  * w + x] + src[y  * w + x2] +
-                    src[y2 * w + x0] + src[y2 * w + x] + src[y2 * w + x2]
-                out[y * w + x] = sum / 9
-            }
-        }
-        return out
-    }
-
     // ── Color palettes ────────────────────────────────────────────────────────
 
     private fun paletteRgb(t: Float, pal: String): Triple<Int, Int, Int> = when (pal) {
@@ -857,9 +694,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
     // supplied -- except slot [1] in 'processed' mode, which is always full.
     private data class ThermalResult(
         val slot1ImageB64:    String,
-        val slot2ImageB64:    String?,
+        val slot2ImageB64:    String,
         val slot3ImageB64:    String,
-        val feedMode:         String,
         val tiffB64:          String,
         val csvContent:       String,
         val maskedCsvContent: String,
@@ -890,8 +726,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         frames: List<ByteArray>,
         crop: CropRoi? = null,
         isolatedBgBlack: Boolean = false,
-        upscale: Boolean = true,
-        feedMode: String = "unprocessed",
     ): ThermalResult {
         val log = mutableListOf<String>()
         log.add("Received ${frames.size} frame(s)")
@@ -907,7 +741,7 @@ class UVCModule(reactContext: ReactApplicationContext) :
         val cols = FRAME_COLS
         val n    = valid.size
 
-        // Temporal averaging
+        // Temporal averaging across the buffered Y16 frames.
         val sumBuf = LongArray(rows * cols)
         for (frame in valid) {
             for (i in 0 until rows * cols) {
@@ -920,8 +754,8 @@ class UVCModule(reactContext: ReactApplicationContext) :
         log.add("Temporal average: $n frame(s)")
 
         // Decode averaged Y16 -> apparent °C, then apply emissivity /
-        // reflected-temp correction so captured artifacts and CSVs reflect
-        // the real surface temperature, not the sensor's black-body reading.
+        // reflected-temp correction. The corrected temperatures feed both
+        // the visual slots and the CSV / TIFF radiometric outputs.
         val eps     = emissivity
         val correct = eps < 0.999f
         val refl4   = if (correct) computeRefl4() else 0f
@@ -935,108 +769,138 @@ class UVCModule(reactContext: ReactApplicationContext) :
         if (inRange < tempFlat.size / 2)
             throw Exception("Frame data does not look like Y16 radiometric. Switch camera to Y16 mode.")
 
-        // 3×3 median filter at native sensor resolution.
-        val filteredNative = FloatArray(rows * cols)
-        val buf            = FloatArray(9)
-        for (r in 0 until rows) {
-            for (c in 0 until cols) {
-                var k = 0
-                for (dr in -1..1) for (dc in -1..1) {
-                    buf[k++] = tempFlat[(r+dr).coerceIn(0, rows-1) * cols + (c+dc).coerceIn(0, cols-1)]
-                }
-                buf.sort()
-                filteredNative[r * cols + c] = buf[4]
-            }
-        }
-        log.add("Median 3×3 filter applied")
-
         // 16-bit TIFF — radiometric raw at NATIVE sensor resolution.
         val tiffBytes = encodeTiff16(rawAvg, cols, rows)
         val tiffB64   = Base64.encodeToString(tiffBytes, Base64.NO_WRAP)
         log.add("TIFF encoded (${tiffBytes.size} bytes, ${rows}×${cols} native)")
 
-        // Optional bilinear upscale of the temperature matrix from native
-        // (120×160) to OUT_ROWS×OUT_COLS (240×320). When upscale is false
-        // every artifact below is encoded at native sensor resolution.
-        val filtered: FloatArray
-        val rowsW: Int
-        val colsW: Int
-        if (upscale) {
-            filtered = upscaleBilinear(filteredNative, rows, cols, OUT_ROWS, OUT_COLS)
-            rowsW = OUT_ROWS
-            colsW = OUT_COLS
-            log.add("Upscaled $rows×$cols → $rowsW×$colsW (bilinear)")
-        } else {
-            filtered = filteredNative
-            rowsW = rows
-            colsW = cols
-            log.add("Native scale retained ($rowsW×$colsW)")
-        }
+        // ── Slot 1 — Raw ────────────────────────────────────────────────
+        // Bilinear upscale of the temperature matrix only — no spatial
+        // filter, no CLAHE, no unsharp. Matches the live preview exactly.
+        val rawUp = upscaleBilinear(tempFlat, rows, cols, OUT_ROWS, OUT_COLS)
+        log.add("Slot 1 (Raw) — upscaled $rows×$cols → $OUT_ROWS×$OUT_COLS")
 
-        // Temperature stats from the working matrix.
+        // Stats reported to JS come from the raw upscaled matrix so the
+        // numbers match what the operator saw on the live feed at capture
+        // time. The processed matrix is for the visual rendering, not the
+        // headline temperature readout.
         var minT = Float.MAX_VALUE; var maxT = -Float.MAX_VALUE; var sumT = 0.0
-        for (v in filtered) { if (v < minT) minT = v; if (v > maxT) maxT = v; sumT += v }
-        val meanT = sumT / filtered.size
-        log.add("Stats: min=%.2f°C max=%.2f°C mean=%.2f°C".format(minT, maxT, meanT))
+        for (v in rawUp) { if (v < minT) minT = v; if (v > maxT) maxT = v; sumT += v }
+        val meanT = sumT / rawUp.size
+        log.add("Stats (from raw): min=%.2f°C max=%.2f°C mean=%.2f°C".format(minT, maxT, meanT))
 
-        // CSV (°C, 2 dp) — full working-resolution matrix.
-        val csvSB = StringBuilder(rowsW * colsW * 8)
-        for (r in 0 until rowsW) {
-            for (c in 0 until colsW) {
+        // Percentile statistics for slot 1's palette mapping.
+        val rawSorted   = rawUp.copyOf().also { it.sort() }
+        val rawP1       = rawSorted[(rawSorted.size * 0.01f).toInt()]
+        val rawP99      = rawSorted[(rawSorted.size * 0.99f).toInt()]
+        val rawRangeP   = (rawP99 - rawP1).takeIf { it > 0f } ?: 1f
+        val rawMin      = rawSorted[0]
+        val rawSpan     = (rawSorted[rawSorted.size - 1] - rawMin).takeIf { it > 0f } ?: 1f
+
+        val slot1ImageB64 = buildProcessedPng(
+            rawUp, OUT_ROWS, OUT_COLS, rawP1, rawRangeP, rawMin, rawSpan, crop = null,
+        )
+        log.add("Slot 1 PNG encoded · raw, full frame (mode=$displayMode palette=$palette)")
+
+        // ── Slot 2 — Post-processed + cropped ───────────────────────────
+        // 3×3 median at native sensor resolution (kills dead pixels before
+        // upscale smears them), then CLAHE at native res (more meaningful
+        // on real sensor values than on the interpolated ones), then
+        // bilinear upscale to 320×240. Crop to ROI if one was drawn;
+        // otherwise the full frame.
+        val medianNative = FloatArray(rows * cols)
+        val medBuf       = FloatArray(9)
+        for (r in 0 until rows) {
+            for (c in 0 until cols) {
+                var k = 0
+                for (dr in -1..1) for (dc in -1..1) {
+                    medBuf[k++] = tempFlat[(r+dr).coerceIn(0, rows-1) * cols + (c+dc).coerceIn(0, cols-1)]
+                }
+                medBuf.sort()
+                medianNative[r * cols + c] = medBuf[4]
+            }
+        }
+        log.add("Slot 2 — 3×3 median applied (native res)")
+
+        val claheNative  = claheNormalise(medianNative, rows, cols)  // returns [0..1] floats
+        log.add("Slot 2 — CLAHE normalised (8×8 grid, clip=2.0)")
+
+        val claheUp = upscaleBilinear(claheNative, rows, cols, OUT_ROWS, OUT_COLS)
+        log.add("Slot 2 — upscaled CLAHE matrix to $OUT_ROWS×$OUT_COLS")
+
+        val slot2ImageB64 = buildClahePng(claheUp, OUT_ROWS, OUT_COLS, crop)
+        log.add("Slot 2 PNG encoded · post-processed" + (if (crop != null) " · cropped to ROI" else " · full frame (no ROI)"))
+
+        // ── Slot 3 — Isolated foot ──────────────────────────────────────
+        // Uses the median-filtered temperatures so the mask is built off the
+        // same cleaner matrix slot 2 was rendered from. Crops to ROI too.
+        val medianUp = upscaleBilinear(medianNative, rows, cols, OUT_ROWS, OUT_COLS)
+        val sortedM  = medianUp.copyOf().also { it.sort() }
+        val mP1      = sortedM[(sortedM.size * 0.01f).toInt()]
+        val mP99     = sortedM[(sortedM.size * 0.99f).toInt()]
+        val mRange   = (mP99 - mP1).takeIf { it > 0f } ?: 1f
+
+        val mask          = isolateFootMask(medianUp, OUT_ROWS, OUT_COLS, crop)
+        val slot3ImageB64 = buildIsolatedPng(medianUp, mask, OUT_ROWS, OUT_COLS, mP1, mRange, crop, isolatedBgBlack)
+        val maskedCsv     = buildMaskedCsv(medianUp, mask, OUT_ROWS, OUT_COLS)
+        log.add("Slot 3 — foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
+            + (if (isolatedBgBlack) " · black bg" else ""))
+
+        // CSV (°C, 2 dp) — full 320×240 matrix, using the raw upscaled
+        // temperatures so the recorded values match the headline stats
+        // and the live preview.
+        val csvSB = StringBuilder(OUT_ROWS * OUT_COLS * 8)
+        for (r in 0 until OUT_ROWS) {
+            for (c in 0 until OUT_COLS) {
                 if (c > 0) csvSB.append(',')
-                csvSB.append("%.2f".format(filtered[r * colsW + c]))
+                csvSB.append("%.2f".format(rawUp[r * OUT_COLS + c]))
             }
             csvSB.append('\n')
         }
 
-        // Percentile statistics for display + unprocessed PNGs.
-        val sorted  = filtered.copyOf().also { it.sort() }
-        val p1      = sorted[(sorted.size * 0.01f).toInt()]
-        val p99     = sorted[(sorted.size * 0.99f).toInt()]
-        val range   = (p99 - p1).takeIf { it > 0f } ?: 1f
-        val minVal  = sorted[0]
-        val rawRange = (sorted[sorted.size - 1] - minVal).takeIf { it > 0f } ?: 1f
-
-        // Foot isolation — always cropped to ROI when supplied. Slot [3].
-        val mask           = isolateFootMask(filtered, rowsW, colsW, crop)
-        val slot3ImageB64  = buildIsolatedPng(filtered, mask, rowsW, colsW, p1, range, crop, isolatedBgBlack)
-        val maskedCsv      = buildMaskedCsv(filtered, mask, rowsW, colsW)
-        log.add("Foot isolation complete" + (if (crop != null) " · cropped to ROI" else "")
-            + (if (isolatedBgBlack) " · black bg" else ""))
-
-        // Slots [1] and [2] are uniform across feedMode — only the underlying
-        // 'filtered' matrix differs (raw 160x120 when feedMode='unprocessed',
-        // enhanced 320x240 when feedMode='processed'). Slot 1 is the full
-        // frame; slot 2 is the same image cropped to the ROI, null if no ROI.
-        val slot1ImageB64 = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop = null)
-        log.add("Slot1 PNG encoded · full frame (feedMode=$feedMode mode=$displayMode palette=$palette)")
-        val slot2ImageB64: String? = if (crop != null) {
-            val s = buildProcessedPng(filtered, rowsW, colsW, p1, range, minVal, rawRange, crop)
-            log.add("Slot2 PNG encoded · cropped to ROI")
-            s
-        } else {
-            log.add("Slot2 skipped (no ROI drawn)")
-            null
-        }
-
-        log.add("Processing complete · feedMode=$feedMode")
+        log.add("Processing complete")
 
         return ThermalResult(
             slot1ImageB64    = slot1ImageB64,
             slot2ImageB64    = slot2ImageB64,
             slot3ImageB64    = slot3ImageB64,
-            feedMode         = feedMode,
             tiffB64          = tiffB64,
             csvContent       = csvSB.toString(),
             maskedCsvContent = maskedCsv,
             frameCount       = n,
-            width            = colsW,
-            height           = rowsW,
+            width            = OUT_COLS,
+            height           = OUT_ROWS,
             minTemp          = minT.toDouble(),
             maxTemp          = maxT.toDouble(),
             meanTemp         = meanT,
             log              = log,
         )
+    }
+
+    // Build a palette-mapped PNG from a CLAHE-normalised [0..1] matrix.
+    // Used exclusively by slot 2 (post-processed). The matrix is already
+    // contrast-stretched so we skip the percentile clip step.
+    private fun buildClahePng(
+        normalised: FloatArray, rows: Int, cols: Int, crop: CropRoi?,
+    ): String {
+        val pixels = IntArray(rows * cols)
+        when (displayMode) {
+            "raw", "agc" -> for (i in 0 until rows * cols) {
+                val v = (normalised[i].coerceIn(0f, 1f) * 255).toInt()
+                pixels[i] = (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+            }
+            else -> for (i in 0 until rows * cols) {
+                val (r, g, b) = paletteRgb(normalised[i].coerceIn(0f, 1f), palette)
+                pixels[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            }
+        }
+        val bmp = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+        bmp.setPixels(pixels, 0, cols, 0, 0, cols, rows)
+        val outBmp = if (crop != null) cropBitmapByRoi(bmp, crop).also { bmp.recycle() } else bmp
+        val out = ByteArrayOutputStream()
+        outBmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+        outBmp.recycle()
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     }
 
     // Build a palette-mapped PNG honouring the current displayMode. Mirrors
@@ -1596,7 +1460,6 @@ class UVCModule(reactContext: ReactApplicationContext) :
         streamPaused   = false
         displayQueue.clear()
         prevFrameForDiff = null
-        prevDisplayFiltered = null
         frameIndex = 0
         if (connected || usbConnection != null) {
             try { nativeClose() } catch (_: Exception) {}

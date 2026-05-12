@@ -153,14 +153,6 @@ export async function setPalette(palette: PaletteType): Promise<void> {
   try { await UVCCamera.setPalette(palette) } catch {}
 }
 
-// Toggle the live preview between Raw and Enhanced regimes. Safe to call
-// mid-stream. true = full pipeline (median + EMA + CLAHE + 320x240 upscale +
-// unsharp). false = Y16 -> palette -> JPEG at native 160x120, no filtering.
-export async function setLiveProcessing(enhanced: boolean): Promise<void> {
-  if (!UVCCamera) return
-  try { await UVCCamera.setLiveProcessing(enhanced) } catch {}
-}
-
 // Apply emissivity / reflected-temperature correction to every decoded
 // frame (live preview AND capture artifacts). emissivity is clamped to
 // [0.10, 1.00]; reflectedTempC to [-50, 150] °C. Default values 0.98 / 22°C
@@ -195,22 +187,28 @@ export async function resumeCamera(): Promise<void> {
   try { await UVCCamera.resumeCamera() } catch {}
 }
 
-// processCapture — temporal average + median filter + foot isolation + TIFF/CSV encode on a Kotlin thread.
-// Does NOT auto-save to device; call savePngToDevice / saveCsvToDevice with the final bundle filename.
-// Bundle artifacts are 3 slots, symmetric across feedMode:
-//   [1] palette full frame, [2] palette cropped (null when no ROI), [3] isolated.
+// processCapture — temporal average + foot isolation + TIFF/CSV encode on a
+// Kotlin thread. Does NOT auto-save to device; call savePngToDevice /
+// saveCsvToDevice with the final bundle filename.
+//
+// The bundle is always three slots, all at 320×240:
+//   [1] raw          — bilinear-upscaled palette frame, no enhancement.
+//                      Matches what the live feed shows on screen.
+//   [2] post-processed + cropped — 3×3 median + CLAHE + upscale + palette,
+//                                   cropped to the ROI when one is drawn
+//                                   (falls back to the full frame otherwise).
+//   [3] isolated     — foot mask applied to slot 2, cropped to the same ROI.
 
 export interface NativeProcessResult {
-  slot1ImageB64:    string         // PNG, full frame, always present
-  slot2ImageB64:    string | null  // PNG, cropped to ROI; null when no ROI was drawn
-  slot3ImageB64:    string         // PNG (isolated), always present
-  feedMode:         'unprocessed' | 'processed'  // mirrors the Raw/Enhanced toggle
+  slot1ImageB64:    string         // PNG, raw full frame, always present
+  slot2ImageB64:    string         // PNG, post-processed (+ cropped to ROI), always present
+  slot3ImageB64:    string         // PNG, isolated foot, always present
   tiffB64:          string         // 16-bit TIFF (radiometric, Kelvin×100, native sensor res)
-  csvContent:       string         // full-frame CSV (°C, 2 dp) at the working resolution
+  csvContent:       string         // full-frame CSV (°C, 2 dp) at 320×240
   maskedCsvContent: string         // foot-only CSV — background cells = "0.00"
   frameCount:       number
-  width:            number         // working width (320 when enhanced, 160 raw)
-  height:           number         // working height (240 when enhanced, 120 raw)
+  width:            number         // 320
+  height:           number         // 240
   minTemp:          number
   maxTemp:          number
   meanTemp:         number
@@ -218,8 +216,9 @@ export interface NativeProcessResult {
 }
 
 /** Optional foot-frame ROI passed to the native processor. Coordinates are
- *  normalized [0..1] over the sensor matrix. When provided, slot [2] (in
- *  unprocessed mode also slot [1]) and slot [3] are cropped to this rect. */
+ *  normalized [0..1] over the sensor matrix. When provided, slot [2] and
+ *  slot [3] are cropped to this rect; when omitted, both fall back to the
+ *  full 320×240 frame. */
 export interface NativeCropRoi { x: number; y: number; w: number; h: number }
 
 /** Optional capture-time options forwarded to the native processor. */
@@ -227,9 +226,6 @@ export interface NativeCaptureOptions {
   crop?: NativeCropRoi | null
   /** Background fill for the isolated PNG. Default 'transparent'. */
   isolatedBg?: 'transparent' | 'black'
-  /** Capture regime. false (default) = native 160x120 raw artifacts;
-   *  true = bilinear upscale to 320x240 + full processing pipeline. */
-  enhanced?: boolean
 }
 
 export async function processCapture(opts?: NativeCaptureOptions | null): Promise<NativeProcessResult> {
@@ -237,7 +233,6 @@ export async function processCapture(opts?: NativeCaptureOptions | null): Promis
   const params = {
     crop: opts?.crop ?? null,
     isolatedBg: opts?.isolatedBg ?? 'transparent',
-    enhanced: opts?.enhanced ?? false,
   }
   return UVCCamera.processCapture(params) as Promise<NativeProcessResult>
 }

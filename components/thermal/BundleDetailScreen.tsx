@@ -103,12 +103,12 @@ export default function BundleDetailScreen({ bundleCode, onViewCsv }: Props) {
         {/* Thermal images */}
         <Section title="Thermal Images" colors={colors}>
           <FootImageCard
-            label="Left Foot"  foot={bundle.left}  feedMode={bundle.feed_mode ?? "unprocessed"}
+            label="Left Foot"  foot={bundle.left}
             onViewCsv={onViewCsv ? () => onViewCsv("left")  : undefined}
             colors={colors}
           />
           <FootImageCard
-            label="Right Foot" foot={bundle.right} feedMode={bundle.feed_mode ?? "unprocessed"}
+            label="Right Foot" foot={bundle.right}
             onViewCsv={onViewCsv ? () => onViewCsv("right") : undefined}
             colors={colors}
           />
@@ -161,11 +161,10 @@ function InfoCell({ label, value, colors }: { label: string; value: string; colo
 }
 
 function FootImageCard({
-  label, foot, feedMode, onViewCsv, colors,
+  label, foot, onViewCsv, colors,
 }: {
   label: string
   foot: ThermalBundle["left"]
-  feedMode: "unprocessed" | "processed"
   onViewCsv?: () => void
   colors: ThemeColors
 }) {
@@ -173,11 +172,11 @@ function FootImageCard({
   const hasIsolated = !!foot.isolated_image_b64
   const hasCropped  = !!foot.processed_image_b64
 
-  // Slot 1 / 2 labels mirror the Raw / Enhanced toggle the operator used.
-  // 'unprocessed' = Raw, 'processed' = Enhanced. Slot 2 hides when the
-  // operator captured without drawing a framing rectangle.
-  const slot1Label = feedMode === "processed" ? "ENHANCED" : "RAW"
-  const slot2Label = feedMode === "processed" ? "ENHANCED · CROPPED" : "RAW · CROPPED"
+  // Fixed slot labels — every bundle ships three slots in this order:
+  // raw 320×240 (matches the live preview), post-processed (median +
+  // CLAHE) cropped to the ROI, and the isolated foot cropped to the ROI.
+  const slot1Label = "RAW"
+  const slot2Label = "POST-PROCESSED · CROPPED"
 
   return (
     <View style={[styles.footCard, { borderColor: colors.border }]}>
