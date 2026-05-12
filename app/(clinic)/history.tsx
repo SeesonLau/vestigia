@@ -18,10 +18,10 @@ import { SessionCard } from "../../components/session/index";
 import InitialsAvatar, { personInitials } from "../../components/ui/InitialsAvatar";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
-import { getAllCaptures } from "../../lib/db/offlineCaptures";
+import { getAllBundles, type ThermalBundle } from "../../lib/thermal/bundleStorage";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
-import { LocalCapture, ScreeningSession } from "../../types";
+import { ScreeningSession } from "../../types";
 
 type Filter = "all" | "analyzed" | "pending" | "discarded";
 type SortOrder = "newest" | "oldest";
@@ -44,7 +44,7 @@ export default function HistoryScreen() {
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [search, setSearch] = useState("");
   const [groupByPatient, setGroupByPatient] = useState(false);
-  const [localCaptures, setLocalCaptures] = useState<LocalCapture[]>([]);
+  const [localBundles, setLocalBundles] = useState<ThermalBundle[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
   //Patient label for the header subtitle when drilled in
   const [drillLabel, setDrillLabel] = useState<string | null>(null);
@@ -86,10 +86,13 @@ export default function HistoryScreen() {
       });
   }, [patient_id]);
 
+  // Refetch local bundles every time the Local tab is opened so the
+  // list stays in sync with anything saved from the offline guest flow
+  // since we last looked.
   useEffect(() => {
     if ((activeView as string) !== "local") return;
     setLocalLoading(true);
-    getAllCaptures().then(setLocalCaptures).finally(() => setLocalLoading(false));
+    getAllBundles().then(setLocalBundles).finally(() => setLocalLoading(false));
   }, [activeView]);
 
   const sessionPatientName = useCallback((s: ScreeningSession): string => {
@@ -157,48 +160,48 @@ export default function HistoryScreen() {
     />
   ), [router]);
 
-  const renderLocalCapture = useCallback(({ item }: { item: LocalCapture }) => (
-    <View style={[styles.localCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.localCardHeader}>
-        <Text style={[styles.localPatient, { color: colors.text }]}>{item.patient_label}</Text>
-        {!item.synced && (
-          <View style={[styles.unsyncedBadge, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}4D` }]}>
-            <Text style={[styles.unsyncedText, { color: colors.warning }]}>Unsynced</Text>
-          </View>
-        )}
-        {item.synced && (
-          <View style={styles.syncedBadge}>
-            <Ionicons name="checkmark-circle-outline" size={12} color={colors.success} />
-            <Text style={[styles.syncedText, { color: colors.success }]}>Synced</Text>
-          </View>
-        )}
-      </View>
-      <View style={styles.localCardRow}>
-        <Ionicons name="footsteps-outline" size={13} color={colors.textSec} />
-        <Text style={[styles.localMeta, { color: colors.textSec }]}>
-          {item.foot_side.charAt(0).toUpperCase() + item.foot_side.slice(1)} foot
-        </Text>
-        <Text style={[styles.localMetaDivider, { color: colors.textSec }]}>·</Text>
-        <Ionicons name="thermometer-outline" size={13} color={colors.textSec} />
-        <Text style={[styles.localMeta, { color: colors.textSec }]}>
-          {item.min_temp.toFixed(1)}–{item.max_temp.toFixed(1)}°C
-        </Text>
-      </View>
-      <Text style={[styles.localDate, { color: colors.textSec }]}>
-        {new Date(item.captured_at).toLocaleString()}
-      </Text>
-      {!item.synced && (
-        <TouchableOpacity
-          style={[styles.syncBtn, { borderColor: colors.border, backgroundColor: `${colors.accent}14` }]}
-          activeOpacity={0.8}
-          onPress={() => router.push({ pathname: "/(clinic)/sync", params: { id: item.id } } as any)}
-        >
-          <Ionicons name="cloud-upload-outline" size={14} color={colors.accent} />
-          <Text style={[styles.syncBtnText, { color: colors.accent }]}>Sync to Account</Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  ), [router, colors]);
+  // Local bundles persist via lib/thermal/bundleStorage (AsyncStorage),
+  // not the SQLite local_captures path. Tapping a card routes into the
+  // shared offline bundle-detail viewer which reads the same store.
+  const renderLocalBundle = useCallback(({ item }: { item: ThermalBundle }) => {
+    const p = item.patient;
+    const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ").trim() || "Local capture";
+    const captured = new Date(item.captured_at);
+    return (
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: "/(offline)/bundle-detail" as any, params: { code: item.bundle_code } })}
+        activeOpacity={0.75}
+        style={[styles.localCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={styles.localCardHeader}>
+          <Text style={[styles.localPatient, { color: colors.text }]} numberOfLines={1}>{name}</Text>
+          {item.synced ? (
+            <View style={styles.syncedBadge}>
+              <Ionicons name="checkmark-circle-outline" size={12} color={colors.success} />
+              <Text style={[styles.syncedText, { color: colors.success }]}>Synced</Text>
+            </View>
+          ) : (
+            <View style={[styles.unsyncedBadge, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}4D` }]}>
+              <Text style={[styles.unsyncedText, { color: colors.warning }]}>Unsynced</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.localCode, { color: colors.accent }]} numberOfLines={1}>{item.bundle_code}</Text>
+        <View style={styles.localCardRow}>
+          <Ionicons name="thermometer-outline" size={12} color={colors.textSec} />
+          <Text style={[styles.localMeta, { color: colors.textSec }]}>
+            L {item.left.stats.min.toFixed(1)}–{item.left.stats.max.toFixed(1)}°C
+          </Text>
+          <Text style={[styles.localMetaDivider, { color: colors.textSec }]}>·</Text>
+          <Ionicons name="thermometer-outline" size={12} color={colors.textSec} />
+          <Text style={[styles.localMeta, { color: colors.textSec }]}>
+            R {item.right.stats.min.toFixed(1)}–{item.right.stats.max.toFixed(1)}°C
+          </Text>
+        </View>
+        <Text style={[styles.localDate, { color: colors.textSec }]}>{captured.toLocaleString()}</Text>
+      </TouchableOpacity>
+    );
+  }, [router, colors]);
 
   // Stats are computed over the active (non-discarded) set so the totals
   // reflect what the clinic chooses to keep.
@@ -206,7 +209,7 @@ export default function HistoryScreen() {
   const positiveCount = activeSessions.filter((s) => getClassification(s) === "POSITIVE").length;
   const negativeCount = activeSessions.filter((s) => getClassification(s) === "NEGATIVE").length;
   const discardedCount = sessions.length - activeSessions.length;
-  const unsyncedCount = localCaptures.filter((c) => !c.synced).length;
+  const unsyncedCount = localBundles.filter((b) => !b.synced).length;
 
   return (
     <ScreenWrapper>
@@ -436,19 +439,19 @@ export default function HistoryScreen() {
             <View style={styles.emptyState}>
               <ActivityIndicator color={colors.accent} />
             </View>
-          ) : localCaptures.length === 0 ? (
+          ) : localBundles.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="phone-portrait-outline" size={48} color={colors.textSec} style={styles.emptyIcon} />
-              <Text style={[styles.emptyText, { color: colors.textSec }]}>No local captures</Text>
+              <Text style={[styles.emptyText, { color: colors.textSec }]}>No local bundles</Text>
               <Text style={[styles.emptyHint, { color: colors.textSec }]}>
                 Use Work Offline from the home screen to capture without an account.
               </Text>
             </View>
           ) : (
             <FlatList
-              data={localCaptures}
-              keyExtractor={(c) => c.id}
-              renderItem={renderLocalCapture}
+              data={localBundles}
+              keyExtractor={(b) => b.bundle_code}
+              renderItem={renderLocalBundle}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.list}
             />
@@ -551,6 +554,7 @@ const styles = StyleSheet.create({
   unsyncedText: { fontSize: 10, fontFamily: Typography.fonts.label },
   syncedBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
   syncedText: { fontSize: 10, fontFamily: Typography.fonts.label },
+  localCode: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono, letterSpacing: 0.4 },
   localCardRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   localMeta: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.body },
   localMetaDivider: { marginHorizontal: 2 },

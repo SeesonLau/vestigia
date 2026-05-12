@@ -8,9 +8,9 @@ export const S = {
   app: {
     name: "LumenAI",
     tagline: "DPN Thermal Screening",
-    version: "v1.2.0",
-    build: "1200",
-    versionFooter: "LumenAI · v1.2.0 · Build 1200",
+    version: "v1.3.0",
+    build: "1300",
+    versionFooter: "LumenAI · v1.3.0 · Build 1300",
   },
 
   // ── Auth ─────────────────────────────────────────────────────

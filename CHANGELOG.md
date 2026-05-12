@@ -3,6 +3,23 @@
 All notable changes to this project will be documented here.
 Format: `Major.Minor.Patch`
 
+## [1.3.0] — 2026-05-12
+
+Local-bundle visibility fix.
+
+### Fixed
+- Clinic and patient History "Local" tabs were querying an unused
+  expo-sqlite table (`local_captures` via `lib/db/offlineCaptures`)
+  while the real offline guest flow saved bilateral bundles to
+  AsyncStorage via `lib/thermal/bundleStorage`. The two stores never
+  intersected, so the Local tab was effectively dead. Both tabs now
+  read from `getAllBundles()` and render a bundle card (bundle code,
+  patient name, bilateral temperature range, sync badge) that taps
+  into the shared `(offline)/bundle-detail` viewer.
+
+### Other
+- Version bumped to v1.3.0 / build 1300 (Android versionCode 4).
+
 ## [1.2.0] — 2026-05-12
 
 Customer Support reflow + dashboard graphs.

@@ -15,11 +15,11 @@ import ScreenWrapper from "../../components/layout/ScreenWrapper";
 import { SessionCard } from "../../components/session/index";
 import { useTheme } from "../../constants/ThemeContext";
 import { Radius, Spacing, Typography } from "../../constants/theme";
-import { getAllCaptures } from "../../lib/db/offlineCaptures";
+import { getAllBundles, type ThermalBundle } from "../../lib/thermal/bundleStorage";
 import { dbg } from "../../lib/debug";
 import { supabase } from "../../lib/supabase";
 import { useAuthStore } from "../../store/authStore";
-import { LocalCapture, ScreeningSession } from "../../types";
+import { ScreeningSession } from "../../types";
 
 type DataView = "cloud" | "local";
 type Filter = "all" | "analyzed" | "pending" | "discarded";
@@ -37,8 +37,8 @@ export default function PatientHistoryScreen() {
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
 
-  //Local state
-  const [localCaptures, setLocalCaptures] = useState<LocalCapture[]>([]);
+  //Local state — bundles persisted by lib/thermal/bundleStorage (AsyncStorage).
+  const [localBundles, setLocalBundles] = useState<ThermalBundle[]>([]);
   const [localLoading, setLocalLoading] = useState(false);
 
   //Refetch on focus so the Analyzed pill updates after running an assessment.
@@ -72,11 +72,11 @@ export default function PatientHistoryScreen() {
 
   useFocusEffect(useCallback(() => { fetchSessions(); }, [fetchSessions]));
 
-  //Fetch local captures when local tab is opened
+  //Fetch local bundles when local tab is opened
   useEffect(() => {
     if (activeView !== "local") return;
     setLocalLoading(true);
-    getAllCaptures().then(setLocalCaptures).finally(() => setLocalLoading(false));
+    getAllBundles().then(setLocalBundles).finally(() => setLocalLoading(false));
   }, [activeView]);
 
   const getClassification = (s: ScreeningSession) => {
@@ -106,39 +106,45 @@ export default function PatientHistoryScreen() {
     />
   ), [router]);
 
-  const renderLocalCapture = useCallback(({ item }: { item: LocalCapture }) => (
-    <View style={[styles.localCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.localCardHeader}>
-        <Text style={[styles.localPatient, { color: colors.text }]}>{item.patient_label}</Text>
-        {item.synced ? (
-          <View style={styles.syncedRow}>
-            <Ionicons name="checkmark-circle-outline" size={12} color={colors.success} />
-            <Text style={[styles.syncedText, { color: colors.success }]}>Synced</Text>
-          </View>
-        ) : (
-          <View style={[styles.unsyncedBadge, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}4D` }]}>
-            <Text style={[styles.unsyncedText, { color: colors.warning }]}>Local only</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.metaRow}>
-        <Ionicons name="footsteps-outline" size={13} color={colors.textSec} />
-        <Text style={[styles.metaText, { color: colors.textSec }]}>
-          {item.foot_side.charAt(0).toUpperCase() + item.foot_side.slice(1)} foot
-        </Text>
-        <Text style={[styles.metaDivider, { color: colors.textSec }]}>·</Text>
-        <Ionicons name="thermometer-outline" size={13} color={colors.textSec} />
-        <Text style={[styles.metaText, { color: colors.textSec }]}>
-          {item.min_temp.toFixed(1)}–{item.max_temp.toFixed(1)}°C
-        </Text>
-      </View>
-
-      <Text style={[styles.dateText, { color: colors.textSec }]}>
-        {new Date(item.captured_at).toLocaleString()}
-      </Text>
-    </View>
-  ), [colors]);
+  const renderLocalBundle = useCallback(({ item }: { item: ThermalBundle }) => {
+    const p = item.patient;
+    const name = [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(" ").trim() || "Local capture";
+    const captured = new Date(item.captured_at);
+    return (
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: "/(offline)/bundle-detail" as any, params: { code: item.bundle_code } })}
+        activeOpacity={0.75}
+        style={[styles.localCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={styles.localCardHeader}>
+          <Text style={[styles.localPatient, { color: colors.text }]} numberOfLines={1}>{name}</Text>
+          {item.synced ? (
+            <View style={styles.syncedRow}>
+              <Ionicons name="checkmark-circle-outline" size={12} color={colors.success} />
+              <Text style={[styles.syncedText, { color: colors.success }]}>Synced</Text>
+            </View>
+          ) : (
+            <View style={[styles.unsyncedBadge, { backgroundColor: `${colors.warning}26`, borderColor: `${colors.warning}4D` }]}>
+              <Text style={[styles.unsyncedText, { color: colors.warning }]}>Local only</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.localCode, { color: colors.accent }]} numberOfLines={1}>{item.bundle_code}</Text>
+        <View style={styles.metaRow}>
+          <Ionicons name="thermometer-outline" size={12} color={colors.textSec} />
+          <Text style={[styles.metaText, { color: colors.textSec }]}>
+            L {item.left.stats.min.toFixed(1)}–{item.left.stats.max.toFixed(1)}°C
+          </Text>
+          <Text style={[styles.metaDivider, { color: colors.textSec }]}>·</Text>
+          <Ionicons name="thermometer-outline" size={12} color={colors.textSec} />
+          <Text style={[styles.metaText, { color: colors.textSec }]}>
+            R {item.right.stats.min.toFixed(1)}–{item.right.stats.max.toFixed(1)}°C
+          </Text>
+        </View>
+        <Text style={[styles.dateText, { color: colors.textSec }]}>{captured.toLocaleString()}</Text>
+      </TouchableOpacity>
+    );
+  }, [router, colors]);
 
   return (
     <ScreenWrapper>
@@ -260,19 +266,19 @@ export default function PatientHistoryScreen() {
             <View style={styles.centered}>
               <ActivityIndicator color={colors.accent} />
             </View>
-          ) : localCaptures.length === 0 ? (
+          ) : localBundles.length === 0 ? (
             <View style={styles.centered}>
               <Ionicons name="phone-portrait-outline" size={48} color={colors.textSec} style={{ marginBottom: Spacing.md }} />
-              <Text style={[styles.emptyText, { color: colors.textSec }]}>No local captures</Text>
+              <Text style={[styles.emptyText, { color: colors.textSec }]}>No local bundles</Text>
               <Text style={[styles.emptyHint, { color: colors.textSec }]}>
                 Captures you take from the Live Feed tab will appear here.
               </Text>
             </View>
           ) : (
             <FlatList
-              data={localCaptures}
-              keyExtractor={(c) => c.id}
-              renderItem={renderLocalCapture}
+              data={localBundles}
+              keyExtractor={(b) => b.bundle_code}
+              renderItem={renderLocalBundle}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.list}
             />
@@ -334,6 +340,7 @@ const styles = StyleSheet.create({
   },
   localCardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   localPatient: { fontSize: Typography.sizes.base, fontFamily: Typography.fonts.heading, flex: 1 },
+  localCode: { fontSize: Typography.sizes.xs, fontFamily: Typography.fonts.mono, letterSpacing: 0.4 },
   syncedRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   syncedText: { fontSize: 10, fontFamily: Typography.fonts.label },
   unsyncedBadge: { borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1 },
